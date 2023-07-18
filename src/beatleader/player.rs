@@ -1,8 +1,9 @@
+use reqwest::Method;
 use serde::Deserialize;
 
 use crate::beatleader;
-use crate::beatleader::Client;
-use crate::beatleader::error::BlError::JsonDecodeError;
+use crate::beatleader::error::BlError::{JsonDecodeError, RequestError};
+use crate::beatleader::{Client, QueryParam, SortOrder};
 
 pub struct PlayerRequest<'a> {
     client: &'a Client,
@@ -13,16 +14,103 @@ impl<'a> PlayerRequest<'a> {
         Self { client }
     }
 
-    pub async fn get_by_id(&self, id: PlayerId) -> beatleader::Result<Player> {
+    pub async fn get_by_id(&self, id: &PlayerId) -> beatleader::Result<Player> {
         match self
             .client
-            .send_get_request(&(format!("/player/{}", id)))
+            .get(&(format!("/player/{}", id)))
             .await?
             .json::<Player>()
             .await
         {
             Ok(player) => Ok(player),
             Err(_err) => Err(JsonDecodeError),
+        }
+    }
+
+    pub async fn get_scores(
+        &self,
+        id: &PlayerId,
+        params: &[PlayerScoreParam],
+    ) -> beatleader::Result<PlayerScores> {
+        let request = self
+            .client
+            .request_builder(
+                Method::GET,
+                format!("/player/{}/scores", id),
+                self.client.timeout,
+            )
+            .query(
+                &(params
+                    .iter()
+                    .map(|param| param.as_query_param())
+                    .collect::<Vec<(String, String)>>()),
+            )
+            .build();
+
+        if let Err(err) = request {
+            return Err(RequestError(err));
+        }
+
+        match self
+            .client
+            .send_request(request.unwrap())
+            .await?
+            .json::<PlayerScores>()
+            .await
+        {
+            Ok(player_scores) => Ok(player_scores),
+            Err(_err) => Err(JsonDecodeError),
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub enum PlayerScoreSort {
+    Date,
+    Pp,
+    Acc,
+    Stars,
+    Rank,
+    Pauses,
+    MaxStreak,
+    ReplaysWatched,
+    Mistakes,
+}
+
+#[allow(dead_code)]
+pub enum PlayerScoreParam {
+    Page(u32),
+    Sort(PlayerScoreSort),
+    Order(SortOrder),
+    Count(u32),
+}
+
+impl QueryParam for PlayerScoreParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            PlayerScoreParam::Page(page) => ("page".to_owned(), page.to_string()),
+            PlayerScoreParam::Sort(field) => (
+                "sortBy".to_owned(),
+                match field {
+                    PlayerScoreSort::Date => "date".to_owned(),
+                    PlayerScoreSort::Pp => "pp".to_owned(),
+                    PlayerScoreSort::Acc => "acc".to_owned(),
+                    PlayerScoreSort::Stars => "stars".to_owned(),
+                    PlayerScoreSort::Rank => "rank".to_owned(),
+                    PlayerScoreSort::Pauses => "pauses".to_owned(),
+                    PlayerScoreSort::MaxStreak => "maxStreak".to_owned(),
+                    PlayerScoreSort::ReplaysWatched => "replaysWatched".to_owned(),
+                    PlayerScoreSort::Mistakes => "mistakes".to_owned(),
+                },
+            ),
+            PlayerScoreParam::Order(order) => (
+                "order".to_owned(),
+                match order {
+                    SortOrder::Ascending => "asc".to_owned(),
+                    SortOrder::Descending => "desc".to_owned(),
+                },
+            ),
+            PlayerScoreParam::Count(count) => ("count".to_owned(), count.to_string()),
         }
     }
 }
@@ -36,8 +124,8 @@ pub struct Player {
     pub name: String,
     pub avatar: String,
     pub country: String,
-    pub rank: i32,
-    pub country_rank: i32,
+    pub rank: u32,
+    pub country_rank: u32,
     pub pp: f64,
     pub acc_pp: f64,
     pub tech_pp: f64,
@@ -51,20 +139,20 @@ pub struct Player {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerScoreStats {
-    pub a_plays: i32,
-    pub s_plays: i32,
-    pub sp_plays: i32,
-    pub ss_plays: i32,
-    pub ssp_plays: i32,
+    pub a_plays: u32,
+    pub s_plays: u32,
+    pub sp_plays: u32,
+    pub ss_plays: u32,
+    pub ssp_plays: u32,
     pub average_accuracy: f64,
     pub average_ranked_accuracy: f64,
     pub average_unranked_accuracy: f64,
-    pub last_ranked_score_time: i32,
-    pub last_unranked_score_time: i32,
-    pub last_score_time: i32,
-    pub max_streak: i32,
-    pub ranked_max_streak: i32,
-    pub unranked_max_streak: i32,
+    pub last_ranked_score_time: u32,
+    pub last_unranked_score_time: u32,
+    pub last_score_time: u32,
+    pub max_streak: u32,
+    pub ranked_max_streak: u32,
+    pub unranked_max_streak: u32,
     pub median_accuracy: f64,
     pub median_ranked_accuracy: f64,
     pub top_accuracy: f64,
@@ -77,11 +165,70 @@ pub struct PlayerScoreStats {
     #[serde(rename = "topPassPP")]
     pub top_pass_pp: f64,
     pub top_pp: f64,
-    pub total_play_count: i32,
-    pub ranked_play_count: i32,
-    pub unranked_play_count: i32,
+    pub total_play_count: u32,
+    pub ranked_play_count: u32,
+    pub unranked_play_count: u32,
     #[serde(rename = "anonimusReplayWatched")]
-    pub anonymous_replay_watched: i32,
-    pub authorized_replay_watched: i32,
-    pub watched_replays: i32,
+    pub anonymous_replay_watched: u32,
+    pub authorized_replay_watched: u32,
+    pub watched_replays: u32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaData {
+    pub items_per_page: u32,
+    pub page: u32,
+    pub total: u32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerScore {
+    pub id: u32,
+    pub accuracy: f64,
+    pub pp: f64,
+    pub weight: f64,
+    pub leaderboard: Leaderboard,
+    pub modifiers: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Leaderboard {
+    pub id: String,
+    pub song: Song,
+    pub difficulty: Difficulty,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Song {
+    pub id: String,
+    pub hash: String,
+    pub name: String,
+    pub sub_name: String,
+    pub mapper: String,
+    pub author: String,
+    pub duration: u32,
+    pub bpm: u32,
+    pub cover_image: String,
+    pub full_cover_image: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Difficulty {
+    pub id: u32,
+    pub value: u32,
+    pub difficulty_name: String,
+    pub mode: u32,
+    pub mode_name: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerScores {
+    pub data: Vec<PlayerScore>,
+    pub metadata: MetaData,
 }

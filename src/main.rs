@@ -1,6 +1,9 @@
 use env_logger::Env;
 use log::info;
-use crate::beatleader::{Client, Result};
+
+use crate::beatleader::{
+    player::PlayerScoreParam, player::PlayerScoreSort, Client, Result, SortOrder,
+};
 
 mod beatleader;
 
@@ -13,9 +16,22 @@ async fn main() -> Result<()> {
     let player_id = "76561198035381239".to_string();
     let client = Client::default();
 
-    let player = client.player().get_by_id(player_id).await?;
-
+    let player = client.player().get_by_id(&player_id).await?;
     println!("Player: {:#?}", player);
+
+    let player_scores = client
+        .player()
+        .get_scores(
+            &player_id,
+            &[
+                PlayerScoreParam::Page(1),
+                PlayerScoreParam::Count(3),
+                PlayerScoreParam::Sort(PlayerScoreSort::Date),
+                PlayerScoreParam::Order(SortOrder::Descending),
+            ],
+        )
+        .await?;
+    println!("Scores: {:#?}", player_scores.data);
 
     info!("Shutting down...");
 

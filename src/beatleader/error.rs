@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum BlError {
-    NetworkError,
+    RequestError(reqwest::Error),
+    NetworkError(reqwest::Error),
     NotFound,
     ClientError,
     ServerError,

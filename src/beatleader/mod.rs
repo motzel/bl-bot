@@ -1,11 +1,12 @@
 use log::{debug, error, info};
-use reqwest::{Client as HttpClient, Response};
+use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
+use std::time::Duration;
 
 use player::PlayerRequest;
 
 use crate::beatleader::error::BlError;
 use crate::beatleader::error::BlError::{
-    ClientError, NetworkError, NotFound, ServerError, UnknownError,
+    ClientError, NetworkError, NotFound, RequestError, ServerError, UnknownError,
 };
 
 pub mod error;
@@ -15,38 +16,69 @@ pub type Result<T> = std::result::Result<T, BlError>;
 
 const DEFAULT_API_URL: &str = "https://api.beatleader.xyz";
 
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
 pub struct Client {
     base_url: String,
     http_client: HttpClient,
+    timeout: u64,
 }
 
 impl Client {
-    pub fn new(base_url: String) -> Self {
-        info!("Initialize client with URL {}", base_url);
+    pub fn new(base_url: String, timeout: u64) -> Self {
+        info!(
+            "Initialize client with URL {} and timeout {}s. Identify myself as {}",
+            base_url, timeout, APP_USER_AGENT
+        );
 
         Self {
             base_url,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .https_only(true)
+                .gzip(true)
+                .brotli(true)
+                .user_agent(APP_USER_AGENT)
+                .build()
+                .unwrap(),
+            timeout,
         }
     }
 
-    pub async fn send_get_request(&self, url: &str) -> Result<Response> {
-        debug!("Sending request to {}", url);
+    pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<Response> {
+        let request = self
+            .request_builder(Method::GET, endpoint, self.timeout)
+            .build();
 
-        let response = self
-            .http_client
-            .get(self.base_url.to_owned() + url)
-            .send()
-            .await;
+        if let Err(err) = request {
+            return Err(RequestError(err));
+        }
+
+        self.send_request(request.unwrap()).await
+    }
+
+    pub async fn send_request(&self, request: Request) -> Result<Response> {
+        let base = Url::parse(self.base_url.as_str()).unwrap();
+        debug!(
+            "Sending request to {}",
+            base.make_relative(request.url()).unwrap()
+        );
+
+        let response = self.http_client.execute(request).await;
 
         match response {
             Err(err) => {
                 error!("Response error: {:#?}", err);
 
-                Err(NetworkError)
-            },
+                Err(NetworkError(err))
+            }
             Ok(response) => {
-                debug!("Response status: {}", response.status().as_u16());
+                let base = Url::parse(self.base_url.as_str()).unwrap();
+
+                debug!(
+                    "Endpoint {} responded with status: {}",
+                    base.make_relative(response.url()).unwrap(),
+                    response.status().as_u16()
+                );
 
                 match response.status().as_u16() {
                     200..=299 => Ok(response),
@@ -55,17 +87,49 @@ impl Client {
                     500..=599 => Err(ServerError),
                     _ => Err(UnknownError),
                 }
-            },
+            }
         }
     }
 
     pub fn player(&self) -> PlayerRequest {
         PlayerRequest::new(self)
     }
+
+    pub(crate) fn request_builder<U: IntoUrl>(
+        &self,
+        method: Method,
+        endpoint: U,
+        timeout: u64,
+    ) -> RequestBuilder {
+        let full_url = self.base_url.to_owned() + endpoint.as_str();
+
+        self.http_client
+            .request(method, full_url)
+            .timeout(Duration::from_secs(timeout))
+    }
 }
 
 impl Default for Client {
     fn default() -> Self {
-        Self::new(DEFAULT_API_URL.to_string())
+        Self::new(DEFAULT_API_URL.to_string(), 30)
     }
+}
+
+#[allow(dead_code)]
+pub enum SortOrder {
+    Ascending,
+    Descending,
+}
+
+impl ToString for SortOrder {
+    fn to_string(&self) -> String {
+        match self {
+            SortOrder::Ascending => "asc".to_owned(),
+            SortOrder::Descending => "desc".to_owned(),
+        }
+    }
+}
+
+pub trait QueryParam {
+    fn as_query_param(&self) -> (String, String);
 }
