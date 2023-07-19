@@ -1,18 +1,21 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use log::{debug, error, info};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
 use std::time::Duration;
 
 use player::PlayerRequest;
 
-use crate::beatleader::error::BlError;
-use crate::beatleader::error::BlError::{
-    ClientError, NetworkError, NotFound, RequestError, ServerError, UnknownError,
+use crate::beatleader::error::Error;
+use crate::beatleader::error::Error::{
+    Client as ClientError, Network, NotFound, Request as RequestError, Server, Unknown,
 };
 
 pub mod error;
 pub mod player;
 
-pub type Result<T> = std::result::Result<T, BlError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 const DEFAULT_API_URL: &str = "https://api.beatleader.xyz";
 
@@ -69,7 +72,7 @@ impl Client {
             Err(err) => {
                 error!("Response error: {:#?}", err);
 
-                Err(NetworkError(err))
+                Err(Network(err))
             }
             Ok(response) => {
                 let base = Url::parse(self.base_url.as_str()).unwrap();
@@ -84,8 +87,8 @@ impl Client {
                     200..=299 => Ok(response),
                     404 => Err(NotFound),
                     400..=499 => Err(ClientError),
-                    500..=599 => Err(ServerError),
-                    _ => Err(UnknownError),
+                    500..=599 => Err(Server),
+                    _ => Err(Unknown),
                 }
             }
         }

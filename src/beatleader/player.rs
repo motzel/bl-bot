@@ -2,7 +2,7 @@ use reqwest::Method;
 use serde::Deserialize;
 
 use crate::beatleader;
-use crate::beatleader::error::BlError::{JsonDecodeError, RequestError};
+use crate::beatleader::error::Error::{JsonDecode, Request};
 use crate::beatleader::{Client, QueryParam, SortOrder};
 
 pub struct PlayerRequest<'a> {
@@ -23,7 +23,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player) => Ok(player),
-            Err(_err) => Err(JsonDecodeError),
+            Err(_err) => Err(JsonDecode),
         }
     }
 
@@ -48,7 +48,7 @@ impl<'a> PlayerRequest<'a> {
             .build();
 
         if let Err(err) = request {
-            return Err(RequestError(err));
+            return Err(Request(err));
         }
 
         match self
@@ -59,7 +59,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player_scores) => Ok(player_scores),
-            Err(_err) => Err(JsonDecodeError),
+            Err(_err) => Err(JsonDecode),
         }
     }
 }
