@@ -34,7 +34,7 @@ pub(crate) async fn fetch_and_update_player(
 
     let bl_player_result = bl_client.player().get_by_id(&player_id).await;
     if let Err(e) = bl_player_result {
-        warn!("BL player ({}) fetching error ({})", player_id, e);
+        warn!("BL player ({}) fetching error: {}", player_id, e);
 
         return Err(e.to_string())?;
     }
@@ -53,7 +53,7 @@ pub(crate) async fn fetch_and_update_player(
 
     if let Err(e) = persist.save::<BotPlayer>(player_key.as_str(), player) {
         error!(
-            "Saving player data ({}) error ({})",
+            "Saving player data ({}) error: {}",
             player_id,
             e.to_string()
         );
@@ -105,7 +105,7 @@ pub(crate) async fn link_player(
     match persist.save::<LinkedPlayers>("linked-players-v1", data) {
         Ok(_) => Ok(player),
         Err(e) => {
-            error!("Save error: {}", e.to_string());
+            error!("Save links error: {}", e.to_string());
 
             Err(e.to_string())?
         }

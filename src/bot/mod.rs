@@ -10,6 +10,7 @@ use poise::SlashArgument;
 use serenity::model::gateway::Activity;
 
 use crate::beatleader::player::PlayerId;
+use crate::bot::beatleader::Player;
 use crate::bot::db::link_player;
 use crate::{Context, Error};
 use shuttle_poise::ShuttlePoise;
@@ -96,31 +97,67 @@ pub(crate) async fn bl_add_auto_role(
 }
 
 /// Command to link your account to your Beat Leader profile.
-#[poise::command(slash_command, rename = "bl-link", ephemeral, guild_only)]
+#[poise::command(slash_command, rename = "bl-link", guild_only)]
 pub(crate) async fn bl_link(
     ctx: Context<'_>,
     #[description = "Beat Leader PlayerID"] bl_player_id: String,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
+    let selected_user_name = &selected_user.name;
+
+    let member_name = match ctx
+        .serenity_context()
+        .http
+        .get_member(*ctx.data().guild_id.as_u64(), *selected_user.id.as_u64())
+        .await
+    {
+        Ok(member) => match member.nick {
+            Some(nick) => nick,
+            None => selected_user_name.to_string(),
+        },
+        Err(_) => selected_user_name.to_string(),
+    };
 
     let bl_client = &ctx.data().bl_client;
     let persist = &ctx.data().persist;
 
-    let player = link_player(
+    let player_result = link_player(
         bl_client,
         persist,
-        selected_user.id.0,
+        *selected_user.id.as_u64(),
         bl_player_id.to_owned(),
     )
-    .await?;
+    .await;
 
-    ctx.say(format!(
-        "User linked to the player {} ({}).",
-        player.name, bl_player_id,
-    ))
-    .await?;
-    Ok(())
+    match player_result {
+        Ok(player) => {
+            ctx.send(|f| {
+                f.content(format!("User ``{}`` linked to BL profile", member_name))
+                    .embed(|f| {
+                        f.title(player.name)
+                            .url(format!("https://www.beatleader.xyz/u/{}", player.id))
+                            .thumbnail(player.avatar)
+                            .field("Rank", player.rank, true)
+                            .field("PP", format!("{:.2}", player.pp), true)
+                            .field("Country", player.country, true)
+                    })
+                    .ephemeral(false)
+            })
+            .await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.send(|f| {
+                f.content(format!("An error occurred: {}", e))
+                    .ephemeral(true)
+            })
+            .await?;
+
+            Ok(())
+        }
+    }
 }
 
 /// Command to display current conditions for automatic role assignment
