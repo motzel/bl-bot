@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 use log::{debug, error, info};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
 use std::time::Duration;

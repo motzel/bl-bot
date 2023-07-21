@@ -7,9 +7,11 @@ use log::{debug, info};
 use poise::serenity_prelude as serenity;
 use std::convert::From;
 
-#[derive(Debug, poise::ChoiceParameter)]
+#[derive(Debug, poise::ChoiceParameter, Default)]
+
 pub(crate) enum Sort {
     #[name = "By Date"]
+    #[default]
     Latest,
     #[name = "By PP"]
     ByPp,
@@ -21,12 +23,6 @@ pub(crate) enum Sort {
     ByRank,
     #[name = "By Max Streak"]
     ByMaxStreak,
-}
-
-impl Default for Sort {
-    fn default() -> Self {
-        Sort::Latest
-    }
 }
 
 impl Sort {
@@ -54,9 +50,7 @@ pub(crate) async fn bl_replay(
     let current_user = ctx.author();
     let selected_user = dsc_user.as_ref().unwrap_or(current_user);
 
-    let player_score_sort = (sort.or(Some(Sort::default())))
-        .unwrap()
-        .to_player_score_sort();
+    let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
 
     let persist = &ctx.data().persist;
     let Ok(player_id) = get_player_id(persist, selected_user.id.into()).await else {
@@ -110,18 +104,16 @@ pub(crate) async fn bl_replay(
         .await?;
 
     let mut score_ids = Vec::<String>::new();
+    let mut replay_posted = false;
 
-    // https://github.com/serenity-rs/serenity/blob/current/examples/e17_message_components/src/main.rs
-    // https://docs.rs/serenity/latest/serenity/model/prelude/prelude/interaction/message_component/struct.MessageComponentInteraction.html
     while let Some(mci) = serenity::CollectComponentInteraction::new(ctx)
         .author_id(current_user.id)
         .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(std::time::Duration::from_secs(10))
         .await
     {
         debug!("Interaction response: {:?}", mci.data);
 
-        // https://docs.rs/serenity/latest/serenity/model/application/interaction/message_component/struct.MessageComponentInteraction.html
         match mci.data.custom_id.as_str() {
             "score_id" => {
                 score_ids = mci.data.values.clone();
@@ -129,7 +121,6 @@ pub(crate) async fn bl_replay(
             }
             "post_btn" => {
                 if score_ids.is_empty() {
-                    // EDITS message, works for both ephemeral and normal messages
                     mci.create_interaction_response(ctx, |ir| {
                         ir.kind(serenity::InteractionResponseType::UpdateMessage)
                             .interaction_response_data(|message| {
@@ -165,63 +156,23 @@ pub(crate) async fn bl_replay(
                             })
                     })
                     .await?;
+
+                    replay_posted = true;
                 }
             }
             _ => {
                 mci.defer(ctx).await?;
             }
         }
-
-        // let msg = mci.get_interaction_response(ctx).await?;
-        // println!("{:#?}", msg);
-
-        // does not work
-        // mci.delete_original_interaction_response(ctx).await?;
-        // mci.edit_original_interaction_response(ctx, |m| m.content(format!("Test count: {}", 1)))
-        //     .await?;
-
-        // works for NON ephemeral messages only
-        // let mut msg = mci.message.clone();
-        // msg.edit(ctx, |m| m.content(format!("Test count: {}", 1)))
-        //     .await?;
-        // mci.create_interaction_response(ctx, |ir| {
-        //     ir.kind(serenity::InteractionResponseType::DeferredUpdateMessage)
-        // })
-        // .await?;
-
-        // EDITS message, works for both ephemeral and normal messages !!!
-        // mci.create_interaction_response(ctx, |ir| {
-        //     ir.kind(serenity::InteractionResponseType::UpdateMessage)
-        //         .interaction_response_data(|message| {
-        //             message
-        //                 .content("Replay posted. You can dismiss this message.")
-        //                 .set_components(serenity::builder::CreateComponents(Vec::new()))
-        //                 OR: .components(|c| c)
-        //         })
-        // })
-        // .await?;
-
-        // CREATES follow up message, works for both ephemeral and normal messages
-        // mci.create_interaction_response(ctx, |ir| {
-        //     ir.kind(serenity::InteractionResponseType::ChannelMessageWithSource)
-        // https://docs.rs/serenity/latest/serenity/builder/struct.CreateInteractionResponseData.html
-        //         .interaction_response_data(|message| message.content("Test content"))
-        // })
-        // .await?;
-
-        // DOES NOT WORK -> Value must be one of {4, 5, 6, 7, 9, 10, 11}
-        // https://docs.rs/serenity/latest/serenity/model/application/interaction/enum.InteractionResponseType.html
-        // https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-response-object-interaction-callback-type
-        // mci.create_interaction_response(ctx, |ir| ir.kind(serenity::InteractionResponseType::Pong))
-        //     .await?;
     }
 
-    msg.edit(ctx, |m| {
-        m.components(|c| c)
-            .content("Interaction timed out. Dismiss this message and try again.")
-    })
-    .await?;
+    if !replay_posted {
+        msg.edit(ctx, |m| {
+            m.components(|c| c)
+                .content("Interaction timed out. Dismiss this message and try again.")
+        })
+        .await?;
+    }
 
-    // ctx.say(format!("Data: {:#?}", selected_user)).await?;
     Ok(())
 }

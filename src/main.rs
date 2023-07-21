@@ -68,8 +68,6 @@ async fn poise(
             // bl_display_auto_roles(),
             // bl_add_auto_role(),
             // bl_remove_auto_roles(),
-            // bl_test(),
-            // bl_test2(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {
@@ -103,28 +101,15 @@ async fn poise(
                 let guild_id = guild_id.parse().unwrap();
 
                 let _global_ctx = ctx.clone();
-                // channel.say(&global_ctx.http, "BOT started").await?;
 
                 tokio::spawn(async move {
                     let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
-                    // info!("{:#?}", global_ctx.http.get_channels(guild_id).await?);
 
                     let mut counter = 1;
 
                     let mut timer = tokio::time::interval(std::time::Duration::from_secs(60));
                     loop {
                         timer.tick().await;
-
-                        // let _ = channel
-                        //     .say(&global_ctx.http, format!("BOT message no. {}", counter))
-                        //     .await;
-
-                        // let _ = channel
-                        //     .say(
-                        //         &global_ctx.http,
-                        //         "https://replay.beatleader.xyz/?scoreId=7919269",
-                        //     )
-                        //     .await;
 
                         debug!("Counter: {}", counter);
 
