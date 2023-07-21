@@ -1,6 +1,8 @@
-use crate::beatleader::player::Player as BlPlayer;
-use crate::beatleader::player::PlayerId;
-use crate::beatleader::{error::Error as BlError, Client};
+use crate::beatleader::player::{MetaData, PlayerId};
+use crate::beatleader::player::{
+    Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
+};
+use crate::beatleader::{error::Error as BlError, Client, SortOrder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -63,6 +65,56 @@ impl From<BlPlayer> for Player {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Score {
+    pub id: u32,
+    pub accuracy: f64,
+    pub pp: f64,
+    pub modifiers: String,
+    pub leaderboard_id: String,
+    pub song_name: String,
+    pub song_sub_name: String,
+    pub song_mapper: String,
+    pub song_author: String,
+    pub difficulty_name: String,
+    pub mode_name: String,
+}
+
+impl From<BlScore> for Score {
+    fn from(bl_score: BlScore) -> Self {
+        Score {
+            id: bl_score.id,
+            accuracy: bl_score.accuracy * 100.0,
+            pp: bl_score.pp,
+            modifiers: bl_score.modifiers,
+            leaderboard_id: bl_score.leaderboard.id,
+            song_name: bl_score.leaderboard.song.name,
+            song_sub_name: bl_score.leaderboard.song.sub_name,
+            song_mapper: bl_score.leaderboard.song.mapper,
+            song_author: bl_score.leaderboard.song.author,
+            difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
+            mode_name: bl_score.leaderboard.difficulty.mode_name,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Scores {
+    #[serde(rename = "data")]
+    pub scores: Vec<Score>,
+    pub metadata: MetaData,
+}
+impl From<BlScores> for Scores {
+    fn from(bl_scores: BlScores) -> Self {
+        Self {
+            scores: bl_scores.scores.into_iter().map(Score::from).collect(),
+            metadata: bl_scores.metadata,
+        }
+    }
+}
+
 pub(crate) async fn fetch_player(
     bl_client: &Client,
     player_id: PlayerId,
@@ -72,47 +124,24 @@ pub(crate) async fn fetch_player(
     ))
 }
 
-/*
-use env_logger::Env;
-use log::info;
-
-use crate::beatleader::{
-    player::PlayerScoreParam, player::PlayerScoreSort, Client, Result, SortOrder,
-};
-use crate::bot::Player as BotPlayer;
-
-mod beatleader;
-mod bot;
-mod db;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-
-    info!("Starting up...");
-
-    let player_id = "76561198035381239".to_string();
-    let client = Client::default();
-
-    let player = BotPlayer::from(client.player().get_by_id(&player_id).await?);
-    println!("Player: {:#?}", player);
-
-    // let _player_scores = client
-    //     .player()
-    //     .get_scores(
-    //         &player_id,
-    //         &[
-    //             PlayerScoreParam::Page(1),
-    //             PlayerScoreParam::Count(3),
-    //             PlayerScoreParam::Sort(PlayerScoreSort::Date),
-    //             PlayerScoreParam::Order(SortOrder::Descending),
-    //         ],
-    //     )
-    //     .await?;
-    // println!("Scores: {:#?}", player_scores.data);
-
-    info!("Shutting down...");
-
-    Ok(())
+pub(crate) async fn fetch_scores(
+    bl_client: &Client,
+    player_id: PlayerId,
+    count: u32,
+    sort_by: PlayerScoreSort,
+) -> Result<Scores, BlError> {
+    Ok(Scores::from(
+        bl_client
+            .player()
+            .get_scores(
+                &player_id,
+                &[
+                    PlayerScoreParam::Page(1),
+                    PlayerScoreParam::Count(count),
+                    PlayerScoreParam::Sort(sort_by),
+                    PlayerScoreParam::Order(SortOrder::Descending),
+                ],
+            )
+            .await?,
+    ))
 }
-*/

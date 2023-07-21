@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 mod beatleader;
+pub(crate) mod commands;
 pub(crate) mod db;
 
 use log::info;
@@ -10,8 +11,8 @@ use poise::SlashArgument;
 use serenity::model::gateway::Activity;
 
 use crate::beatleader::player::PlayerId;
-use crate::bot::beatleader::Player;
-use crate::bot::db::link_player;
+use crate::bot::beatleader::{fetch_scores, Player};
+use crate::bot::db::{get_player_id, link_player};
 use crate::{Context, Error};
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
@@ -27,10 +28,44 @@ pub(crate) enum PlayerMetric {
 }
 
 async fn autocomplete_name<'a>(
-    _ctx: Context<'_>,
+    ctx: Context<'_>,
     partial: &'a str,
 ) -> impl Iterator<Item = poise::AutocompleteChoice<String>> {
-    info!("In autocomplete: {}", partial);
+    let interaction = match ctx {
+        Context::Application(poise::ApplicationContext {
+            interaction: poise::ApplicationCommandOrAutocompleteInteraction::Autocomplete(x),
+            ..
+        }) => x,
+        _ => unreachable!("non-autocomplete interaction in autocomplete callback"),
+    };
+
+    // Find user param
+    let user_param = interaction
+        .data
+        .options
+        .iter()
+        .find(|o| o.name == "dsc_user");
+
+    let user_id = match user_param {
+        Some(co) => match co.value.as_ref() {
+            Some(value) => value.to_string(),
+            None => ctx.author().id.to_string(),
+        },
+        None => ctx.author().id.to_string(),
+    };
+
+    // Extract user data
+    // let user_data = match user.resolved.as_ref().unwrap() {
+    //     serenity::CommandDataOptionValue::User(x, _) => x,
+    //     _ => unreachable!("non-user value in user parameter"),
+    // };
+
+    info!(
+        "In autocomplete: {}, {:?}, {}",
+        partial,
+        ctx.invocation_string(),
+        user_id,
+    );
 
     let maps = vec!["Map 1", "Map 2", "Map 3", "Map 4", "Map 5"];
 
@@ -42,11 +77,11 @@ async fn autocomplete_name<'a>(
         })
 }
 
-/// Command to insert a link to a replay, yours or another server user who has linked they BL account.
+/// Post link to a replay, yours or another server user who has linked they BL account.
 ///
 /// Enter any user of this server as a parameter. If you omit it then your replay will be searched for.
 #[poise::command(slash_command, rename = "bl-replay", guild_only)]
-pub(crate) async fn bl_replay(
+pub(crate) async fn bl_replay_autocomplete(
     ctx: Context<'_>,
     #[description = "Test variable"]
     #[autocomplete = "autocomplete_name"]
@@ -94,70 +129,6 @@ pub(crate) async fn bl_add_auto_role(
         .await?;
 
     Ok(())
-}
-
-/// Command to link your account to your Beat Leader profile.
-#[poise::command(slash_command, rename = "bl-link", guild_only)]
-pub(crate) async fn bl_link(
-    ctx: Context<'_>,
-    #[description = "Beat Leader PlayerID"] bl_player_id: String,
-    #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
-) -> Result<(), Error> {
-    let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
-    let selected_user_name = &selected_user.name;
-
-    let member_name = match ctx
-        .serenity_context()
-        .http
-        .get_member(*ctx.data().guild_id.as_u64(), *selected_user.id.as_u64())
-        .await
-    {
-        Ok(member) => match member.nick {
-            Some(nick) => nick,
-            None => selected_user_name.to_string(),
-        },
-        Err(_) => selected_user_name.to_string(),
-    };
-
-    let bl_client = &ctx.data().bl_client;
-    let persist = &ctx.data().persist;
-
-    let player_result = link_player(
-        bl_client,
-        persist,
-        *selected_user.id.as_u64(),
-        bl_player_id.to_owned(),
-    )
-    .await;
-
-    match player_result {
-        Ok(player) => {
-            ctx.send(|f| {
-                f.content(format!("User ``{}`` linked to BL profile", member_name))
-                    .embed(|f| {
-                        f.title(player.name)
-                            .url(format!("https://www.beatleader.xyz/u/{}", player.id))
-                            .thumbnail(player.avatar)
-                            .field("Rank", player.rank, true)
-                            .field("PP", format!("{:.2}", player.pp), true)
-                            .field("Country", player.country, true)
-                    })
-                    .ephemeral(false)
-            })
-            .await?;
-
-            Ok(())
-        }
-        Err(e) => {
-            ctx.send(|f| {
-                f.content(format!("An error occurred: {}", e))
-                    .ephemeral(true)
-            })
-            .await?;
-
-            Ok(())
-        }
-    }
 }
 
 /// Command to display current conditions for automatic role assignment

@@ -6,10 +6,8 @@ use log::info;
 
 pub(crate) use poise::serenity_prelude as serenity;
 
-use crate::bot::{
-    bl_add_auto_role, bl_display_auto_roles, bl_link, bl_remove_auto_roles, bl_replay, bl_test,
-    bl_test2,
-};
+use crate::bot::commands::bl_link;
+use crate::bot::commands::bl_replay;
 use serenity::model::id::GuildId;
 
 use crate::beatleader::Client;
@@ -67,11 +65,11 @@ async fn poise(
         commands: vec![
             bl_replay(),
             bl_link(),
-            bl_display_auto_roles(),
-            bl_add_auto_role(),
-            bl_remove_auto_roles(),
-            bl_test(),
-            bl_test2(),
+            // bl_display_auto_roles(),
+            // bl_add_auto_role(),
+            // bl_remove_auto_roles(),
+            // bl_test(),
+            // bl_test2(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {

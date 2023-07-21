@@ -31,7 +31,7 @@ impl<'a> PlayerRequest<'a> {
         &self,
         id: &PlayerId,
         params: &[PlayerScoreParam],
-    ) -> beatleader::Result<PlayerScores> {
+    ) -> beatleader::Result<Scores> {
         let request = self
             .client
             .request_builder(
@@ -55,7 +55,7 @@ impl<'a> PlayerRequest<'a> {
             .client
             .send_request(request.unwrap())
             .await?
-            .json::<PlayerScores>()
+            .json::<Scores>()
             .await
         {
             Ok(player_scores) => Ok(player_scores),
@@ -184,7 +184,7 @@ pub struct MetaData {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PlayerScore {
+pub struct Score {
     pub id: u32,
     pub accuracy: f64,
     pub pp: f64,
@@ -211,7 +211,7 @@ pub struct Song {
     pub mapper: String,
     pub author: String,
     pub duration: u32,
-    pub bpm: u32,
+    pub bpm: f32,
     pub cover_image: String,
     pub full_cover_image: String,
 }
@@ -228,7 +228,8 @@ pub struct Difficulty {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PlayerScores {
-    pub data: Vec<PlayerScore>,
+pub struct Scores {
+    #[serde(rename = "data")]
+    pub scores: Vec<Score>,
     pub metadata: MetaData,
 }

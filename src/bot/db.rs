@@ -6,7 +6,7 @@ use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::PersistInstance;
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct PlayerLink {
     pub discord_user_id: u64,
     pub player_id: PlayerId,
@@ -22,6 +22,20 @@ impl LinkedPlayers {
         Self {
             players: Vec::new(),
         }
+    }
+}
+
+pub(crate) async fn get_player_id(
+    persist: &PersistInstance,
+    discord_user_id: u64,
+) -> Result<PlayerId, Error> {
+    match persist.load::<LinkedPlayers>("linked-players-v1") {
+        Ok(players) => players
+            .players
+            .into_iter()
+            .find(|p| p.discord_user_id == discord_user_id)
+            .map_or(Err("Player is not linked".into()), |p| Ok(p.player_id)),
+        Err(e) => Err(e)?,
     }
 }
 
