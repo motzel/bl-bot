@@ -5,6 +5,42 @@ use crate::bot::db::get_player_id;
 use crate::{Context, Error};
 use log::{debug, info};
 use poise::serenity_prelude as serenity;
+use std::convert::From;
+
+#[derive(Debug, poise::ChoiceParameter)]
+pub(crate) enum Sort {
+    #[name = "By Date"]
+    Latest,
+    #[name = "By PP"]
+    ByPp,
+    #[name = "By Acc"]
+    ByAcc,
+    #[name = "By Stars"]
+    ByStars,
+    #[name = "By Rank"]
+    ByRank,
+    #[name = "By Max Streak"]
+    ByMaxStreak,
+}
+
+impl Default for Sort {
+    fn default() -> Self {
+        Sort::Latest
+    }
+}
+
+impl Sort {
+    pub fn to_player_score_sort(&self) -> PlayerScoreSort {
+        match self {
+            Sort::Latest => PlayerScoreSort::Date,
+            Sort::ByPp => PlayerScoreSort::Pp,
+            Sort::ByAcc => PlayerScoreSort::Acc,
+            Sort::ByStars => PlayerScoreSort::Stars,
+            Sort::ByRank => PlayerScoreSort::Rank,
+            Sort::ByMaxStreak => PlayerScoreSort::MaxStreak,
+        }
+    }
+}
 
 /// Post link to a replay, yours or another server user who has linked they BL account.
 ///
@@ -12,10 +48,15 @@ use poise::serenity_prelude as serenity;
 #[poise::command(slash_command, rename = "bl-replay", guild_only)]
 pub(crate) async fn bl_replay(
     ctx: Context<'_>,
+    #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let current_user = ctx.author();
     let selected_user = dsc_user.as_ref().unwrap_or(current_user);
+
+    let player_score_sort = (sort.or(Some(Sort::default())))
+        .unwrap()
+        .to_player_score_sort();
 
     let persist = &ctx.data().persist;
     let Ok(player_id) = get_player_id(persist, selected_user.id.into()).await else {
@@ -24,7 +65,7 @@ pub(crate) async fn bl_replay(
     };
 
     let bl_client = &ctx.data().bl_client;
-    let player_scores_result = fetch_scores(bl_client, player_id, 25, PlayerScoreSort::Date).await;
+    let player_scores_result = fetch_scores(bl_client, player_id, 25, player_score_sort).await;
     if let Err(e) = player_scores_result {
         ctx.say(format!("Error fetching scores: {}", e)).await?;
         return Ok(());

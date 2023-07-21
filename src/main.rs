@@ -2,7 +2,7 @@ mod beatleader;
 mod bot;
 
 use anyhow::Context as _;
-use log::info;
+use log::{debug, info};
 
 pub(crate) use poise::serenity_prelude as serenity;
 
@@ -126,7 +126,7 @@ async fn poise(
                         //     )
                         //     .await;
 
-                        info!("Counter: {}", counter);
+                        debug!("Counter: {}", counter);
 
                         counter += 1;
                     }
