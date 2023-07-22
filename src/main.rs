@@ -111,6 +111,12 @@ async fn poise(
                     // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
                     // let _ = _channel.say(_global_ctx, "test").await;
 
+                    // let roles = _global_ctx
+                    //     .http
+                    //     .get_guild_roles(global_guild_id.into())
+                    //     .await;
+                    // println!("{:?}", roles);
+
                     let interval = std::time::Duration::from_secs(5 * 60);
                     info!("Run a task that updates profiles every {:?}", interval);
 
