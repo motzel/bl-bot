@@ -1,7 +1,6 @@
 mod beatleader;
 mod bot;
 
-use anyhow::Context as _;
 use log::info;
 
 pub(crate) use poise::serenity_prelude as serenity;
@@ -52,11 +51,15 @@ async fn poise(
     // Get config set in `Secrets.toml`
     let discord_token = secret_store
         .get("DISCORD_TOKEN")
-        .context("'DISCORD_TOKEN' was not found")?;
+        .expect("'DISCORD_TOKEN' was not found");
 
-    let guild_id = secret_store
-        .get("GUILD_ID")
-        .context("'GUILD_ID' was not found")?;
+    let guild_id = serenity::model::id::GuildId(
+        secret_store
+            .get("GUILD_ID")
+            .expect("'GUILD_ID' was not found")
+            .parse()
+            .expect("'GUILD_ID' should be an integer"),
+    );
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -81,21 +84,25 @@ async fn poise(
         ..Default::default()
     };
 
+    let global_guild_id = guild_id;
+
     let framework = poise::Framework::builder()
         .options(options)
         .token(discord_token)
         .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTEN
-        .setup(|ctx, _ready, framework| {
+        .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
-                info!("Logged in as {}", _ready.user.name);
+                info!(
+                    "Logged in as {} in guild {}",
+                    _ready.user.name, global_guild_id
+                );
 
+                info!("Setting bot status...");
                 ctx.set_presence(
                     Some(serenity::model::gateway::Activity::playing("Beat Leader")),
                     serenity::model::user::OnlineStatus::Online,
                 )
                 .await;
-
-                let guild_id = guild_id.parse().unwrap();
 
                 let _global_ctx = ctx.clone();
                 let global_persist = persist.clone();
@@ -117,7 +124,6 @@ async fn poise(
                     }
                 });
 
-                let guild_id = serenity::model::id::GuildId(guild_id);
                 poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
                     .await?;
 
