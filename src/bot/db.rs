@@ -3,6 +3,7 @@ use crate::beatleader::player::PlayerId;
 use crate::beatleader::Client;
 use crate::bot::beatleader::Player as BotPlayer;
 use crate::Error;
+use crate::BL_CLIENT;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::PersistInstance;
@@ -67,13 +68,12 @@ pub(crate) async fn store_player(
 }
 
 pub(crate) async fn fetch_and_update_player(
-    bl_client: &Client,
     persist: &PersistInstance,
     player_id: PlayerId,
 ) -> Result<BotPlayer, Error> {
     debug!("Fetching BL player {}...", player_id);
 
-    let bl_player_result = bl_client.player().get_by_id(&player_id).await;
+    let bl_player_result = BL_CLIENT.player().get_by_id(&player_id).await;
     if let Err(e) = bl_player_result {
         warn!("BL player ({}) fetching error: {}", player_id, e);
 
@@ -94,7 +94,6 @@ pub(crate) async fn fetch_and_update_player(
 }
 
 pub(crate) async fn fetch_and_update_all_players(
-    bl_client: &Client,
     persist: &PersistInstance,
 ) -> Result<Vec<BotPlayer>, Error> {
     info!("Updating profiles of all players...");
@@ -109,7 +108,7 @@ pub(crate) async fn fetch_and_update_all_players(
             for linked_player in linked_players.players {
                 debug!("Updating player {}...", linked_player.player_id.clone());
 
-                match fetch_and_update_player(bl_client, persist, linked_player.player_id).await {
+                match fetch_and_update_player(persist, linked_player.player_id).await {
                     Ok(player) => {
                         info!("Player {} ({}) updated.", player.id, player.name);
                         players.push(player);
@@ -160,7 +159,6 @@ pub(crate) async fn store_linked_players(
 }
 
 pub(crate) async fn link_player(
-    bl_client: &Client,
     persist: &PersistInstance,
     discord_user_id: u64,
     player_id: PlayerId,
@@ -170,7 +168,7 @@ pub(crate) async fn link_player(
         discord_user_id, player_id
     );
 
-    let player = fetch_and_update_player(bl_client, persist, player_id.clone()).await?;
+    let player = fetch_and_update_player(persist, player_id.clone()).await?;
 
     let mut data = get_linked_players(persist).await?;
 

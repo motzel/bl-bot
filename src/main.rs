@@ -12,13 +12,17 @@ use serenity::model::id::GuildId;
 
 use crate::beatleader::Client;
 use crate::bot::db::fetch_and_update_all_players;
+use lazy_static::lazy_static;
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
+lazy_static! {
+    static ref BL_CLIENT: Client = Client::default();
+}
+
 pub(crate) struct Data {
     guild_id: GuildId,
-    bl_client: Client,
     persist: PersistInstance,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -53,8 +57,6 @@ async fn poise(
     let guild_id = secret_store
         .get("GUILD_ID")
         .context("'GUILD_ID' was not found")?;
-
-    let bl_client = Client::default();
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -99,8 +101,6 @@ async fn poise(
                 let global_persist = persist.clone();
 
                 tokio::spawn(async move {
-                    let bl_client = Client::default();
-
                     // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
                     // let _ = _channel.say(_global_ctx, "test").await;
 
@@ -111,9 +111,7 @@ async fn poise(
                     loop {
                         timer.tick().await;
 
-                        if let Ok(_players) =
-                            fetch_and_update_all_players(&bl_client, &global_persist).await
-                        {
+                        if let Ok(_players) = fetch_and_update_all_players(&global_persist).await {
                             // TODO: check the conditions for automatic granting of roles
                         }
                     }
@@ -123,11 +121,7 @@ async fn poise(
                 poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
                     .await?;
 
-                Ok(Data {
-                    guild_id,
-                    persist,
-                    bl_client,
-                })
+                Ok(Data { guild_id, persist })
             })
         })
         .build()

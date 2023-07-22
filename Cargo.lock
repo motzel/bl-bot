@@ -237,6 +237,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "futures",
+ "lazy_static",
  "log",
  "poise",
  "reqwest",

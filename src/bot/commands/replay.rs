@@ -58,8 +58,7 @@ pub(crate) async fn bl_replay(
         return Ok(());
     };
 
-    let bl_client = &ctx.data().bl_client;
-    let player_scores_result = fetch_scores(bl_client, player_id, 25, player_score_sort).await;
+    let player_scores_result = fetch_scores(player_id, 25, player_score_sort).await;
     if let Err(e) = player_scores_result {
         ctx.say(format!("Error fetching scores: {}", e)).await?;
         return Ok(());

@@ -3,6 +3,7 @@ use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
 use crate::beatleader::{error::Error as BlError, Client, SortOrder};
+use crate::BL_CLIENT;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,23 +116,19 @@ impl From<BlScores> for Scores {
     }
 }
 
-pub(crate) async fn fetch_player(
-    bl_client: &Client,
-    player_id: PlayerId,
-) -> Result<Player, BlError> {
+pub(crate) async fn fetch_player(player_id: PlayerId) -> Result<Player, BlError> {
     Ok(Player::from(
-        bl_client.player().get_by_id(&player_id).await?,
+        BL_CLIENT.player().get_by_id(&player_id).await?,
     ))
 }
 
 pub(crate) async fn fetch_scores(
-    bl_client: &Client,
     player_id: PlayerId,
     count: u32,
     sort_by: PlayerScoreSort,
 ) -> Result<Scores, BlError> {
     Ok(Scores::from(
-        bl_client
+        BL_CLIENT
             .player()
             .get_scores(
                 &player_id,
