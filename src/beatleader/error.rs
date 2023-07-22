@@ -8,6 +8,7 @@ pub enum Error {
     Client,
     Server,
     JsonDecode,
+    DbError(String),
     Unknown,
 }
 
@@ -20,6 +21,7 @@ impl fmt::Display for Error {
             Error::Client => write!(f, "BL client error"),
             Error::Server => write!(f, "BL server error"),
             Error::JsonDecode => write!(f, "invalid BL response"),
+            Error::DbError(e) => write!(f, "db error: {}", e),
             Error::Unknown => write!(f, "unknown error"),
         }
     }
@@ -28,12 +30,12 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self {
-            Error::Request(e) => Some(e),
-            Error::Network(e) => Some(e),
+            Error::Request(e) | Error::Network(e) => Some(e),
             Error::NotFound
             | Error::Client
             | Error::Server
             | Error::JsonDecode
+            | Error::DbError(_)
             | Error::Unknown => None,
         }
     }

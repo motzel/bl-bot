@@ -1,3 +1,4 @@
+use crate::beatleader::error::Error::DbError;
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::Client;
 use crate::bot::beatleader::Player as BotPlayer;
@@ -29,13 +30,39 @@ pub(crate) async fn get_player_id(
     persist: &PersistInstance,
     discord_user_id: u64,
 ) -> Result<PlayerId, Error> {
-    match persist.load::<LinkedPlayers>("linked-players-v1") {
-        Ok(players) => players
-            .players
-            .into_iter()
-            .find(|p| p.discord_user_id == discord_user_id)
-            .map_or(Err("Player is not linked".into()), |p| Ok(p.player_id)),
-        Err(e) => Err(e)?,
+    get_linked_players(persist)
+        .await?
+        .players
+        .into_iter()
+        .find(|p| p.discord_user_id == discord_user_id)
+        .map_or(Err("Player is not linked".into()), |p| Ok(p.player_id))
+}
+
+pub(crate) async fn store_player(
+    persist: &PersistInstance,
+    player: BotPlayer,
+) -> Result<(), Error> {
+    let player_key = format!("player-v1-{}", player.id);
+
+    let player_id = player.id.clone();
+
+    info!("Saving player data ({}) to {}...", player_id, player_key);
+
+    match persist.save::<BotPlayer>(player_key.as_str(), player) {
+        Ok(_) => {
+            info!("Player data ({}) saved to {}.", player_id, player_key);
+
+            Ok(())
+        }
+        Err(e) => {
+            error!(
+                "Saving player data ({}) error: {}",
+                player_id,
+                e.to_string()
+            );
+
+            Err(Box::new(DbError(e.to_string())))
+        }
     }
 }
 
@@ -61,23 +88,30 @@ pub(crate) async fn fetch_and_update_player(
         player.id, player.name
     );
 
-    let player_key = format!("player-v1-{}", player_id);
-
-    info!("Saving player data ({}) to {}...", player_id, player_key);
-
-    if let Err(e) = persist.save::<BotPlayer>(player_key.as_str(), player) {
-        error!(
-            "Saving player data ({}) error: {}",
-            player_id,
-            e.to_string()
-        );
-
-        return Err(e.to_string())?;
-    }
-
-    info!("Player data ({}) saved to {}.", player_id, player_key);
+    store_player(persist, player).await?;
 
     Ok(player_clone)
+}
+
+pub(crate) async fn get_linked_players(persist: &PersistInstance) -> Result<LinkedPlayers, Error> {
+    match persist.load::<LinkedPlayers>("linked-players-v1") {
+        Ok(players) => Ok(players),
+        Err(_) => Ok(LinkedPlayers::new()),
+    }
+}
+
+pub(crate) async fn store_linked_players(
+    persist: &PersistInstance,
+    players: LinkedPlayers,
+) -> Result<(), Error> {
+    match persist.save::<LinkedPlayers>("linked-players-v1", players) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("Save links error: {}", e.to_string());
+
+            Err(e.to_string())?
+        }
+    }
 }
 
 pub(crate) async fn link_player(
@@ -93,13 +127,10 @@ pub(crate) async fn link_player(
 
     let player = fetch_and_update_player(bl_client, persist, player_id.clone()).await?;
 
-    let mut data = match persist.load::<LinkedPlayers>("linked-players-v1") {
-        Ok(players) => players,
-        Err(_) => LinkedPlayers::new(),
-    };
+    let mut data = get_linked_players(persist).await?;
 
     info!(
-        "Players links db loaded, {} link(s) found.",
+        "Players links loaded, {} link(s) found.",
         data.players.len()
     );
 
@@ -114,14 +145,9 @@ pub(crate) async fn link_player(
 
     data.players.push(player_link);
 
-    info!("Saving new links...");
+    info!("Saving new links ({})...", data.players.len());
 
-    match persist.save::<LinkedPlayers>("linked-players-v1", data) {
-        Ok(_) => Ok(player),
-        Err(e) => {
-            error!("Save links error: {}", e.to_string());
+    store_linked_players(persist, data).await?;
 
-            Err(e.to_string())?
-        }
-    }
+    Ok(player)
 }
