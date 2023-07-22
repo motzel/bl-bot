@@ -2,7 +2,7 @@ mod beatleader;
 mod bot;
 
 use anyhow::Context as _;
-use log::{debug, info};
+use log::info;
 
 pub(crate) use poise::serenity_prelude as serenity;
 
@@ -11,7 +11,7 @@ use crate::bot::commands::bl_replay;
 use serenity::model::id::GuildId;
 
 use crate::beatleader::Client;
-use crate::bot::db::LinkedPlayers;
+use crate::bot::db::fetch_and_update_all_players;
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
@@ -53,11 +53,6 @@ async fn poise(
     let guild_id = secret_store
         .get("GUILD_ID")
         .context("'GUILD_ID' was not found")?;
-
-    info!("Loading player link data...");
-    if persist.load::<LinkedPlayers>("linked-players-v1").is_err() {
-        let _ = persist.save::<LinkedPlayers>("linked-players-v1", LinkedPlayers::new());
-    }
 
     let bl_client = Client::default();
 
@@ -101,19 +96,25 @@ async fn poise(
                 let guild_id = guild_id.parse().unwrap();
 
                 let _global_ctx = ctx.clone();
+                let global_persist = persist.clone();
 
                 tokio::spawn(async move {
+                    let bl_client = Client::default();
+
                     let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
 
-                    let mut counter = 1;
+                    let interval = std::time::Duration::from_secs(5 * 60);
+                    info!("Run a task that updates profiles every {:?}", interval);
 
-                    let mut timer = tokio::time::interval(std::time::Duration::from_secs(60));
+                    let mut timer = tokio::time::interval(interval);
                     loop {
                         timer.tick().await;
 
-                        debug!("Counter: {}", counter);
-
-                        counter += 1;
+                        if let Ok(_players) =
+                            fetch_and_update_all_players(&bl_client, &global_persist).await
+                        {
+                            // TODO: check the conditions for automatic granting of roles
+                        }
                     }
                 });
 

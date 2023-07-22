@@ -15,7 +15,7 @@ pub(crate) struct PlayerLink {
 
 #[derive(Deserialize, Serialize)]
 pub(crate) struct LinkedPlayers {
-    players: Vec<PlayerLink>,
+    pub players: Vec<PlayerLink>,
 }
 
 impl LinkedPlayers {
@@ -46,11 +46,11 @@ pub(crate) async fn store_player(
 
     let player_id = player.id.clone();
 
-    info!("Saving player data ({}) to {}...", player_id, player_key);
+    debug!("Saving player data ({}) to {}...", player_id, player_key);
 
     match persist.save::<BotPlayer>(player_key.as_str(), player) {
         Ok(_) => {
-            info!("Player data ({}) saved to {}.", player_id, player_key);
+            debug!("Player data ({}) saved to {}.", player_id, player_key);
 
             Ok(())
         }
@@ -71,7 +71,7 @@ pub(crate) async fn fetch_and_update_player(
     persist: &PersistInstance,
     player_id: PlayerId,
 ) -> Result<BotPlayer, Error> {
-    info!("Fetching BL player {}...", player_id);
+    debug!("Fetching BL player {}...", player_id);
 
     let bl_player_result = bl_client.player().get_by_id(&player_id).await;
     if let Err(e) = bl_player_result {
@@ -83,7 +83,7 @@ pub(crate) async fn fetch_and_update_player(
     let player = BotPlayer::from(bl_player_result.unwrap());
     let player_clone = player.clone();
 
-    info!(
+    debug!(
         "BL player ({}) fetched. Player name: {}",
         player.id, player.name
     );
@@ -91,6 +91,51 @@ pub(crate) async fn fetch_and_update_player(
     store_player(persist, player).await?;
 
     Ok(player_clone)
+}
+
+pub(crate) async fn fetch_and_update_all_players(
+    bl_client: &Client,
+    persist: &PersistInstance,
+) -> Result<Vec<BotPlayer>, Error> {
+    info!("Updating profiles of all players...");
+
+    match get_linked_players(persist).await {
+        Ok(linked_players) => {
+            let links_count = linked_players.players.len();
+            info!("Players links loaded, {} link(s) found.", links_count);
+
+            let mut players = Vec::with_capacity(linked_players.players.len());
+
+            for linked_player in linked_players.players {
+                debug!("Updating player {}...", linked_player.player_id.clone());
+
+                match fetch_and_update_player(bl_client, persist, linked_player.player_id).await {
+                    Ok(player) => {
+                        info!("Player {} ({}) updated.", player.id, player.name);
+                        players.push(player);
+                    }
+                    Err(e) => {
+                        error!("Error updating player: {}", e);
+                    }
+                };
+            }
+
+            if players.len() < links_count {
+                warn!(
+                    "Fewer profiles updated ({}) than expected ({})",
+                    players.len(),
+                    links_count
+                );
+            }
+
+            Ok(players)
+        }
+        Err(e) => {
+            error!("Can not get linked players: {}", e);
+
+            Err(e)
+        }
+    }
 }
 
 pub(crate) async fn get_linked_players(persist: &PersistInstance) -> Result<LinkedPlayers, Error> {
@@ -129,7 +174,7 @@ pub(crate) async fn link_player(
 
     let mut data = get_linked_players(persist).await?;
 
-    info!(
+    debug!(
         "Players links loaded, {} link(s) found.",
         data.players.len()
     );
@@ -145,7 +190,7 @@ pub(crate) async fn link_player(
 
     data.players.push(player_link);
 
-    info!("Saving new links ({})...", data.players.len());
+    debug!("Saving new links ({})...", data.players.len());
 
     store_linked_players(persist, data).await?;
 
