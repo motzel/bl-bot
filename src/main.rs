@@ -101,7 +101,8 @@ async fn poise(
                 tokio::spawn(async move {
                     let bl_client = Client::default();
 
-                    let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
+                    // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
+                    // let _ = _channel.say(_global_ctx, "test").await;
 
                     let interval = std::time::Duration::from_secs(5 * 60);
                     info!("Run a task that updates profiles every {:?}", interval);
