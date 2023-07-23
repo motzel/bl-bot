@@ -11,6 +11,7 @@ use poise::SlashArgument;
 use serenity::model::gateway::Activity;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
@@ -170,20 +171,54 @@ pub struct RoleCondition {
     value: PlayerMetricWithValue,
 }
 
+impl std::fmt::Display for RoleCondition {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self.value {
+                PlayerMetricWithValue::TopPp(v) => format!(
+                    "**Top PP** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::TopAcc(v) => format!(
+                    "**Top Acc** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::TotalPp(v) => format!(
+                    "**Total PP** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::Rank(v) => format!(
+                    "**Rank** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::CountryRank(v) => format!(
+                    "**Country rank** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+            }
+        )
+    }
+}
+
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleSettings {
     role_id: RoleId,
-    role_name: String,
     conditions: HashMap<RoleConditionId, RoleCondition>,
     weight: u32,
 }
 
 impl RoleSettings {
-    pub fn new(role_id: RoleId, name: String, weight: u32) -> Self {
+    pub fn new(role_id: RoleId, weight: u32) -> Self {
         Self {
             role_id,
-            role_name: name,
             conditions: HashMap::new(),
             weight,
         }
@@ -217,6 +252,29 @@ impl RoleSettings {
     }
 }
 
+impl std::fmt::Display for RoleSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut cond_vec = self
+            .conditions
+            .iter()
+            .map(|(cond_id, cond)| (*cond_id, cond.clone()))
+            .collect::<Vec<(RoleConditionId, RoleCondition)>>();
+        cond_vec.sort_unstable_by(|a, b| Ord::cmp(&a.0, &b.0));
+
+        write!(
+            f,
+            "* <@&{}> (*weight: {}*)\n{}",
+            self.role_id,
+            self.weight,
+            cond_vec
+                .iter()
+                .map(|(role_cond_id, role_cond)| format!(" * {}. {}", role_cond_id, role_cond))
+                .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
+                .trim_end()
+        )
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct UserRoleChanges {
     to_add: Vec<RoleId>,
@@ -242,7 +300,9 @@ impl UserRoleStatus {
                         None
                     }
                 })
-                .collect::<Vec<RoleId>>(),
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect(),
             to_remove: current_roles
                 .iter()
                 .filter_map(|role_id| {
@@ -252,7 +312,9 @@ impl UserRoleStatus {
                         None
                     }
                 })
-                .collect::<Vec<RoleId>>(),
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect(),
         }
     }
 }
@@ -291,7 +353,6 @@ impl GuildSettings {
             .or_default()
             .entry(role_settings.role_id)
             .and_modify(|rs| {
-                rs.role_name = role_settings.role_name;
                 rs.weight = role_settings.weight;
 
                 role_settings
@@ -346,7 +407,6 @@ impl GuildSettings {
         #[derive(Debug)]
         struct RoleFulfillmentStatus {
             role_id: RoleId,
-            name: String,
             fulfilled: bool,
             weight: u32,
         }
@@ -360,7 +420,6 @@ impl GuildSettings {
                     .iter()
                     .map(|(role_id, role_settings)| RoleFulfillmentStatus {
                         role_id: *role_id,
-                        name: role_settings.role_name.clone(),
                         fulfilled: role_settings.is_fulfilled_for(player),
                         weight: role_settings.weight,
                     })
@@ -393,6 +452,39 @@ impl GuildSettings {
     }
 }
 
+impl std::fmt::Display for GuildSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut rg_vec = self
+            .role_groups
+            .iter()
+            .collect::<Vec<(&RoleGroup, &HashMap<RoleId, RoleSettings>)>>();
+        rg_vec.sort_unstable_by(|a, b| Ord::cmp(a.0, b.0));
+
+        write!(
+            f,
+            "{}",
+            rg_vec
+                .iter()
+                .map(|(rg, rs_hm)| {
+                    let mut rs_vec = rs_hm.values().cloned().collect::<Vec<RoleSettings>>();
+                    rs_vec.sort_unstable_by(|a, b| Ord::cmp(&b.weight, &a.weight));
+
+                    format!(
+                        "### Group: __{}__\n{}",
+                        rg,
+                        rs_vec
+                            .iter()
+                            .map(|rs| format!("{}", rs))
+                            .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
+                            .trim_end()
+                    )
+                })
+                .fold(String::new(), |out, rg| out + &*format!("{}\n", rg))
+                .trim_end()
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::bot::{
@@ -401,7 +493,7 @@ mod tests {
     };
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(1), "5k PP (SS) and #50 country".to_string(), 100);
+        let mut rs = RoleSettings::new(RoleId(1), 100);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -421,7 +513,7 @@ mod tests {
         rs
     }
     fn create_10kpp_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(2), "10k PP".to_string(), 200);
+        let mut rs = RoleSettings::new(RoleId(2), 200);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -431,7 +523,7 @@ mod tests {
         rs
     }
     fn create_1k_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(3), "1k rank".to_string(), 100);
+        let mut rs = RoleSettings::new(RoleId(3), 100);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -441,7 +533,7 @@ mod tests {
         rs
     }
     fn create_500_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(4), "500 rank".to_string(), 200);
+        let mut rs = RoleSettings::new(RoleId(4), 200);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -451,7 +543,7 @@ mod tests {
         rs
     }
     fn create_100_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(5), "100 rank".to_string(), 300);
+        let mut rs = RoleSettings::new(RoleId(5), 300);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -634,7 +726,7 @@ mod tests {
     fn it_can_merge_role_conditions() {
         let mut gs = create_empty_guild_settings();
 
-        let mut rs = RoleSettings::new(RoleId(1), "NEW NAME".to_string(), 1000);
+        let mut rs = RoleSettings::new(RoleId(1), 1000);
 
         rs.add_condition(
             MetricCondition::BetterThanOrEqualTo,
@@ -649,7 +741,6 @@ mod tests {
         assert_eq!(gs.role_groups.keys().len(), 1);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 1);
         assert_eq!(role_conditions.conditions.len(), 4);
-        assert_eq!(role_conditions.role_name, "NEW NAME");
         assert_eq!(role_conditions.weight, 1000);
     }
 
@@ -839,23 +930,7 @@ pub(crate) async fn bl_replay_autocomplete(
     Ok(())
 }
 
-/// Command to display current conditions for automatic role assignment
-#[poise::command(
-    slash_command,
-    rename = "bl-display-auto-roles",
-    ephemeral,
-    required_permissions = "MANAGE_ROLES",
-    default_member_permissions = "MANAGE_ROLES",
-    guild_only
-)]
-pub(crate) async fn bl_display_auto_roles(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.say(format!(
-        "TODO: displaying all automatically assigned roles. App config GuildId: {:#?}",
-        ctx.data().guild_id
-    ))
-    .await?;
-    Ok(())
-}
+
 /// Command to remove the condition for automatic role assignment. Use ``bl-display-auto-roles`` first.
 #[poise::command(
     slash_command,

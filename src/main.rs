@@ -2,16 +2,23 @@
 mod beatleader;
 mod bot;
 
-use log::info;
+use peak_alloc::PeakAlloc;
+
+#[global_allocator]
+static PEAK_ALLOC: PeakAlloc = PeakAlloc;
+
+use log::{debug, info};
 
 pub(crate) use poise::serenity_prelude as serenity;
 
-use crate::bot::commands::bl_link;
-use crate::bot::commands::bl_replay;
+use crate::bot::commands::{
+    bl_add_auto_role, bl_link, bl_remove_auto_role, bl_replay, bl_show_auto_roles,
+};
 use serenity::model::id::GuildId;
 
 use crate::beatleader::Client;
-use crate::bot::db::fetch_and_update_all_players;
+use crate::bot::db::{fetch_and_update_all_players, get_guild_settings, LinkedPlayers};
+use crate::bot::GuildSettings;
 use lazy_static::lazy_static;
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
@@ -23,6 +30,8 @@ lazy_static! {
 
 pub(crate) struct Data {
     guild_id: GuildId,
+    guild_settings: GuildSettings,
+    // linked_players: LinkedPlayers,
     persist: PersistInstance,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -66,9 +75,9 @@ async fn poise(
         commands: vec![
             bl_replay(),
             bl_link(),
-            // bl_display_auto_roles(),
-            // bl_add_auto_role(),
-            // bl_remove_auto_roles(),
+            bl_show_auto_roles(),
+            bl_add_auto_role(),
+            bl_remove_auto_role(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {
@@ -98,6 +107,15 @@ async fn poise(
                     _ready.user.name, global_guild_id
                 );
 
+                info!("Loading guild settings...");
+                let guild_settings = match get_guild_settings(&persist, global_guild_id).await {
+                    Ok(gs) => gs,
+                    Err(e) => {
+                        panic!("Error fetching auto role: {}", e);
+                    }
+                };
+                info!("Guild settings loaded");
+
                 info!("Setting bot status...");
                 ctx.set_presence(
                     Some(serenity::model::gateway::Activity::playing("Beat Leader")),
@@ -125,6 +143,9 @@ async fn poise(
                     loop {
                         timer.tick().await;
 
+                        debug!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
+                        debug!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
+
                         if let Ok(_players) = fetch_and_update_all_players(&global_persist).await {
                             // TODO: check the conditions for automatic granting of roles
                         }
@@ -134,7 +155,11 @@ async fn poise(
                 poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
                     .await?;
 
-                Ok(Data { guild_id, persist })
+                Ok(Data {
+                    guild_id,
+                    persist,
+                    guild_settings,
+                })
             })
         })
         .build()

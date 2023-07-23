@@ -2,11 +2,16 @@ use crate::beatleader::error::Error::DbError;
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::Client;
 use crate::bot::beatleader::Player as BotPlayer;
+use crate::bot::{
+    GuildSettings, MetricCondition, PlayerMetric, PlayerMetricWithValue, RoleGroup, RoleSettings,
+};
 use crate::Error;
 use crate::BL_CLIENT;
 use log::{debug, error, info, warn};
+use poise::serenity_prelude::{GuildId, RoleId};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::PersistInstance;
+use tracing::field::debug;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct PlayerLink {
@@ -151,7 +156,7 @@ pub(crate) async fn store_linked_players(
     match persist.save::<LinkedPlayers>("linked-players-v1", players) {
         Ok(_) => Ok(()),
         Err(e) => {
-            error!("Save links error: {}", e.to_string());
+            error!("Linked players save error: {}", e.to_string());
 
             Err(e.to_string())?
         }
@@ -193,4 +198,96 @@ pub(crate) async fn link_player(
     store_linked_players(persist, data).await?;
 
     Ok(player)
+}
+
+pub(crate) async fn get_guild_settings(
+    persist: &PersistInstance,
+    guild_id: GuildId,
+) -> Result<GuildSettings, Error> {
+    let guild_settings_key = format!("guild-settings-v1-{}", guild_id);
+
+    debug!("Loading guid settings from {}...", guild_settings_key);
+
+    // GuildSettings object can not be deserialized as is for some reason
+    match persist.load::<String>(guild_settings_key.as_str()) {
+        Ok(json) => match serde_json::from_str::<GuildSettings>(json.as_str()) {
+            Ok(gs) => Ok(gs),
+            Err(e) => {
+                error!("Can not deserialize JSON guild settings: {}", e);
+
+                Ok(GuildSettings::new(guild_id))
+            }
+        },
+        Err(e) => {
+            error!("Can not load guild settings: {}", e);
+
+            Ok(GuildSettings::new(guild_id))
+        }
+    }
+}
+
+pub(crate) async fn store_guild_settings(
+    persist: &PersistInstance,
+    guild_settings: GuildSettings,
+) -> Result<(), Error> {
+    let guild_settings_key = format!("guild-settings-v1-{}", guild_settings.guild_id);
+
+    debug!("Saving guid settings as {}...", guild_settings_key);
+
+    // GuildSettings object can not be serialized as is for some reason
+    let json = serde_json::to_string(&guild_settings)?;
+
+    match persist.save::<String>(guild_settings_key.as_str(), json) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("Guild settings save error: {}", e.to_string());
+
+            Err(e.to_string())?
+        }
+    }
+}
+
+pub(crate) async fn add_auto_role(
+    persist: &PersistInstance,
+    guild_id: GuildId,
+    role_group: RoleGroup,
+    role_id: RoleId,
+    metric: PlayerMetric,
+    condition: MetricCondition,
+    value: f64,
+    weight: u32,
+) -> Result<GuildSettings, Error> {
+    info!("Adding auto role...");
+
+    let mut guild_settings = get_guild_settings(persist, guild_id).await?;
+
+    let mut rs = RoleSettings::new(role_id, weight);
+    rs.add_condition(condition, PlayerMetricWithValue::new(metric, value));
+
+    guild_settings.merge(role_group, rs);
+
+    store_guild_settings(persist, guild_settings.clone()).await?;
+
+    info!("Role added.");
+
+    Ok(guild_settings)
+}
+
+pub(crate) async fn remove_auto_role(
+    persist: &PersistInstance,
+    guild_id: GuildId,
+    role_group: RoleGroup,
+    role_id: RoleId,
+) -> Result<GuildSettings, Error> {
+    info!("Removing auto role...");
+
+    let mut guild_settings = get_guild_settings(persist, guild_id).await?;
+
+    guild_settings.remove(role_group, role_id);
+
+    store_guild_settings(persist, guild_settings.clone()).await?;
+
+    info!("Role removed.");
+
+    Ok(guild_settings)
 }
