@@ -25,21 +25,22 @@ use serenity::model::prelude::RoleId;
 
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub(crate) enum PlayerMetric {
-    #[name = "Top PP"]
-    TopPp,
-    #[name = "Top Acc"]
-    TopAcc,
     #[name = "Total PP"]
     TotalPp,
+    #[name = "Top PP"]
+    TopPp,
     #[name = "Rank"]
     Rank,
     #[name = "Country Rank"]
     CountryRank,
+    #[name = "Top Acc"]
+    TopAcc,
 }
 
-impl From<PlayerMetricWithValue> for PlayerMetric {
-    fn from(value: PlayerMetricWithValue) -> Self {
+impl From<&PlayerMetricWithValue> for PlayerMetric {
+    fn from(value: &PlayerMetricWithValue) -> Self {
         match value {
             PlayerMetricWithValue::TopPp(_) => PlayerMetric::TopPp,
             PlayerMetricWithValue::TopAcc(_) => PlayerMetric::TopAcc,
@@ -53,20 +54,21 @@ impl From<PlayerMetricWithValue> for PlayerMetric {
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum MetricCondition {
-    #[name = "Less than"]
-    LessThan,
-    #[name = "Less than or equal to"]
-    LessThanOrEqualTo,
+    #[name = "Better than or equal to"]
+    BetterThanOrEqualTo,
+    #[name = "Better than"]
+    BetterThan,
     #[name = "Equal to"]
     EqualTo,
-    #[name = "Greater than"]
-    GreaterThan,
-    #[name = "Greater than or equal to"]
-    GreaterThanOrEqualTo,
+    #[name = "Worse than or equal to"]
+    WorseThanOrEqualTo,
+    #[name = "Worse than"]
+    WorseThan,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub(crate) enum PlayerMetricWithValue {
     TopPp(f64),
     TopAcc(f64),
@@ -76,24 +78,42 @@ pub(crate) enum PlayerMetricWithValue {
 }
 
 impl PlayerMetricWithValue {
+    pub fn new(metric: PlayerMetric, value: f64) -> Self {
+        match metric {
+            PlayerMetric::TotalPp => PlayerMetricWithValue::TotalPp(value),
+            PlayerMetric::TopPp => PlayerMetricWithValue::TopPp(value),
+            PlayerMetric::Rank => PlayerMetricWithValue::Rank(value as u32),
+            PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(value as u32),
+            PlayerMetric::TopAcc => PlayerMetricWithValue::TopAcc(value),
+        }
+    }
+
     pub fn is_fulfilled_for(
         &self,
-        condition: MetricCondition,
+        condition: &MetricCondition,
         value: &PlayerMetricWithValue,
     ) -> bool {
-        if std::mem::discriminant(&PlayerMetric::from(self.clone()))
-            != std::mem::discriminant(&PlayerMetric::from(value.clone()))
+        if std::mem::discriminant(&PlayerMetric::from(self))
+            != std::mem::discriminant(&PlayerMetric::from(value))
         {
             return false;
         }
 
         match condition {
-            MetricCondition::LessThan => self.lt(value),
-            MetricCondition::LessThanOrEqualTo => self.le(value),
+            MetricCondition::WorseThan => self.lt(value),
+            MetricCondition::WorseThanOrEqualTo => self.le(value),
             MetricCondition::EqualTo => self.eq(value),
-            MetricCondition::GreaterThan => self.gt(value),
-            MetricCondition::GreaterThanOrEqualTo => self.ge(value),
+            MetricCondition::BetterThan => self.gt(value),
+            MetricCondition::BetterThanOrEqualTo => self.ge(value),
         }
+    }
+
+    fn reverse_ordering(ord: Option<Ordering>) -> Option<Ordering> {
+        ord.map(|ord| match ord {
+            Ordering::Less => Ordering::Greater,
+            Ordering::Equal => Ordering::Equal,
+            Ordering::Greater => Ordering::Less,
+        })
     }
 }
 
@@ -123,14 +143,14 @@ impl PartialOrd for PlayerMetricWithValue {
             }
             PlayerMetricWithValue::Rank(v) => {
                 if let PlayerMetricWithValue::Rank(o) = other {
-                    v.partial_cmp(o)
+                    PlayerMetricWithValue::reverse_ordering(v.partial_cmp(o))
                 } else {
                     None
                 }
             }
             PlayerMetricWithValue::CountryRank(v) => {
                 if let PlayerMetricWithValue::CountryRank(o) = other {
-                    v.partial_cmp(o)
+                    PlayerMetricWithValue::reverse_ordering(v.partial_cmp(o))
                 } else {
                     None
                 }
@@ -146,24 +166,102 @@ type RoleConditionId = u32;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleCondition {
-    condition_id: RoleConditionId,
     condition: MetricCondition,
     value: PlayerMetricWithValue,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleSettings {
     role_id: RoleId,
     role_name: String,
-    conditions: Vec<RoleCondition>,
+    conditions: HashMap<RoleConditionId, RoleCondition>,
+    weight: u32,
+}
+
+impl RoleSettings {
+    pub fn new(role_id: RoleId, name: String, weight: u32) -> Self {
+        Self {
+            role_id,
+            role_name: name,
+            conditions: HashMap::new(),
+            weight,
+        }
+    }
+
+    fn get_next_condition_id(&self) -> RoleConditionId {
+        self.conditions
+            .keys()
+            .fold(0, |acc, condition_id| acc.max(*condition_id))
+            + 1
+    }
+
+    pub(crate) fn add_condition(
+        &mut self,
+        condition: MetricCondition,
+        value: PlayerMetricWithValue,
+    ) {
+        let rc = RoleCondition { condition, value };
+
+        self.conditions
+            .entry(self.get_next_condition_id())
+            .or_insert(rc);
+    }
+
+    pub fn is_fulfilled_for(&self, player: &Player) -> bool {
+        self.conditions.iter().all(|(_role_id, role_condition)| {
+            player
+                .get_metric_with_value(PlayerMetric::from(&role_condition.value))
+                .is_fulfilled_for(&role_condition.condition, &role_condition.value)
+        })
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct UserRoleChanges {
+    to_add: Vec<RoleId>,
+    to_remove: Vec<RoleId>,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct UserRoleStatus {
+    should_have: Vec<RoleId>,
+    should_not_have: Vec<RoleId>,
+}
+
+impl UserRoleStatus {
+    pub fn get_role_changes(&self, current_roles: &[RoleId]) -> UserRoleChanges {
+        UserRoleChanges {
+            to_add: self
+                .should_have
+                .iter()
+                .filter_map(|role_id| {
+                    if !current_roles.contains(role_id) {
+                        Some(role_id.to_owned())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<RoleId>>(),
+            to_remove: current_roles
+                .iter()
+                .filter_map(|role_id| {
+                    if self.should_not_have.contains(role_id) {
+                        Some(role_id.to_owned())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<RoleId>>(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GuildSettings {
     guild_id: GuildId,
-    role_groups: HashMap<RoleGroup, Vec<RoleSettings>>,
+    role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
 }
 
 impl GuildSettings {
@@ -172,6 +270,503 @@ impl GuildSettings {
             guild_id,
             role_groups: HashMap::new(),
         }
+    }
+
+    pub fn add(&mut self, role_group: RoleGroup, role_settings: RoleSettings) -> &mut Self {
+        let role_settings_clone = role_settings.clone();
+        self.role_groups
+            .entry(role_group)
+            .or_default()
+            .entry(role_settings.role_id)
+            .and_modify(|rs| *rs = role_settings)
+            .or_insert(role_settings_clone);
+
+        self
+    }
+
+    pub fn merge(&mut self, role_group: RoleGroup, role_settings: RoleSettings) -> &mut Self {
+        let role_settings_clone = role_settings.clone();
+        self.role_groups
+            .entry(role_group)
+            .or_default()
+            .entry(role_settings.role_id)
+            .and_modify(|rs| {
+                rs.role_name = role_settings.role_name;
+                rs.weight = role_settings.weight;
+
+                role_settings
+                    .conditions
+                    .values()
+                    .for_each(|rc| rs.add_condition(rc.condition.clone(), rc.value.clone()));
+            })
+            .or_insert(role_settings_clone);
+
+        self
+    }
+
+    pub fn remove(&mut self, role_group: RoleGroup, role_id: RoleId) {
+        let role_group_clone = role_group.clone();
+
+        self.role_groups.entry(role_group).and_modify(|rs| {
+            rs.remove(&role_id);
+        });
+
+        if self.role_groups.contains_key(&role_group_clone)
+            && self.role_groups.get(&role_group_clone).unwrap().is_empty()
+        {
+            self.role_groups.remove(&role_group_clone);
+        }
+    }
+
+    pub fn all_roles(&self) -> Vec<&RoleId> {
+        self.role_groups
+            .iter()
+            .flat_map(|(_rg, rs)| rs.keys())
+            .collect()
+    }
+
+    pub fn contains_in_group(&self, role_group: RoleGroup, role_id: RoleId) -> bool {
+        self.role_groups.contains_key(&role_group)
+            && self
+                .role_groups
+                .get(&role_group)
+                .unwrap()
+                .contains_key(&role_id)
+    }
+
+    pub fn contains(&self, role_id: RoleId) -> bool {
+        self.all_roles().iter().any(|&&r| r == role_id)
+    }
+
+    pub(crate) fn get_role_updates(
+        &self,
+        player: &Player,
+        current_roles: &[RoleId],
+    ) -> UserRoleChanges {
+        #[derive(Debug)]
+        struct RoleFulfillmentStatus {
+            role_id: RoleId,
+            name: String,
+            fulfilled: bool,
+            weight: u32,
+        }
+
+        let mut ru = UserRoleStatus::default();
+
+        self.role_groups
+            .values()
+            .map(|roles| {
+                let mut roles_fulfillment = roles
+                    .iter()
+                    .map(|(role_id, role_settings)| RoleFulfillmentStatus {
+                        role_id: *role_id,
+                        name: role_settings.role_name.clone(),
+                        fulfilled: role_settings.is_fulfilled_for(player),
+                        weight: role_settings.weight,
+                    })
+                    .collect::<Vec<RoleFulfillmentStatus>>();
+
+                roles_fulfillment.sort_unstable_by(|a, b| b.weight.cmp(&a.weight));
+
+                let role_updates = &mut UserRoleStatus::default();
+
+                roles_fulfillment
+                    .iter()
+                    .fold(role_updates, |acc, rf| {
+                        if rf.fulfilled && acc.should_have.is_empty() {
+                            acc.should_have.push(rf.role_id);
+                        } else {
+                            acc.should_not_have.push(rf.role_id);
+                        }
+                        acc
+                    })
+                    .clone()
+            })
+            .fold(&mut ru, |acc, mut role_updates| {
+                acc.should_have.append(&mut role_updates.should_have);
+                acc.should_not_have
+                    .append(&mut role_updates.should_not_have);
+
+                acc
+            })
+            .get_role_changes(current_roles)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bot::{
+        GuildId, GuildSettings, MetricCondition, Player, PlayerMetric, PlayerMetricWithValue,
+        RoleConditionId, RoleId, RoleSettings,
+    };
+
+    fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(1), "5k PP (SS) and #50 country".to_string(), 100);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::TotalPp(5000.0),
+        );
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::TopAcc(90.0),
+        );
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::CountryRank(50),
+        );
+
+        rs
+    }
+    fn create_10kpp_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(2), "10k PP".to_string(), 200);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::TotalPp(10000.0),
+        );
+
+        rs
+    }
+    fn create_1k_rank_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(3), "1k rank".to_string(), 100);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::Rank(1000),
+        );
+
+        rs
+    }
+    fn create_500_rank_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(4), "500 rank".to_string(), 200);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::Rank(500),
+        );
+
+        rs
+    }
+    fn create_100_rank_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(5), "100 rank".to_string(), 300);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::Rank(100),
+        );
+
+        rs
+    }
+
+    fn create_empty_guild_settings() -> GuildSettings {
+        GuildSettings::new(GuildId(1))
+    }
+
+    fn create_guild_settings() -> GuildSettings {
+        let mut gs = create_empty_guild_settings();
+
+        gs.add("pp".to_string(), create_5kpp_ss_50_country_role_settings())
+            .add("pp".to_string(), create_10kpp_role_settings())
+            // just to test if it overwrite previous one
+            .add("pp".to_string(), create_10kpp_role_settings())
+            .add("rank".to_string(), create_1k_rank_role_settings())
+            .add("rank".to_string(), create_500_rank_role_settings())
+            .add("rank".to_string(), create_100_rank_role_settings());
+
+        gs
+    }
+
+    #[test]
+    fn it_properly_compares_player_metrics_with_value() {
+        let val = PlayerMetricWithValue::TopPp(100.0);
+        let better = PlayerMetricWithValue::TopPp(101.0);
+        let worse = PlayerMetricWithValue::TopPp(99.0);
+
+        assert_eq!(val > worse, true);
+        assert_eq!(val < better, true);
+        assert_eq!(val == val, true);
+
+        let val = PlayerMetricWithValue::Rank(100);
+        let better = PlayerMetricWithValue::Rank(99);
+        let worse = PlayerMetricWithValue::Rank(101);
+
+        assert_eq!(val > worse, true);
+        assert_eq!(val < better, true);
+        assert_eq!(val == val, true);
+    }
+
+    #[test]
+    fn it_check_if_condition_is_fulfilled() {
+        let condition_metric = PlayerMetricWithValue::TopPp(100.0);
+
+        let player_metric = PlayerMetricWithValue::TopPp(100.0);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            true
+        );
+
+        let player_metric = PlayerMetricWithValue::TopPp(150.0);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            true
+        );
+
+        let player_metric = PlayerMetricWithValue::TopPp(90.0);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            false
+        );
+
+        let condition_metric = PlayerMetricWithValue::Rank(100);
+
+        let player_metric = PlayerMetricWithValue::Rank(101);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            false
+        );
+
+        let player_metric = PlayerMetricWithValue::Rank(100);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            true
+        );
+
+        let player_metric = PlayerMetricWithValue::Rank(90);
+        assert_eq!(
+            player_metric
+                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
+            true
+        );
+    }
+
+    #[test]
+    fn it_generates_next_role_condition_id() {
+        let rs = create_5kpp_ss_50_country_role_settings();
+
+        assert_eq!(rs.conditions.len(), 3);
+
+        let mut vec = rs.conditions.into_keys().collect::<Vec<RoleConditionId>>();
+        vec.sort_unstable();
+
+        assert_eq!(vec, [1, 2, 3]);
+    }
+
+    #[test]
+    fn it_can_get_player_metric_with_value_from_player() {
+        let player = Player {
+            pp: 12000.0,
+            top_pp: 400.0,
+            top_accuracy: 91.0,
+            country_rank: 20,
+            rank: 1000,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::TotalPp),
+            PlayerMetricWithValue::TotalPp(12000.0)
+        );
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::TopPp),
+            PlayerMetricWithValue::TopPp(400.0)
+        );
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::TopAcc),
+            PlayerMetricWithValue::TopAcc(91.0)
+        );
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::CountryRank),
+            PlayerMetricWithValue::CountryRank(20)
+        );
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::Rank),
+            PlayerMetricWithValue::Rank(1000)
+        );
+    }
+
+    #[test]
+    fn it_check_if_player_metric_that_fulfill_role_setting_conditions() {
+        let rs_5k = create_5kpp_ss_50_country_role_settings();
+        let rs_10k = create_10kpp_role_settings();
+
+        let mut player = Player {
+            pp: 12000.0,
+            top_accuracy: 91.0,
+            country_rank: 20,
+            ..Default::default()
+        };
+
+        assert_eq!(rs_5k.is_fulfilled_for(&player), true);
+        assert_eq!(rs_10k.is_fulfilled_for(&player), true);
+
+        player.top_accuracy = 89.0;
+        assert_eq!(rs_5k.is_fulfilled_for(&player), false);
+
+        player.top_accuracy = 91.0;
+        player.country_rank = 100;
+        assert_eq!(rs_5k.is_fulfilled_for(&player), false);
+
+        player.pp = 7000.0;
+        player.country_rank = 10;
+
+        assert_eq!(rs_5k.is_fulfilled_for(&player), true);
+        assert_eq!(rs_10k.is_fulfilled_for(&player), false);
+    }
+
+    #[test]
+    fn it_can_add_role_settings_to_guild() {
+        let gs = create_guild_settings();
+
+        assert_eq!(gs.role_groups.keys().len(), 2);
+        assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
+        assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 3);
+    }
+
+    #[test]
+    fn it_can_merge_role_conditions() {
+        let mut gs = create_empty_guild_settings();
+
+        let mut rs = RoleSettings::new(RoleId(1), "NEW NAME".to_string(), 1000);
+
+        rs.add_condition(
+            MetricCondition::BetterThanOrEqualTo,
+            PlayerMetricWithValue::TotalPp(5000.0),
+        );
+
+        gs.merge("pp".to_string(), create_5kpp_ss_50_country_role_settings())
+            .merge("pp".to_string(), rs);
+
+        let role_conditions = gs.role_groups.get("pp").unwrap().get(&RoleId(1)).unwrap();
+
+        assert_eq!(gs.role_groups.keys().len(), 1);
+        assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 1);
+        assert_eq!(role_conditions.conditions.len(), 4);
+        assert_eq!(role_conditions.role_name, "NEW NAME");
+        assert_eq!(role_conditions.weight, 1000);
+    }
+
+    #[test]
+    fn it_can_remove_role_settings_from_guild() {
+        let mut gs = create_guild_settings();
+
+        gs.remove("invalid-group".to_string(), RoleId(1));
+        gs.remove("rank".to_string(), RoleId(1));
+        gs.remove("rank".to_string(), RoleId(3));
+        gs.remove("rank".to_string(), RoleId(5));
+
+        assert_eq!(gs.role_groups.keys().len(), 2);
+        assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
+        assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 1);
+
+        gs.remove("rank".to_string(), RoleId(4));
+        assert_eq!(gs.role_groups.contains_key("rank"), false);
+    }
+
+    #[test]
+    fn it_can_check_if_role_exists_in_guild_role_group() {
+        let gs = create_guild_settings();
+
+        assert_eq!(
+            gs.contains_in_group("invalid".to_string(), RoleId(1)),
+            false
+        );
+        assert_eq!(
+            gs.contains_in_group("rank".to_string(), RoleId(1000)),
+            false
+        );
+        assert_eq!(gs.contains_in_group("rank".to_string(), RoleId(3)), true);
+        assert_eq!(gs.contains_in_group("rank".to_string(), RoleId(5)), true);
+    }
+
+    #[test]
+    fn it_can_get_all_roles_set_in_guild() {
+        let gs = create_guild_settings();
+
+        let mut roles = gs.all_roles();
+        roles.sort_unstable();
+
+        assert_eq!(
+            roles,
+            vec![&RoleId(1), &RoleId(2), &RoleId(3), &RoleId(4), &RoleId(5)]
+        );
+    }
+
+    #[test]
+    fn it_can_check_if_role_exists_in_any_guild_role_group() {
+        let gs = create_guild_settings();
+
+        assert_eq!(gs.contains(RoleId(1000)), false);
+        assert_eq!(gs.contains(RoleId(1)), true);
+        assert_eq!(gs.contains(RoleId(5)), true);
+    }
+
+    #[test]
+    fn it_resolves_which_roles_should_be_added_and_removed() {
+        let gs = create_guild_settings();
+
+        let mut player = Player {
+            pp: 7000.0,
+            top_accuracy: 91.0,
+            rank: 1001,
+            country_rank: 20,
+            ..Default::default()
+        };
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(1), RoleId(3)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, Vec::<RoleId>::new());
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+
+        player.top_accuracy = 89.0;
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(1)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, Vec::<RoleId>::new());
+        assert_eq!(roles_updates.to_remove, vec![RoleId(1)]);
+
+        player.pp = 10000.0;
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(2)]);
+        assert_eq!(roles_updates.to_remove, Vec::<RoleId>::new());
+
+        player.rank = 1000;
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(2)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(3)]);
+        assert_eq!(roles_updates.to_remove, Vec::<RoleId>::new());
+
+        player.rank = 500;
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(2), RoleId(3)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
     }
 }
 
@@ -241,42 +836,6 @@ pub(crate) async fn bl_replay_autocomplete(
 
     ctx.say(format!("Data: {:#?}, test: {}", selected_user, test_var))
         .await?;
-    Ok(())
-}
-
-/// Command to set conditions for automatic role assignment.
-#[poise::command(
-    slash_command,
-    rename = "bl-add-auto-role",
-    ephemeral,
-    required_permissions = "MANAGE_ROLES",
-    default_member_permissions = "MANAGE_ROLES",
-    required_bot_permissions = "MANAGE_ROLES",
-    guild_only
-)]
-pub(crate) async fn bl_add_auto_role(
-    ctx: Context<'_>,
-    #[description = "Group name, e.g. `pp`. Only one role from a given group will be assigned."]
-    #[min_length = 1]
-    group: String,
-    #[description = "Role to asign"] role: serenity::Role,
-    #[description = "Metric to check"] metric: PlayerMetric,
-    #[description = "Metric value. A metric value equal to or higher than this will assign the member a role"]
-    #[min = 1]
-    value: u32,
-) -> Result<(), Error> {
-    let current_member = ctx.author_member().await.unwrap();
-
-    let op = ">=";
-    ctx.say(format!(
-        "Group: {}, Role: {:#?}, Metric: {:#?}, Op: {:#?}, Value: {:#?}",
-        group, role, metric, op, value
-    ))
-    .await?;
-
-    ctx.say(format!("Current Member: {:#?}", current_member))
-        .await?;
-
     Ok(())
 }
 

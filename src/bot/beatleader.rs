@@ -3,11 +3,13 @@ use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
 use crate::beatleader::{error::Error as BlError, Client, SortOrder};
+use crate::bot::{PlayerMetric, PlayerMetricWithValue};
 use crate::BL_CLIENT;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Player {
     pub id: PlayerId,
     pub name: String,
@@ -33,6 +35,18 @@ pub struct Player {
     pub total_play_count: u32,
     pub ranked_play_count: u32,
     pub unranked_play_count: u32,
+}
+
+impl Player {
+    pub(crate) fn get_metric_with_value(&self, metric: PlayerMetric) -> PlayerMetricWithValue {
+        match metric {
+            PlayerMetric::TopPp => PlayerMetricWithValue::TopPp(self.top_pp),
+            PlayerMetric::TopAcc => PlayerMetricWithValue::TopAcc(self.top_accuracy),
+            PlayerMetric::TotalPp => PlayerMetricWithValue::TotalPp(self.pp),
+            PlayerMetric::Rank => PlayerMetricWithValue::Rank(self.rank),
+            PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(self.country_rank),
+        }
+    }
 }
 
 impl From<BlPlayer> for Player {

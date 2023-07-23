@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 mod beatleader;
 mod bot;
 
