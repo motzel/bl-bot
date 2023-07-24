@@ -268,7 +268,7 @@ impl std::fmt::Display for RoleSettings {
             self.weight,
             cond_vec
                 .iter()
-                .map(|(role_cond_id, role_cond)| format!(" * {}. {}", role_cond_id, role_cond))
+                .map(|(_role_cond_id, role_cond)| format!(" * {}", role_cond))
                 .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
                 .trim_end()
         )
