@@ -108,7 +108,7 @@ pub(crate) async fn bl_replay(
     while let Some(mci) = serenity::CollectComponentInteraction::new(ctx)
         .author_id(current_user.id)
         .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(120))
         .await
     {
         debug!("Interaction response: {:?}", mci.data);

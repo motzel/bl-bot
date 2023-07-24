@@ -4,7 +4,7 @@ use crate::{Context, Error};
 use log::info;
 use poise::serenity_prelude as serenity;
 
-/// Command to set conditions for automatic role assignment.
+/// Set conditions for automatic role assignment.
 #[poise::command(
     slash_command,
     rename = "bl-add-auto-role",
