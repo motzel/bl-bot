@@ -1,5 +1,5 @@
 use crate::bot::db::{add_auto_role, remove_auto_role};
-use crate::bot::{GuildSettings, MetricCondition, PlayerMetric};
+use crate::bot::{GuildSettings, MetricCondition};
 use crate::{Context, Error};
 use log::info;
 use poise::serenity_prelude as serenity;
@@ -21,17 +21,23 @@ pub(crate) async fn bl_remove_auto_role(
     group: String,
     #[description = "Role to remove."] role: serenity::Role,
 ) -> Result<(), Error> {
-    let guild_settings =
-        match remove_auto_role(&ctx.data().persist, ctx.data().guild_id, group, role.id).await {
-            Ok(gs) => gs,
-            Err(e) => {
-                ctx.say(format!("Error removing auto role: {}", e)).await?;
-                return Ok(());
-            }
-        };
+    if let Err(e) = remove_auto_role(
+        &ctx.data().persist,
+        &ctx.data().guild_settings,
+        group,
+        role.id,
+    )
+    .await
+    {
+        ctx.say(format!("Error removing auto role: {}", e)).await?;
+        return Ok(());
+    }
 
-    ctx.say(format!("Settings changed:\n{}", guild_settings))
-        .await?;
+    ctx.say(format!(
+        "Settings changed:\n{}",
+        &ctx.data().guild_settings.lock().await
+    ))
+    .await?;
 
     Ok(())
 }

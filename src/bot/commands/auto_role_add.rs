@@ -1,5 +1,5 @@
 use crate::bot::db::add_auto_role;
-use crate::bot::{GuildSettings, MetricCondition, PlayerMetric};
+use crate::bot::{GuildSettings, MetricCondition, PlayerMetric, PlayerMetricWithValue};
 use crate::{Context, Error};
 use log::info;
 use poise::serenity_prelude as serenity;
@@ -30,27 +30,26 @@ pub(crate) async fn bl_add_auto_role(
     #[min = 1]
     weight: u32,
 ) -> Result<(), Error> {
-    let guild_settings = match add_auto_role(
+    if let Err(e) = add_auto_role(
         &ctx.data().persist,
-        ctx.data().guild_id,
+        &ctx.data().guild_settings,
         group,
         role.id,
-        metric,
+        PlayerMetricWithValue::new(metric, value),
         condition,
-        value,
         weight,
     )
     .await
     {
-        Ok(gs) => gs,
-        Err(e) => {
-            ctx.say(format!("Error adding auto role: {}", e)).await?;
-            return Ok(());
-        }
-    };
+        ctx.say(format!("Error adding auto role: {}", e)).await?;
+        return Ok(());
+    }
 
-    ctx.say(format!("Settings changed:\n{}", guild_settings))
-        .await?;
+    ctx.say(format!(
+        "Settings changed:\n{}",
+        &ctx.data().guild_settings.lock().await
+    ))
+    .await?;
 
     Ok(())
 }

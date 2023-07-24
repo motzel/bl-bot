@@ -28,8 +28,7 @@ pub(crate) async fn bl_link(
 
     let persist = &ctx.data().persist;
 
-    let player_result =
-        link_player(persist, selected_user.id.into(), bl_player_id.to_owned()).await;
+    let player_result = link_player(persist, selected_user.id, bl_player_id.to_owned()).await;
 
     match player_result {
         Ok(player) => {

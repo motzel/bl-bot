@@ -8,14 +8,17 @@ use crate::bot::{
 use crate::Error;
 use crate::BL_CLIENT;
 use log::{debug, error, info, warn};
-use poise::serenity_prelude::{GuildId, RoleId};
+use poise::serenity_prelude::ButtonStyle::Link;
+use poise::serenity_prelude::{GuildId, RoleId, UserId};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::PersistInstance;
+use std::sync::Arc;
+use tokio::sync::{Mutex, MutexGuard};
 use tracing::field::debug;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct PlayerLink {
-    pub discord_user_id: u64,
+    pub discord_user_id: UserId,
     pub player_id: PlayerId,
 }
 
@@ -34,7 +37,7 @@ impl LinkedPlayers {
 
 pub(crate) async fn get_player_id(
     persist: &PersistInstance,
-    discord_user_id: u64,
+    discord_user_id: UserId,
 ) -> Result<PlayerId, Error> {
     get_linked_players(persist)
         .await?
@@ -100,7 +103,7 @@ pub(crate) async fn fetch_and_update_player(
 
 pub(crate) async fn fetch_and_update_all_players(
     persist: &PersistInstance,
-) -> Result<Vec<BotPlayer>, Error> {
+) -> Result<Vec<(BotPlayer, UserId)>, Error> {
     info!("Updating profiles of all players...");
 
     match get_linked_players(persist).await {
@@ -108,7 +111,8 @@ pub(crate) async fn fetch_and_update_all_players(
             let links_count = linked_players.players.len();
             info!("Players links loaded, {} link(s) found.", links_count);
 
-            let mut players = Vec::with_capacity(linked_players.players.len());
+            let mut players =
+                Vec::<(BotPlayer, UserId)>::with_capacity(linked_players.players.len());
 
             for linked_player in linked_players.players {
                 debug!("Updating player {}...", linked_player.player_id.clone());
@@ -116,7 +120,7 @@ pub(crate) async fn fetch_and_update_all_players(
                 match fetch_and_update_player(persist, linked_player.player_id).await {
                     Ok(player) => {
                         info!("Player {} ({}) updated.", player.id, player.name);
-                        players.push(player);
+                        players.push((player, linked_player.discord_user_id));
                     }
                     Err(e) => {
                         error!("Error updating player: {}", e);
@@ -143,9 +147,21 @@ pub(crate) async fn fetch_and_update_all_players(
 }
 
 pub(crate) async fn get_linked_players(persist: &PersistInstance) -> Result<LinkedPlayers, Error> {
-    match persist.load::<LinkedPlayers>("linked-players-v1") {
-        Ok(players) => Ok(players),
-        Err(_) => Ok(LinkedPlayers::new()),
+    // LinkedPlayers object can not be deserialized as is for some reason
+    match persist.load::<String>("linked-players-v1") {
+        Ok(json) => match serde_json::from_str::<LinkedPlayers>(json.as_str()) {
+            Ok(linked_players) => Ok(linked_players),
+            Err(e) => {
+                error!("Can not deserialize JSON linked_players: {}", e);
+
+                Ok(LinkedPlayers::new())
+            }
+        },
+        Err(e) => {
+            error!("Can not load linked players: {}", e);
+
+            Ok(LinkedPlayers::new())
+        }
     }
 }
 
@@ -153,7 +169,10 @@ pub(crate) async fn store_linked_players(
     persist: &PersistInstance,
     players: LinkedPlayers,
 ) -> Result<(), Error> {
-    match persist.save::<LinkedPlayers>("linked-players-v1", players) {
+    // LinkedPlayers object can not be serialized as is for some reason
+    let json = serde_json::to_string(&players)?;
+
+    match persist.save::<String>("linked-players-v1", json) {
         Ok(_) => Ok(()),
         Err(e) => {
             error!("Linked players save error: {}", e.to_string());
@@ -165,7 +184,7 @@ pub(crate) async fn store_linked_players(
 
 pub(crate) async fn link_player(
     persist: &PersistInstance,
-    discord_user_id: u64,
+    discord_user_id: UserId,
     player_id: PlayerId,
 ) -> Result<BotPlayer, Error> {
     info!(
@@ -249,45 +268,46 @@ pub(crate) async fn store_guild_settings(
 
 pub(crate) async fn add_auto_role(
     persist: &PersistInstance,
-    guild_id: GuildId,
+    guild_settings: &Arc<Mutex<GuildSettings>>,
     role_group: RoleGroup,
     role_id: RoleId,
-    metric: PlayerMetric,
+    metric_and_value: PlayerMetricWithValue,
     condition: MetricCondition,
-    value: f64,
     weight: u32,
-) -> Result<GuildSettings, Error> {
+) -> Result<(), Error> {
     info!("Adding auto role...");
 
-    let mut guild_settings = get_guild_settings(persist, guild_id).await?;
+    let mut lock = guild_settings.lock().await;
 
     let mut rs = RoleSettings::new(role_id, weight);
-    rs.add_condition(condition, PlayerMetricWithValue::new(metric, value));
+    rs.add_condition(condition, metric_and_value);
 
-    guild_settings.merge(role_group, rs);
+    lock.merge(role_group, rs);
 
-    store_guild_settings(persist, guild_settings.clone()).await?;
+    // TODO: move to async closure and acquire lock
+    store_guild_settings(persist, lock.clone()).await?;
 
     info!("Role added.");
 
-    Ok(guild_settings)
+    Ok(())
 }
 
 pub(crate) async fn remove_auto_role(
     persist: &PersistInstance,
-    guild_id: GuildId,
+    guild_settings: &Arc<Mutex<GuildSettings>>,
     role_group: RoleGroup,
     role_id: RoleId,
-) -> Result<GuildSettings, Error> {
+) -> Result<(), Error> {
     info!("Removing auto role...");
 
-    let mut guild_settings = get_guild_settings(persist, guild_id).await?;
+    let mut lock = guild_settings.lock().await;
 
-    guild_settings.remove(role_group, role_id);
+    lock.remove(role_group, role_id);
 
-    store_guild_settings(persist, guild_settings.clone()).await?;
+    // TODO: move to async closure and acquire lock
+    store_guild_settings(persist, lock.clone()).await?;
 
     info!("Role removed.");
 
-    Ok(guild_settings)
+    Ok(())
 }

@@ -53,7 +53,7 @@ pub(crate) async fn bl_replay(
     let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
 
     let persist = &ctx.data().persist;
-    let Ok(player_id) = get_player_id(persist, selected_user.id.into()).await else {
+    let Ok(player_id) = get_player_id(persist, selected_user.id).await else {
         ctx.say("BL profile is not linked. Use ``/bl-link`` command first.").await?;
         return Ok(());
     };

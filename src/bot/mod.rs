@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod beatleader;
+pub(crate) mod beatleader;
 pub(crate) mod commands;
 pub(crate) mod db;
 
 use log::info;
 use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::UserId;
 use poise::SlashArgument;
 use serenity::model::gateway::Activity;
 use std::cmp::Ordering;
@@ -277,6 +278,7 @@ impl std::fmt::Display for RoleSettings {
 
 #[derive(Default, Debug, Clone)]
 pub struct UserRoleChanges {
+    discord_user_id: UserId,
     to_add: Vec<RoleId>,
     to_remove: Vec<RoleId>,
 }
@@ -288,8 +290,13 @@ pub struct UserRoleStatus {
 }
 
 impl UserRoleStatus {
-    pub fn get_role_changes(&self, current_roles: &[RoleId]) -> UserRoleChanges {
+    pub fn get_role_changes(
+        &self,
+        discord_user_id: UserId,
+        current_roles: &[RoleId],
+    ) -> UserRoleChanges {
         UserRoleChanges {
+            discord_user_id,
             to_add: self
                 .should_have
                 .iter()
@@ -402,6 +409,7 @@ impl GuildSettings {
     pub(crate) fn get_role_updates(
         &self,
         player: &Player,
+        discord_user_id: UserId,
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         #[derive(Debug)]
@@ -448,7 +456,7 @@ impl GuildSettings {
 
                 acc
             })
-            .get_role_changes(current_roles)
+            .get_role_changes(discord_user_id, current_roles)
     }
 }
 
@@ -491,6 +499,7 @@ mod tests {
         GuildId, GuildSettings, MetricCondition, Player, PlayerMetric, PlayerMetricWithValue,
         RoleConditionId, RoleId, RoleSettings,
     };
+    use poise::serenity_prelude::UserId;
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(1), 100);
@@ -811,7 +820,8 @@ mod tests {
             ..Default::default()
         };
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(1), RoleId(3)]);
+        let mut roles_updates =
+            gs.get_role_updates(&player, UserId(1), &vec![RoleId(1), RoleId(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -821,7 +831,7 @@ mod tests {
 
         player.top_accuracy = 89.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(1)]);
+        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![RoleId(1)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -831,7 +841,7 @@ mod tests {
 
         player.pp = 10000.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![]);
+        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -841,7 +851,7 @@ mod tests {
 
         player.rank = 1000;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(2)]);
+        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![RoleId(2)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -851,7 +861,8 @@ mod tests {
 
         player.rank = 500;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId(2), RoleId(3)]);
+        let mut roles_updates =
+            gs.get_role_updates(&player, UserId(1), &vec![RoleId(2), RoleId(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();

@@ -3,6 +3,7 @@ mod beatleader;
 mod bot;
 
 use peak_alloc::PeakAlloc;
+use std::sync::Arc;
 
 #[global_allocator]
 static PEAK_ALLOC: PeakAlloc = PeakAlloc;
@@ -17,12 +18,17 @@ use crate::bot::commands::{
 use serenity::model::id::GuildId;
 
 use crate::beatleader::Client;
-use crate::bot::db::{fetch_and_update_all_players, get_guild_settings, LinkedPlayers};
-use crate::bot::GuildSettings;
+use crate::bot::beatleader::Player as BotPlayer;
+use crate::bot::db::{
+    fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
+};
+use crate::bot::{GuildSettings, UserRoleChanges};
 use lazy_static::lazy_static;
+use poise::serenity_prelude::{RoleId, UserId};
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
+use tokio::sync::Mutex;
 
 lazy_static! {
     static ref BL_CLIENT: Client = Client::default();
@@ -30,8 +36,8 @@ lazy_static! {
 
 pub(crate) struct Data {
     guild_id: GuildId,
-    guild_settings: GuildSettings,
-    // linked_players: LinkedPlayers,
+    guild_settings: Arc<Mutex<GuildSettings>>,
+    linked_players: Arc<Mutex<LinkedPlayers>>,
     persist: PersistInstance,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -111,10 +117,22 @@ async fn poise(
                 let guild_settings = match get_guild_settings(&persist, global_guild_id).await {
                     Ok(gs) => gs,
                     Err(e) => {
-                        panic!("Error fetching auto role: {}", e);
+                        panic!("Error fetching guild settings: {}", e);
                     }
                 };
                 info!("Guild settings loaded");
+
+                info!("Loading linked players...");
+                let linked_players = match get_linked_players(&persist).await {
+                    Ok(gs) => gs,
+                    Err(e) => {
+                        panic!("Error fetching linked players: {}", e);
+                    }
+                };
+                info!("Linked players loaded");
+
+                let linked_players_arc = Arc::new(Mutex::new(linked_players));
+                let guild_settings_arc = Arc::new(Mutex::new(guild_settings));
 
                 info!("Setting bot status...");
                 ctx.set_presence(
@@ -125,6 +143,8 @@ async fn poise(
 
                 let _global_ctx = ctx.clone();
                 let global_persist = persist.clone();
+
+                let guild_settings_worker = Arc::clone(&guild_settings_arc);
 
                 tokio::spawn(async move {
                     // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
@@ -146,8 +166,32 @@ async fn poise(
                         debug!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         debug!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
 
-                        if let Ok(_players) = fetch_and_update_all_players(&global_persist).await {
-                            // TODO: check the conditions for automatic granting of roles
+                        if let Ok(players) = fetch_and_update_all_players(&global_persist).await {
+                            info!("Updating players roles ({})...", players.len());
+
+                            let current_players_roles = players
+                                .iter()
+                                .map(|(player, user_id)| {
+                                    // TODO: fetch current player roles
+
+                                    (player, user_id, Vec::<RoleId>::new())
+                                })
+                                .collect::<Vec<(&BotPlayer, &UserId, Vec<RoleId>)>>();
+
+                            let lock = guild_settings_worker.lock().await;
+                            let roles_updates = current_players_roles
+                                .iter()
+                                .map(|(player, &user_id, roles)| {
+                                    lock.get_role_updates(player, user_id, roles)
+                                })
+                                .collect::<Vec<UserRoleChanges>>();
+                            drop(lock);
+
+                            for _role_changes in roles_updates {
+                                info!("{:?}", _role_changes);
+                            }
+
+                            info!("Players roles updated.");
                         }
                     }
                 });
@@ -157,8 +201,9 @@ async fn poise(
 
                 Ok(Data {
                     guild_id,
+                    linked_players: linked_players_arc,
                     persist,
-                    guild_settings,
+                    guild_settings: guild_settings_arc,
                 })
             })
         })
