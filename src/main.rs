@@ -1,34 +1,31 @@
 #![allow(dead_code)]
-mod beatleader;
-mod bot;
 
-use peak_alloc::PeakAlloc;
 use std::sync::Arc;
 
-#[global_allocator]
-static PEAK_ALLOC: PeakAlloc = PeakAlloc;
-
-use log::{debug, info};
-
-pub(crate) use poise::serenity_prelude as serenity;
-
-use crate::bot::commands::{
-    bl_add_auto_role, bl_link, bl_remove_auto_role, bl_replay, bl_show_auto_roles,
-};
-use serenity::model::id::GuildId;
-
-use crate::beatleader::Client;
-use crate::bot::beatleader::Player as BotPlayer;
-use crate::bot::db::{
-    fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
-};
-use crate::bot::{GuildSettings, UserRoleChanges};
 use lazy_static::lazy_static;
-use poise::serenity_prelude::{RoleId, UserId};
+use log::{debug, error, info};
+use peak_alloc::PeakAlloc;
+pub(crate) use poise::serenity_prelude as serenity;
+use serenity::model::id::GuildId;
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 use tokio::sync::Mutex;
+
+use crate::beatleader::Client;
+use crate::bot::commands::{
+    bl_add_auto_role, bl_link, bl_remove_auto_role, bl_replay, bl_show_auto_roles,
+};
+use crate::bot::db::{
+    fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
+};
+use crate::bot::{GuildSettings, UserRoleChanges};
+
+mod beatleader;
+mod bot;
+
+#[global_allocator]
+static PEAK_ALLOC: PeakAlloc = PeakAlloc;
 
 lazy_static! {
     static ref BL_CLIENT: Client = Client::default();
@@ -76,6 +73,15 @@ async fn poise(
             .parse()
             .expect("'GUILD_ID' should be an integer"),
     );
+
+    let refresh_interval: u64 = secret_store
+        .get("REFRESH_INTERVAL")
+        .expect("'REFRESH_INTERVAL' was not found")
+        .parse()
+        .expect("'REFRESH_INTERVAL' should be an integer");
+    if refresh_interval < 30 {
+        panic!("REFRESH_INTERVAL should be greater than 30 seconds");
+    }
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -150,13 +156,7 @@ async fn poise(
                     // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
                     // let _ = _channel.say(_global_ctx, "test").await;
 
-                    // let roles = _global_ctx
-                    //     .http
-                    //     .get_guild_roles(global_guild_id.into())
-                    //     .await;
-                    // println!("{:?}", roles);
-
-                    let interval = std::time::Duration::from_secs(5 * 60);
+                    let interval = std::time::Duration::from_secs(refresh_interval);
                     info!("Run a task that updates profiles every {:?}", interval);
 
                     let mut timer = tokio::time::interval(interval);
@@ -169,26 +169,40 @@ async fn poise(
                         if let Ok(players) = fetch_and_update_all_players(&global_persist).await {
                             info!("Updating players roles ({})...", players.len());
 
-                            let current_players_roles = players
-                                .iter()
-                                .map(|(player, user_id)| {
-                                    // TODO: fetch current player roles
+                            let mut current_players_roles = Vec::new();
+                            for (player, user_id) in players {
+                                debug!("Fetching user {} ({}) roles...", user_id, player.name);
 
-                                    (player, user_id, Vec::<RoleId>::new())
-                                })
-                                .collect::<Vec<(&BotPlayer, &UserId, Vec<RoleId>)>>();
+                                let Ok(member) = _global_ctx
+                                    .http
+                                    .get_member(guild_id.into(), user_id.into())
+                                    .await else {
+                                    error!("Can not fetch user {} membership.", user_id);
+                                    continue;
+                                };
+
+                                current_players_roles.push((player, user_id, member.roles));
+                            }
 
                             let lock = guild_settings_worker.lock().await;
-                            let roles_updates = current_players_roles
+                            let role_changes = current_players_roles
                                 .iter()
-                                .map(|(player, &user_id, roles)| {
-                                    lock.get_role_updates(player, user_id, roles)
+                                .map(|(player, user_id, roles)| {
+                                    lock.get_role_updates(player, *user_id, roles)
                                 })
                                 .collect::<Vec<UserRoleChanges>>();
                             drop(lock);
 
-                            for _role_changes in roles_updates {
-                                info!("{:?}", _role_changes);
+                            for rc in role_changes {
+                                match rc.apply(global_guild_id, &_global_ctx.http).await {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        error!(
+                                            "Failed to update roles for user {}: {}",
+                                            rc.discord_user_id, e
+                                        );
+                                    }
+                                }
                             }
 
                             info!("Players roles updated.");

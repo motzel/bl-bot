@@ -5,7 +5,7 @@ pub(crate) mod beatleader;
 pub(crate) mod commands;
 pub(crate) mod db;
 
-use log::info;
+use log::{debug, error, info};
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::UserId;
 use poise::SlashArgument;
@@ -13,17 +13,20 @@ use serenity::model::gateway::Activity;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::bot::db::{get_player_id, link_player};
-use crate::{Context, Error};
+use crate::Context;
 use serde::{Deserialize, Serialize};
 use serenity::model::id::GuildId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
 use serenity::model::prelude::RoleId;
+
+pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
@@ -278,9 +281,104 @@ impl std::fmt::Display for RoleSettings {
 
 #[derive(Default, Debug, Clone)]
 pub struct UserRoleChanges {
-    discord_user_id: UserId,
-    to_add: Vec<RoleId>,
-    to_remove: Vec<RoleId>,
+    pub discord_user_id: UserId,
+    pub player_id: PlayerId,
+    pub name: String,
+    pub to_add: Vec<RoleId>,
+    pub to_remove: Vec<RoleId>,
+}
+
+impl UserRoleChanges {
+    pub async fn apply(
+        &self,
+        guild_id: GuildId,
+        http: &Arc<poise::serenity_prelude::Http>,
+    ) -> Result<(), Error> {
+        info!(
+            "Updating user {} ({}) roles...",
+            self.discord_user_id, self.name
+        );
+
+        if self.to_add.is_empty() && self.to_remove.is_empty() {
+            info!(
+                "No roles to add or remove for user {} ({}).",
+                self.discord_user_id, self.name
+            );
+            return Ok(());
+        }
+
+        info!(
+            "{} role(s) to add to user {} ({})",
+            self.to_add.len(),
+            self.discord_user_id,
+            self.name
+        );
+
+        for role_id in self.to_add.iter() {
+            debug!(
+                "Adding role {} to user {} ({})",
+                role_id, self.discord_user_id, self.name
+            );
+
+            if let Err(e) = http
+                .add_member_role(
+                    guild_id.into(),
+                    self.discord_user_id.into(),
+                    (*role_id).into(),
+                    None,
+                )
+                .await
+            {
+                error!(
+                    "Can not add role {} to user {} ({}): {}",
+                    role_id, self.discord_user_id, self.name, e
+                );
+                continue;
+            }
+
+            debug!(
+                "Role {} added to user {} ({})",
+                role_id, self.discord_user_id, self.name
+            );
+        }
+
+        info!(
+            "{} role(s) to remove from user {} ({})",
+            self.to_remove.len(),
+            self.discord_user_id,
+            self.name
+        );
+
+        for role_id in self.to_remove.iter() {
+            debug!(
+                "Removing role {} from user {} ({})",
+                role_id, self.discord_user_id, self.name
+            );
+
+            if let Err(e) = http
+                .remove_member_role(
+                    guild_id.into(),
+                    self.discord_user_id.into(),
+                    (*role_id).into(),
+                    None,
+                )
+                .await
+            {
+                error!(
+                    "Can not remove role {} from user {} ({}): {}",
+                    role_id, self.discord_user_id, self.name, e
+                );
+                continue;
+            }
+
+            debug!(
+                "Role {} removed from user {} ({})",
+                role_id, self.discord_user_id, self.name
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -292,11 +390,14 @@ pub struct UserRoleStatus {
 impl UserRoleStatus {
     pub fn get_role_changes(
         &self,
+        player: &Player,
         discord_user_id: UserId,
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         UserRoleChanges {
             discord_user_id,
+            player_id: player.id.clone(),
+            name: player.name.clone(),
             to_add: self
                 .should_have
                 .iter()
@@ -456,7 +557,7 @@ impl GuildSettings {
 
                 acc
             })
-            .get_role_changes(discord_user_id, current_roles)
+            .get_role_changes(player, discord_user_id, current_roles)
     }
 }
 
