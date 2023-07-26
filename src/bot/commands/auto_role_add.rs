@@ -1,3 +1,4 @@
+use crate::bot::commands::autocomplete_role_group;
 use crate::bot::db::add_auto_role;
 use crate::bot::{GuildSettings, MetricCondition, PlayerMetric, PlayerMetricWithValue};
 use crate::{Context, Error};
@@ -18,6 +19,7 @@ pub(crate) async fn cmd_add_auto_role(
     ctx: Context<'_>,
     #[description = "Group name, e.g. `top-pp`. Only one role from a given group will be assigned."]
     #[min_length = 1]
+    #[autocomplete = "autocomplete_role_group"]
     group: String,
     #[description = "Role to assign. Only the role with the highest weight in the group will be assigned."]
     role: serenity::Role,

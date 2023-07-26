@@ -1,3 +1,4 @@
+use crate::bot::commands::autocomplete_role_group;
 use crate::bot::db::{add_auto_role, remove_auto_role};
 use crate::bot::{GuildSettings, MetricCondition};
 use crate::{Context, Error};
@@ -18,6 +19,7 @@ pub(crate) async fn cmd_remove_auto_role(
     ctx: Context<'_>,
     #[description = "The name of the group from which you want to remove the auto role, e.g. `top-pp`. "]
     #[min_length = 1]
+    #[autocomplete = "autocomplete_role_group"]
     group: String,
     #[description = "Role to remove."] role: serenity::Role,
 ) -> Result<(), Error> {
