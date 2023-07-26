@@ -219,6 +219,33 @@ pub(crate) async fn link_player(
     Ok(player)
 }
 
+pub(crate) async fn unlink_player(
+    persist: &PersistInstance,
+    discord_user_id: UserId,
+) -> Result<(), Error> {
+    info!("Unlinking discord user {}...", discord_user_id);
+
+    let mut data = get_linked_players(persist).await?;
+
+    let original_len = data.players.len();
+
+    debug!("Players links loaded, {} link(s) found.", original_len);
+
+    // filter existing link
+    data.players
+        .retain(|p| p.discord_user_id != discord_user_id);
+
+    if data.players.len() == original_len {
+        return Err("User is not linked to BL profile")?;
+    }
+
+    debug!("Saving new players links ({})...", data.players.len());
+
+    store_linked_players(persist, data).await?;
+
+    Ok(())
+}
+
 pub(crate) async fn get_guild_settings(
     persist: &PersistInstance,
     guild_id: GuildId,

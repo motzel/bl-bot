@@ -42,7 +42,7 @@ impl Sort {
 ///
 /// Enter any user of this server as a parameter. If you omit it then your replay will be searched for.
 #[poise::command(slash_command, rename = "bl-replay", guild_only)]
-pub(crate) async fn bl_replay(
+pub(crate) async fn cmd_replay(
     ctx: Context<'_>,
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,

@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 use crate::beatleader::Client;
 use crate::bot::commands::{
-    bl_add_auto_role, bl_link, bl_remove_auto_role, bl_replay, bl_show_auto_roles,
+    cmd_add_auto_role, cmd_link, cmd_remove_auto_role, cmd_replay, cmd_show_auto_roles, cmd_unlink,
 };
 use crate::bot::db::{
     fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
@@ -85,11 +85,12 @@ async fn poise(
 
     let options = poise::FrameworkOptions {
         commands: vec![
-            bl_replay(),
-            bl_link(),
-            bl_show_auto_roles(),
-            bl_add_auto_role(),
-            bl_remove_auto_role(),
+            cmd_replay(),
+            cmd_link(),
+            cmd_unlink(),
+            cmd_show_auto_roles(),
+            cmd_add_auto_role(),
+            cmd_remove_auto_role(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {

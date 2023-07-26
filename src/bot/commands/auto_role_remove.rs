@@ -14,7 +14,7 @@ use poise::serenity_prelude as serenity;
     required_bot_permissions = "MANAGE_ROLES",
     guild_only
 )]
-pub(crate) async fn bl_remove_auto_role(
+pub(crate) async fn cmd_remove_auto_role(
     ctx: Context<'_>,
     #[description = "The name of the group from which you want to remove the auto role, e.g. `top-pp`. "]
     #[min_length = 1]

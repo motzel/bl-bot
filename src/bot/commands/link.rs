@@ -5,7 +5,7 @@ use poise::serenity_prelude as serenity;
 
 /// Link your account to your Beat Leader profile.
 #[poise::command(slash_command, rename = "bl-link", guild_only)]
-pub(crate) async fn bl_link(
+pub(crate) async fn cmd_link(
     ctx: Context<'_>,
     #[description = "Beat Leader PlayerID"] bl_player_id: String,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,

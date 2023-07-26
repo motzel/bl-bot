@@ -14,7 +14,7 @@ use poise::serenity_prelude as serenity;
     required_bot_permissions = "MANAGE_ROLES",
     guild_only
 )]
-pub(crate) async fn bl_add_auto_role(
+pub(crate) async fn cmd_add_auto_role(
     ctx: Context<'_>,
     #[description = "Group name, e.g. `top-pp`. Only one role from a given group will be assigned."]
     #[min_length = 1]
