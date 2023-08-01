@@ -14,7 +14,8 @@ use tokio::sync::Mutex;
 
 use crate::beatleader::Client;
 use crate::bot::commands::{
-    cmd_add_auto_role, cmd_link, cmd_remove_auto_role, cmd_replay, cmd_show_auto_roles, cmd_unlink,
+    cmd_add_auto_role, cmd_link, cmd_register, cmd_remove_auto_role, cmd_replay,
+    cmd_show_auto_roles, cmd_unlink,
 };
 use crate::bot::db::{
     fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
@@ -91,6 +92,7 @@ async fn poise(
             cmd_show_auto_roles(),
             cmd_add_auto_role(),
             cmd_remove_auto_role(),
+            cmd_register(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {

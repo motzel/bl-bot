@@ -2,6 +2,7 @@ pub(crate) mod auto_role_add;
 pub(crate) mod auto_role_remove;
 pub(crate) mod auto_role_show;
 pub(crate) mod link;
+pub(crate) mod register;
 pub(crate) mod replay;
 pub(crate) mod unlink;
 
@@ -13,6 +14,7 @@ pub(crate) use auto_role_show::cmd_show_auto_roles;
 use futures::{Stream, StreamExt};
 pub(crate) use link::cmd_link;
 use poise::serenity_prelude as serenity;
+pub(crate) use register::cmd_register;
 pub(crate) use replay::cmd_replay;
 pub(crate) use unlink::cmd_unlink;
 
