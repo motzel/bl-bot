@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use crate::beatleader::Client;
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_link, cmd_register, cmd_remove_auto_role, cmd_replay,
-    cmd_show_auto_roles, cmd_unlink,
+    cmd_set_log_channel, cmd_show_settings, cmd_unlink,
 };
 use crate::bot::db::{
     fetch_and_update_all_players, get_guild_settings, get_linked_players, LinkedPlayers,
@@ -89,9 +89,10 @@ async fn poise(
             cmd_replay(),
             cmd_link(),
             cmd_unlink(),
-            cmd_show_auto_roles(),
+            cmd_show_settings(),
             cmd_add_auto_role(),
             cmd_remove_auto_role(),
+            cmd_set_log_channel(),
             cmd_register(),
         ],
         pre_command: |ctx| {
@@ -140,6 +141,8 @@ async fn poise(
                 };
                 info!("Linked players loaded");
 
+                let bot_channel_id_opt = guild_settings.get_channel();
+
                 let linked_players_arc = Arc::new(Mutex::new(linked_players));
                 let guild_settings_arc = Arc::new(Mutex::new(guild_settings));
 
@@ -150,22 +153,16 @@ async fn poise(
                 )
                 .await;
 
-                let _global_ctx = ctx.clone();
+                let global_ctx = ctx.clone();
                 let global_persist = persist.clone();
 
                 let guild_settings_worker = Arc::clone(&guild_settings_arc);
 
                 tokio::spawn(async move {
-                    // let _channel = serenity::model::id::ChannelId(1131312515498901534_u64);
-                    // let _ = _channel.say(_global_ctx, "test").await;
-
                     let interval = std::time::Duration::from_secs(refresh_interval);
                     info!("Run a task that updates profiles every {:?}", interval);
 
-                    let mut timer = tokio::time::interval(interval);
                     loop {
-                        timer.tick().await;
-
                         debug!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         debug!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
 
@@ -176,7 +173,7 @@ async fn poise(
                             for (player, user_id) in players {
                                 debug!("Fetching user {} ({}) roles...", user_id, player.name);
 
-                                let Ok(member) = _global_ctx
+                                let Ok(member) = global_ctx
                                     .http
                                     .get_member(guild_id.into(), user_id.into())
                                     .await else {
@@ -197,8 +194,29 @@ async fn poise(
                             drop(lock);
 
                             for rc in role_changes {
-                                match rc.apply(global_guild_id, &_global_ctx.http).await {
-                                    Ok(_) => {}
+                                match rc.apply(global_guild_id, &global_ctx.http).await {
+                                    Ok(rc) => {
+                                        if rc.is_changed() {
+                                            if let Some(bot_channel_id) = bot_channel_id_opt {
+                                                info!(
+                                                    "Logging changes to channel #{}",
+                                                    bot_channel_id
+                                                );
+
+                                                match bot_channel_id
+                                                    .send_message(global_ctx.clone(), |m| {
+                                                        m.content(format!("{}", rc))
+                                                            .allowed_mentions(|am| am.empty_parse())
+                                                    })
+                                                    .await {
+                                                    Ok(_) => {}
+                                                    Err(err) => {
+                                                        info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
+                                                    }
+                                                };
+                                            }
+                                        }
+                                    }
                                     Err(e) => {
                                         error!(
                                             "Failed to update roles for user {}: {}",
@@ -210,6 +228,8 @@ async fn poise(
 
                             info!("Players roles updated.");
                         }
+
+                        tokio::time::sleep(interval).await;
                     }
                 });
 

@@ -7,7 +7,7 @@ pub(crate) mod db;
 
 use log::{debug, error, info};
 use poise::serenity_prelude as serenity;
-use poise::serenity_prelude::UserId;
+use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
 use serenity::model::gateway::Activity;
 use std::cmp::Ordering;
@@ -293,7 +293,7 @@ impl UserRoleChanges {
         &self,
         guild_id: GuildId,
         http: &Arc<poise::serenity_prelude::Http>,
-    ) -> Result<(), Error> {
+    ) -> Result<&UserRoleChanges, Error> {
         info!(
             "Updating user {} ({}) roles...",
             self.discord_user_id, self.name
@@ -304,7 +304,7 @@ impl UserRoleChanges {
                 "No roles to add or remove for user {} ({}).",
                 self.discord_user_id, self.name
             );
-            return Ok(());
+            return Ok(self);
         }
 
         info!(
@@ -377,7 +377,40 @@ impl UserRoleChanges {
             );
         }
 
-        Ok(())
+        Ok(self)
+    }
+
+    pub fn is_changed(&self) -> bool {
+        !self.to_add.is_empty() || !self.to_remove.is_empty()
+    }
+}
+impl std::fmt::Display for UserRoleChanges {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let to_add_list = if !self.to_add.is_empty() {
+            self.to_add
+                .iter()
+                .map(|role| format!("<@&{}>", role))
+                .collect::<Vec<String>>()
+                .join(", ")
+        } else {
+            "None".to_string()
+        };
+
+        let to_remove_list = if !self.to_remove.is_empty() {
+            self.to_remove
+                .iter()
+                .map(|role| format!("<@&{}>", role))
+                .collect::<Vec<String>>()
+                .join(", ")
+        } else {
+            "None".to_string()
+        };
+
+        write!(
+            f,
+            "The roles of user <@{}> have been updated\n**Added roles:** {}\n**Removed roles:** {}",
+            self.discord_user_id, to_add_list, to_remove_list,
+        )
     }
 }
 
@@ -431,6 +464,7 @@ impl UserRoleStatus {
 #[serde(rename_all = "camelCase")]
 pub struct GuildSettings {
     guild_id: GuildId,
+    bot_channel_id: Option<ChannelId>,
     role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
 }
 
@@ -438,8 +472,13 @@ impl GuildSettings {
     pub fn new(guild_id: GuildId) -> Self {
         Self {
             guild_id,
+            bot_channel_id: None,
             role_groups: HashMap::new(),
         }
+    }
+
+    pub fn get_channel(&self) -> Option<ChannelId> {
+        self.bot_channel_id
     }
 
     pub fn add(&mut self, role_group: RoleGroup, role_settings: RoleSettings) -> &mut Self {
@@ -575,7 +614,11 @@ impl std::fmt::Display for GuildSettings {
 
         write!(
             f,
-            "{}",
+            "# Current settings\nBot log channel: {}\n## Auto roles:\n{}",
+            self.bot_channel_id.map_or_else(
+                || "**None**".to_owned(),
+                |channel_id| format!("<#{}>", channel_id.to_owned())
+            ),
             rg_vec
                 .iter()
                 .map(|(rg, rs_hm)| {

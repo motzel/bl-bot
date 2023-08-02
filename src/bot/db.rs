@@ -9,7 +9,7 @@ use crate::Error;
 use crate::BL_CLIENT;
 use log::{debug, error, info, warn};
 use poise::serenity_prelude::ButtonStyle::Link;
-use poise::serenity_prelude::{GuildId, RoleId, UserId};
+use poise::serenity_prelude::{ChannelId, GuildId, RoleId, UserId};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::PersistInstance;
 use std::sync::Arc;
@@ -272,16 +272,16 @@ pub(crate) async fn get_guild_settings(
     }
 }
 
-pub(crate) async fn store_guild_settings(
+pub(crate) async fn store_guild_settings<'a>(
     persist: &PersistInstance,
-    guild_settings: GuildSettings,
+    guild_settings: MutexGuard<'a, GuildSettings>,
 ) -> Result<(), Error> {
     let guild_settings_key = format!("guild-settings-v1-{}", guild_settings.guild_id);
 
     debug!("Saving guid settings as {}...", guild_settings_key);
 
     // GuildSettings object can not be serialized as is for some reason
-    let json = serde_json::to_string(&guild_settings)?;
+    let json = serde_json::to_string::<GuildSettings>(&guild_settings)?;
 
     match persist.save::<String>(guild_settings_key.as_str(), json) {
         Ok(_) => Ok(()),
@@ -311,8 +311,7 @@ pub(crate) async fn add_auto_role(
 
     lock.merge(role_group, rs);
 
-    // TODO: move to async closure and acquire lock
-    store_guild_settings(persist, lock.clone()).await?;
+    store_guild_settings(persist, lock).await?;
 
     info!("Role added.");
 
@@ -331,10 +330,27 @@ pub(crate) async fn remove_auto_role(
 
     lock.remove(role_group, role_id);
 
-    // TODO: move to async closure and acquire lock
-    store_guild_settings(persist, lock.clone()).await?;
+    store_guild_settings(persist, lock).await?;
 
     info!("Role removed.");
+
+    Ok(())
+}
+
+pub(crate) async fn update_bot_log_channel(
+    persist: &PersistInstance,
+    guild_settings: &Arc<Mutex<GuildSettings>>,
+    bot_channel_id: Option<ChannelId>,
+) -> Result<(), Error> {
+    info!("Updating bot log channel...");
+
+    let mut lock = guild_settings.lock().await;
+
+    lock.bot_channel_id = bot_channel_id;
+
+    store_guild_settings(persist, lock).await?;
+
+    info!("Channel updated.");
 
     Ok(())
 }
