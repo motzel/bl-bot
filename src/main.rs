@@ -24,6 +24,7 @@ use crate::bot::{GuildSettings, UserRoleChanges};
 
 mod beatleader;
 mod bot;
+mod storage;
 
 #[global_allocator]
 static PEAK_ALLOC: PeakAlloc = PeakAlloc;

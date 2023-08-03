@@ -16,10 +16,16 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::field::debug;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub(crate) struct PlayerLink {
     pub discord_user_id: UserId,
     pub player_id: PlayerId,
+}
+
+impl std::fmt::Display for PlayerLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}::{}", self.discord_user_id, self.player_id)
+    }
 }
 
 #[derive(Deserialize, Serialize)]
