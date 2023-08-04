@@ -481,6 +481,10 @@ impl GuildSettings {
         self.bot_channel_id
     }
 
+    pub fn set_channel(&mut self, channel_id: Option<ChannelId>) {
+        self.bot_channel_id = channel_id;
+    }
+
     pub fn add(&mut self, role_group: RoleGroup, role_settings: RoleSettings) -> &mut Self {
         let role_settings_clone = role_settings.clone();
         self.role_groups

@@ -2,7 +2,7 @@ use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
 
 use crate::bot::{GuildSettings, MetricCondition, PlayerMetricWithValue, RoleGroup};
-use crate::storage::persist::{CachedStorage, ShuttleStorage};
+use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 
 use super::Result;
 
@@ -17,25 +17,32 @@ impl<'a> SettingsRepository<'a> {
         })
     }
 
-    pub async fn get(&self, guild_id: &GuildId) -> Result<Option<GuildSettings>> {
+    pub async fn get(&self, guild_id: &GuildId) -> Option<GuildSettings> {
         self.storage.get(guild_id).await
     }
 
     pub async fn set_bot_channel(
+        &self,
         guild_id: GuildId,
         channel_id: Option<ChannelId>,
     ) -> Result<GuildSettings> {
-        // Warning: 1-3 should take common write lock -> refactor to get-and-modify
-
-        // 1. get guild settings, return error is not exists
-        // 2. set new channel
-        // 3. store
-        // 4. return settings clone
-
-        todo!()
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                &guild_id,
+                |guild_settings| guild_settings.set_channel(channel_id),
+                || None,
+            )
+            .await?
+        {
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound("guild not registered".to_string()))
+        }
     }
 
     pub async fn add_auto_role(
+        &self,
         guild_id: GuildId,
         role_group: RoleGroup,
         role_id: RoleId,
@@ -55,6 +62,7 @@ impl<'a> SettingsRepository<'a> {
     }
 
     pub async fn remove_auto_role(
+        &self,
         guild_id: GuildId,
         role_group: RoleGroup,
         role_id: RoleId,

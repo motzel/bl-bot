@@ -12,13 +12,13 @@ struct PlayerRepository<'a> {
 }
 
 impl<'a> PlayerRepository<'a> {
-    pub async fn new(persist: &'a PersistInstance) -> Result<PlayerRepository<'a>> {
+    pub(crate) async fn new(persist: &'a PersistInstance) -> Result<PlayerRepository<'a>> {
         Ok(Self {
             storage: CachedStorage::new(ShuttleStorage::new("players", persist)).await?,
         })
     }
 
-    pub async fn get(&self, user_id: &UserId) -> Result<Option<BotPlayer>> {
+    pub(crate) async fn get(&self, user_id: &UserId) -> Option<BotPlayer> {
         self.storage.get(user_id).await
     }
 

@@ -14,6 +14,7 @@ pub enum PersistError {
     Storage(ShuttlePersistError),
     JsonDeserialize(serde_json::Error),
     JsonSerialize(serde_json::Error),
+    NotFound(String),
     Unknown,
 }
 
@@ -23,17 +24,18 @@ impl error::Error for PersistError {
             PersistError::Storage(e) => Some(e),
             PersistError::JsonDeserialize(e) => Some(e),
             PersistError::JsonSerialize(e) => Some(e),
-            PersistError::Unknown => None,
+            PersistError::Unknown | PersistError::NotFound(_) => None,
         }
     }
 }
 
-impl fmt::Display for PersistError {
+impl Display for PersistError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PersistError::Storage(e) => write!(f, "storage error: {}", e),
             PersistError::JsonDeserialize(e) => write!(f, "deserialization error: {}", e),
             PersistError::JsonSerialize(e) => write!(f, "serialization error: {}", e),
+            PersistError::NotFound(e) => write!(f, "{}", e),
             PersistError::Unknown => write!(f, "unknown error"),
         }
     }
@@ -81,17 +83,21 @@ where
         })
     }
 
-    pub async fn get(&self, key: &K) -> Result<Option<V>> {
+    pub async fn get(&self, key: &K) -> Option<V> {
         let storage_name = self.storage.get_name();
 
-        debug!("Loading {} storage data for key {}...", storage_name, key);
+        debug!("Getting {} storage data for key {}...", storage_name, key);
         let hm_lock = self.state.read().await;
 
-        debug!("{} storage data for key {} loaded", storage_name, key);
-
         match hm_lock.get(key) {
-            Some(value) => Ok(Some((*value.lock().await).clone())),
-            None => Ok(None),
+            Some(value) => {
+                let value = (*value.lock().await).clone();
+
+                debug!("{} storage data for key {} returned", storage_name, key);
+
+                Some(value)
+            }
+            None => None,
         }
     }
 
@@ -101,34 +107,57 @@ where
         read_lock.contains_key(key)
     }
 
-    pub async fn get_and_modify<F>(&self, key: &K, mut func: F) -> Result<Option<V>>
+    pub async fn get_and_modify_or_insert<ModifyFunc, InsertFunc>(
+        &self,
+        key: &K,
+        mut modify_func: ModifyFunc,
+        insert_func: InsertFunc,
+    ) -> Result<Option<V>>
     where
-        F: FnMut(MutexGuard<V>) -> Result<V>,
+        ModifyFunc: FnMut(&mut MutexGuard<V>),
+        InsertFunc: Fn() -> Option<V>,
     {
         let storage_name = self.storage.get_name();
 
-        debug!("Modifying {} storage data for key {}...", storage_name, key);
-        let read_lock = self.state.read().await;
+        debug!(
+            "Modifying or inserting {} storage data for key {}...",
+            storage_name, key
+        );
+        let mut write_lock = self.state.write().await;
 
-        if let Some(value_mutex) = read_lock.get(key) {
-            let value = value_mutex.lock().await;
+        if let Some(value_mutex) = write_lock.get(key) {
+            debug!("{} storage data for key {} exists", storage_name, key);
 
-            let value = func(value)?;
+            let mut value_mutex_guard = &mut value_mutex.lock().await;
+
+            modify_func(value_mutex_guard);
 
             debug!("{} storage data for key {} modified", storage_name, key);
 
-            Ok(Some(value))
+            Ok(Some(
+                self.storage
+                    .save(key.clone(), (*value_mutex_guard).clone())
+                    .await?,
+            ))
         } else {
             debug!(
                 "{} storage data for key {} does not exists",
                 storage_name, key
             );
 
-            Ok(None)
+            if let Some(value) = insert_func() {
+                write_lock.insert(key.clone(), Mutex::new(value.clone()));
+
+                debug!("{} storage data for key {} inserted", storage_name, key);
+
+                Ok(Some(self.storage.save(key.clone(), value).await?))
+            } else {
+                Ok(None)
+            }
         }
     }
 
-    pub async fn set(&self, key: &K, value: V) -> Result<bool> {
+    pub async fn set(&self, key: &K, value: V) -> Result<V> {
         let storage_name = self.storage.get_name();
 
         debug!("Setting {} storage data for key {}...", storage_name, key);
@@ -167,7 +196,7 @@ where
         }
 
         // if the write fails then the cache will contain unsaved data
-        self.storage.save(key.clone(), value).await?;
+        let value = self.storage.save(key.clone(), value).await?;
 
         if let Some(_key) = key_added {
             self.update_index().await?;
@@ -177,7 +206,7 @@ where
                 storage_name, key
             );
 
-            return Ok(false);
+            return Ok(value);
         }
 
         debug!(
@@ -185,7 +214,7 @@ where
             storage_name, key
         );
 
-        Ok(true)
+        Ok(value)
     }
 
     pub async fn remove(&self, key: &K) -> Result<bool> {
@@ -368,7 +397,7 @@ where
         }
     }
 
-    async fn save(&self, key: K, value: V) -> Result<()> {
+    async fn save(&self, key: K, value: V) -> Result<V> {
         let storage_name = self.get_storage_item_name(&key);
 
         debug!(
@@ -388,7 +417,7 @@ where
                         storage_name
                     );
 
-                    Ok(())
+                    Ok(value)
                 }
                 Err(e) => {
                     error!(
