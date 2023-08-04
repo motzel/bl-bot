@@ -5,6 +5,7 @@ use crate::beatleader::player::{
 use crate::beatleader::{error::Error as BlError, Client, SortOrder};
 use crate::bot::{PlayerMetric, PlayerMetricWithValue};
 use crate::BL_CLIENT;
+use poise::serenity_prelude::UserId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 pub struct Player {
     pub id: PlayerId,
+    pub user_id: UserId,
     pub name: String,
     pub active: bool,
     pub avatar: String,
@@ -38,6 +40,36 @@ pub struct Player {
 }
 
 impl Player {
+    pub fn from_user_id_and_bl_player(user_id: UserId, bl_player: BlPlayer) -> Self {
+        Player {
+            id: bl_player.id,
+            user_id,
+            name: bl_player.name,
+            active: !bl_player.inactive && !bl_player.banned && !bl_player.bot,
+            avatar: bl_player.avatar,
+            country: bl_player.country,
+            rank: bl_player.rank,
+            country_rank: bl_player.country_rank,
+            pp: bl_player.pp,
+            acc_pp: bl_player.acc_pp,
+            tech_pp: bl_player.tech_pp,
+            pass_pp: bl_player.pass_pp,
+            max_streak: bl_player.score_stats.max_streak,
+            ranked_max_streak: bl_player.score_stats.ranked_max_streak,
+            unranked_max_streak: bl_player.score_stats.unranked_max_streak,
+            top_accuracy: bl_player.score_stats.top_accuracy * 100.0,
+            top_ranked_accuracy: bl_player.score_stats.top_ranked_accuracy * 100.0,
+            top_unranked_accuracy: bl_player.score_stats.top_unranked_accuracy * 100.0,
+            top_acc_pp: bl_player.score_stats.top_acc_pp,
+            top_tech_pp: bl_player.score_stats.top_tech_pp,
+            top_pass_pp: bl_player.score_stats.top_pass_pp,
+            top_pp: bl_player.score_stats.top_pp,
+            total_play_count: bl_player.score_stats.total_play_count,
+            ranked_play_count: bl_player.score_stats.ranked_play_count,
+            unranked_play_count: bl_player.score_stats.unranked_play_count,
+        }
+    }
+
     pub(crate) fn get_metric_with_value(&self, metric: PlayerMetric) -> PlayerMetricWithValue {
         match metric {
             PlayerMetric::TopPp => PlayerMetricWithValue::TopPp(self.top_pp),
@@ -49,10 +81,12 @@ impl Player {
     }
 }
 
+// TODO: remove whole From implementation when refactoring is over
 impl From<BlPlayer> for Player {
     fn from(bl_player: BlPlayer) -> Self {
         Player {
             id: bl_player.id,
+            user_id: Default::default(), // TODO: temp only
             name: bl_player.name,
             active: !bl_player.inactive && !bl_player.banned && !bl_player.bot,
             avatar: bl_player.avatar,

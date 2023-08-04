@@ -424,7 +424,7 @@ impl UserRoleStatus {
     pub fn get_role_changes(
         &self,
         player: &Player,
-        discord_user_id: UserId,
+        discord_user_id: UserId, // TODO: not needed when refactoring is over (player contains user_id field)
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         UserRoleChanges {
@@ -553,7 +553,7 @@ impl GuildSettings {
     pub(crate) fn get_role_updates(
         &self,
         player: &Player,
-        discord_user_id: UserId,
+        discord_user_id: UserId, // TODO: not needed when refactoring is over (player contains user_id field)
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         #[derive(Debug)]
