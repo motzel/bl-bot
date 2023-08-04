@@ -55,7 +55,7 @@ where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone + Display,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
-    pub async fn new(storage: ShuttleStorage<'a, K, V>) -> Result<CachedStorage<'a, K, V>> {
+    pub(super) async fn new(storage: ShuttleStorage<'a, K, V>) -> Result<CachedStorage<'a, K, V>> {
         let storage_name = storage.get_name();
 
         debug!("Initializing {} storage...", storage_name);
@@ -83,7 +83,7 @@ where
         })
     }
 
-    pub async fn get(&self, key: &K) -> Option<V> {
+    pub(super) async fn get(&self, key: &K) -> Option<V> {
         let storage_name = self.storage.get_name();
 
         debug!("Getting {} storage data for key {}...", storage_name, key);
@@ -101,20 +101,20 @@ where
         }
     }
 
-    pub async fn contains_key(&self, key: &K) -> bool {
+    pub(super) async fn contains_key(&self, key: &K) -> bool {
         let read_lock = self.state.read().await;
 
         read_lock.contains_key(key)
     }
 
-    pub async fn get_and_modify_or_insert<ModifyFunc, InsertFunc>(
+    pub(super) async fn get_and_modify_or_insert<ModifyFunc, InsertFunc>(
         &self,
         key: &K,
-        mut modify_func: ModifyFunc,
+        modify_func: ModifyFunc,
         insert_func: InsertFunc,
     ) -> Result<Option<V>>
     where
-        ModifyFunc: FnMut(&mut MutexGuard<V>),
+        ModifyFunc: FnOnce(&mut MutexGuard<V>),
         InsertFunc: Fn() -> Option<V>,
     {
         let storage_name = self.storage.get_name();
@@ -157,7 +157,7 @@ where
         }
     }
 
-    pub async fn set(&self, key: &K, value: V) -> Result<V> {
+    pub(super) async fn set(&self, key: &K, value: V) -> Result<V> {
         let storage_name = self.storage.get_name();
 
         debug!("Setting {} storage data for key {}...", storage_name, key);
@@ -217,7 +217,7 @@ where
         Ok(value)
     }
 
-    pub async fn remove(&self, key: &K) -> Result<bool> {
+    pub(super) async fn remove(&self, key: &K) -> Result<bool> {
         let storage_name = self.storage.get_name();
 
         debug!("Removing key {} from {} storage...", key, storage_name);
