@@ -4,12 +4,12 @@ use crate::storage::persist::{CachedStorage, ShuttleStorage};
 use poise::serenity_prelude::GuildId;
 use shuttle_persist::PersistInstance;
 
-struct SettingsRepository {
-    storage: CachedStorage<GuildId, GuildSettings>,
+struct SettingsRepository<'a> {
+    storage: CachedStorage<'a, GuildId, GuildSettings>,
 }
 
-impl SettingsRepository {
-    pub async fn new(persist: PersistInstance) -> Result<Self, PersistError> {
+impl<'a> SettingsRepository<'a> {
+    pub async fn new(persist: &'a PersistInstance) -> Result<SettingsRepository<'a>, PersistError> {
         Ok(Self {
             storage: CachedStorage::new(ShuttleStorage::new("guild-settings", persist)).await?,
         })

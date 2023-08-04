@@ -37,21 +37,23 @@ impl fmt::Display for PersistError {
     }
 }
 
-pub(super) struct CachedStorage<K, V>
+pub(super) struct CachedStorage<'a, K, V>
 where
-    K: Serialize + for<'a> Deserialize<'a> + Hash + Eq + ToString + Send + Sync + Clone,
-    V: Serialize + for<'a> Deserialize<'a> + Send + Sync + Clone,
+    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone,
+    V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
     state: RwLock<HashMap<K, Mutex<V>>>,
-    storage: ShuttleStorage<K, V>,
+    storage: ShuttleStorage<'a, K, V>,
 }
 
-impl<K, V> CachedStorage<K, V>
+impl<'a, K, V> CachedStorage<'a, K, V>
 where
-    K: Serialize + for<'a> Deserialize<'a> + Hash + Eq + ToString + Send + Sync + Clone,
-    V: Serialize + for<'a> Deserialize<'a> + Send + Sync + Clone,
+    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone,
+    V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
-    pub async fn new(storage: ShuttleStorage<K, V>) -> Result<Self, PersistError> {
+    pub async fn new(
+        storage: ShuttleStorage<'a, K, V>,
+    ) -> Result<CachedStorage<'a, K, V>, PersistError> {
         let keys = storage.load_index().await?;
         let mut hm = HashMap::new();
         for key in keys.into_iter() {
@@ -133,23 +135,23 @@ where
     }
 }
 
-pub(super) struct ShuttleStorage<K, V>
+pub(super) struct ShuttleStorage<'a, K, V>
 where
-    K: Serialize + for<'a> Deserialize<'a> + Hash + Eq + ToString + Send + Sync,
-    V: Serialize + for<'a> Deserialize<'a> + Send + Sync,
+    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
+    V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
 {
-    persist: PersistInstance,
+    persist: &'a PersistInstance,
     name: String,
     _phantom_key: PhantomData<K>,
     _phantom_value: PhantomData<V>,
 }
 
-impl<K, V> ShuttleStorage<K, V>
+impl<'a, K, V> ShuttleStorage<'a, K, V>
 where
-    K: Serialize + for<'a> Deserialize<'a> + Hash + Eq + ToString + Send + Sync,
-    V: Serialize + for<'a> Deserialize<'a> + Send + Sync,
+    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
+    V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
 {
-    pub fn new(name: &str, persist: PersistInstance) -> Self {
+    pub fn new(name: &str, persist: &'a PersistInstance) -> ShuttleStorage<'a, K, V> {
         Self {
             persist,
             name: name.to_owned(),

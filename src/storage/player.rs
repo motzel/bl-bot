@@ -5,19 +5,16 @@ use crate::bot::db::PlayerLink;
 use crate::storage::persist::{CachedStorage, ShuttleStorage};
 use shuttle_persist::PersistInstance;
 
-struct PlayerRepository {
-    linked_players: CachedStorage<PlayerLink, ()>,
-    bl_players: CachedStorage<PlayerId, BotPlayer>,
+struct PlayerRepository<'a> {
+    linked_players: CachedStorage<'a, PlayerLink, ()>,
+    bl_players: CachedStorage<'a, PlayerId, BotPlayer>,
 }
 
-impl PlayerRepository {
-    pub async fn new(persist: PersistInstance) -> Result<Self, PersistError> {
+impl<'a> PlayerRepository<'a> {
+    pub async fn new(persist: &'a PersistInstance) -> Result<PlayerRepository<'a>, PersistError> {
         Ok(Self {
-            linked_players: CachedStorage::new(ShuttleStorage::new(
-                "linked-players",
-                persist.clone(),
-            ))
-            .await?,
+            linked_players: CachedStorage::new(ShuttleStorage::new("linked-players", persist))
+                .await?,
             bl_players: CachedStorage::new(ShuttleStorage::new("guild-settings", persist)).await?,
         })
     }
