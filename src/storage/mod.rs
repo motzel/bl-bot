@@ -1,7 +1,7 @@
-use crate::storage::persist::PersistError;
+pub(crate) use crate::storage::persist::PersistError;
 
+pub(crate) mod guild;
 mod persist;
 pub(crate) mod player;
-pub(crate) mod settings;
 
 type Result<T> = std::result::Result<T, PersistError>;

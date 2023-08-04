@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::sync::Arc;
 use std::{error, fmt};
 
-use log::{debug, error, trace};
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -46,21 +47,21 @@ impl Display for PersistError {
     }
 }
 
-pub(super) struct CachedStorage<'a, K, V>
+pub(super) struct CachedStorage<K, V>
 where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
     state: RwLock<HashMap<K, Mutex<V>>>,
-    storage: ShuttleStorage<'a, K, V>,
+    storage: ShuttleStorage<K, V>,
 }
 
-impl<'a, K, V> CachedStorage<'a, K, V>
+impl<'a, K, V> CachedStorage<K, V>
 where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone + Display,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
-    pub(super) async fn new(storage: ShuttleStorage<'a, K, V>) -> Result<CachedStorage<'a, K, V>> {
+    pub(super) async fn new(storage: ShuttleStorage<K, V>) -> Result<CachedStorage<K, V>> {
         let storage_name = storage.get_name();
 
         debug!("Initializing {} storage...", storage_name);
@@ -68,7 +69,14 @@ where
         let mut hm = HashMap::new();
 
         debug!("Loading {} storage index...", storage_name);
-        let keys = storage.load_index().await?;
+        let keys = match storage.load_index().await {
+            Ok(keys) => keys,
+            Err(e) => {
+                warn!("Can not load {} storage index: {}", storage_name, e);
+
+                Vec::new()
+            }
+        };
         debug!("{} storage loaded.", storage_name);
 
         debug!("Loading {} storage data...", storage_name);
@@ -86,6 +94,15 @@ where
             state: RwLock::new(hm),
             storage,
         })
+    }
+
+    pub(super) async fn len(&self) -> usize {
+        let storage_name = self.storage.get_name();
+
+        debug!("Getting {} storage length...", storage_name);
+        let hm_lock = self.state.read().await;
+
+        hm_lock.len()
     }
 
     pub(super) async fn get(&self, key: &K) -> Option<V> {
@@ -120,7 +137,7 @@ where
     ) -> Result<Option<V>>
     where
         ModifyFunc: FnOnce(&mut MutexGuard<V>),
-        InsertFunc: Fn() -> Option<V>,
+        InsertFunc: FnOnce() -> Option<V>,
     {
         let storage_name = self.storage.get_name();
 
@@ -155,7 +172,13 @@ where
 
                 debug!("{} storage data for key {} inserted", storage_name, key);
 
-                Ok(Some(self.storage.save(key.clone(), value).await?))
+                let value = self.storage.save(key.clone(), value).await?;
+
+                drop(write_lock);
+
+                self.update_index().await?;
+
+                Ok(Some(value))
             } else {
                 Ok(None)
             }
@@ -230,6 +253,8 @@ where
         let mut write_lock = self.state.write().await;
         let previous = write_lock.remove(key);
 
+        drop(write_lock);
+
         self.update_index().await?;
 
         debug!("key {} removed from {} storage...", key, storage_name);
@@ -257,23 +282,23 @@ where
     }
 }
 
-pub(super) struct ShuttleStorage<'a, K, V>
+pub(super) struct ShuttleStorage<K, V>
 where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
 {
-    persist: &'a PersistInstance,
+    persist: Arc<PersistInstance>,
     name: String,
     _phantom_key: PhantomData<K>,
     _phantom_value: PhantomData<V>,
 }
 
-impl<'a, K, V> ShuttleStorage<'a, K, V>
+impl<'a, K, V> ShuttleStorage<K, V>
 where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
 {
-    pub fn new(name: &str, persist: &'a PersistInstance) -> ShuttleStorage<'a, K, V> {
+    pub fn new(name: &str, persist: Arc<PersistInstance>) -> ShuttleStorage<K, V> {
         Self {
             persist,
             name: name.to_owned(),

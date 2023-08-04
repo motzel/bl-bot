@@ -1,30 +1,29 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-pub(crate) mod beatleader;
-pub(crate) mod commands;
-pub(crate) mod db;
-
-use log::{debug, error, info};
-use poise::serenity_prelude as serenity;
-use poise::serenity_prelude::{ChannelId, User, UserId};
-use poise::SlashArgument;
-use serenity::model::gateway::Activity;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::beatleader::player::PlayerId;
-use crate::bot::beatleader::{fetch_scores, Player};
-use crate::bot::db::{get_player_id, link_player};
-use crate::Context;
+use log::{debug, error, info};
+use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{ChannelId, User, UserId};
+use poise::SlashArgument;
 use serde::{Deserialize, Serialize};
+use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
+use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
-use serenity::model::prelude::RoleId;
+use crate::beatleader::player::PlayerId;
+use crate::bot::beatleader::{fetch_scores, Player};
+use crate::Context;
+
+pub(crate) mod beatleader;
+pub(crate) mod commands;
+pub(crate) mod db;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -640,18 +639,19 @@ impl std::fmt::Display for GuildSettings {
                     )
                 })
                 .fold(String::new(), |out, rg| out + &*format!("{}\n", rg))
-                .trim_end()
+                .trim_end() // TODO: replace with None if empty
         )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use poise::serenity_prelude::UserId;
+
     use crate::bot::{
         GuildId, GuildSettings, MetricCondition, Player, PlayerMetric, PlayerMetricWithValue,
         RoleConditionId, RoleId, RoleSettings,
     };
-    use poise::serenity_prelude::UserId;
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(1), 100);

@@ -117,7 +117,7 @@ impl QueryParam for PlayerScoreParam {
 
 pub type PlayerId = String;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
     pub id: PlayerId,
@@ -136,7 +136,7 @@ pub struct Player {
     pub inactive: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerScoreStats {
     pub a_plays: u32,

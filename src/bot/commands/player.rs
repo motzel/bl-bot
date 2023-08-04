@@ -1,11 +1,13 @@
 use std::convert::From;
+use std::sync::Arc;
 
 use log::{debug, info};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::UserId;
+use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::beatleader::player::PlayerScoreSort;
-use crate::bot::beatleader::fetch_scores;
-use crate::bot::db::{get_player_id, link_player, unlink_player};
+use crate::bot::beatleader::{fetch_scores, Player as BotPlayer};
+use crate::storage::PersistError;
 use crate::{Context, Error};
 
 #[derive(Debug, poise::ChoiceParameter, Default)]
@@ -46,46 +48,29 @@ pub(crate) async fn cmd_link(
     #[description = "Beat Leader PlayerID"] bl_player_id: String,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
 ) -> Result<(), Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
     let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
-    // let selected_user_name = &selected_user.name;
-    //
-    // let member_name = match ctx
-    //     .serenity_context()
-    //     .http
-    //     .get_member(ctx.data().guild_id.into(), selected_user.id.into())
-    //     .await
-    // {
-    //     Ok(member) => match member.nick {
-    //         Some(nick) => nick,
-    //         None => selected_user_name.to_string(),
-    //     },
-    //     Err(_) => selected_user_name.to_string(),
-    // };
 
-    let persist = &ctx.data().persist;
-
-    let player_result = link_player(persist, selected_user.id, bl_player_id.to_owned()).await;
-
-    match player_result {
+    match ctx
+        .data()
+        .players_repository
+        .link(guild_id, selected_user.id, bl_player_id.to_owned())
+        .await
+    {
         Ok(player) => {
             ctx.send(|m| {
+                add_profile_card(m, player);
+
                 m.content(format!(
                     "<@{}> has been linked to the BL profile",
                     selected_user.id
                 ))
-                .embed(|f| {
-                    f.title(player.name)
-                        .url(format!("https://www.beatleader.xyz/u/{}", player.id))
-                        .thumbnail(player.avatar)
-                        .field("Rank", player.rank, true)
-                        .field("PP", format!("{:.2}", player.pp), true)
-                        .field("Country", player.country, true)
-                })
                 // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
-                .allowed_mentions(|am| {
-                    am.parse(serenity::builder::ParseValue::Users)
-                        .parse(serenity::builder::ParseValue::Roles)
-                })
+                .allowed_mentions(|am| am.parse(serenity::builder::ParseValue::Users))
                 .ephemeral(false)
             })
             .await?;
@@ -107,13 +92,19 @@ pub(crate) async fn cmd_link(
 /// Unlink your account from your Beat Leader profile.
 #[poise::command(slash_command, rename = "bl-unlink", guild_only)]
 pub(crate) async fn cmd_unlink(ctx: Context<'_>) -> Result<(), Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
     let selected_user = ctx.author();
 
-    let persist = &ctx.data().persist;
-
-    let player_result = unlink_player(persist, selected_user.id).await;
-
-    match player_result {
+    match ctx
+        .data()
+        .players_repository
+        .unlink(&guild_id, &selected_user.id)
+        .await
+    {
         Ok(_) => {
             ctx.send(|m| {
                 m.content(format!(
@@ -131,12 +122,57 @@ pub(crate) async fn cmd_unlink(ctx: Context<'_>) -> Result<(), Error> {
 
             Ok(())
         }
-        Err(e) => {
-            ctx.send(|f| {
-                f.content(format!("An error has occurred: {}", e))
-                    .ephemeral(false)
+        Err(e) => match e {
+            PersistError::NotFound(_) => {
+                say_profile_not_linked(ctx, &selected_user.id).await?;
+
+                Ok(())
+            }
+            _ => {
+                ctx.send(|f| {
+                    f.content(format!("An error has occurred: {}", e))
+                        .ephemeral(true)
+                })
+                .await?;
+
+                Ok(())
+            }
+        },
+    }
+}
+
+/// Displays player's BL profile
+#[poise::command(slash_command, rename = "bl-profile", guild_only)]
+pub(crate) async fn cmd_profile(
+    ctx: Context<'_>,
+    #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
+) -> Result<(), Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
+    let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
+
+    match ctx.data().players_repository.get(&selected_user.id).await {
+        Some(player) => {
+            if !player.is_linked_to_guild(&guild_id) {
+                say_profile_not_linked(ctx, &selected_user.id).await?;
+
+                return Ok(());
+            }
+
+            ctx.send(|m| {
+                add_profile_card(m, player);
+
+                m.allowed_mentions(|am| am.empty_parse()).ephemeral(false)
             })
             .await?;
+
+            Ok(())
+        }
+        None => {
+            say_profile_not_linked(ctx, &selected_user.id).await?;
 
             Ok(())
         }
@@ -152,24 +188,35 @@ pub(crate) async fn cmd_replay(
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
     #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
 ) -> Result<(), Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
     let current_user = ctx.author();
     let selected_user = dsc_user.as_ref().unwrap_or(current_user);
 
     let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
 
-    let persist = &ctx.data().persist;
-    let Ok(player_id) = get_player_id(persist, selected_user.id).await else {
-        ctx.say("BL profile is not linked. Use ``/bl-link`` command first.").await?;
+    let Some(player) = ctx.data().players_repository.get(&selected_user.id).await else {
+        say_profile_not_linked(ctx, &selected_user.id).await?;
+
         return Ok(());
     };
 
-    let player_scores_result = fetch_scores(player_id, 25, player_score_sort).await;
-    if let Err(e) = player_scores_result {
-        ctx.say(format!("Error fetching scores: {}", e)).await?;
+    if !player.is_linked_to_guild(&guild_id) {
+        say_profile_not_linked(ctx, &selected_user.id).await?;
+
         return Ok(());
     }
 
-    let player_scores = player_scores_result.unwrap();
+    let player_scores = match fetch_scores(player.id, 25, player_score_sort).await {
+        Ok(player_scores) => player_scores,
+        Err(e) => {
+            ctx.say(format!("Error fetching scores: {}", e)).await?;
+            return Ok(());
+        }
+    };
 
     let msg = ctx
         .send(|m| {
@@ -277,6 +324,34 @@ pub(crate) async fn cmd_replay(
         })
         .await?;
     }
+
+    Ok(())
+}
+
+fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
+    reply.embed(|f| {
+        f.title(player.name)
+            .url(format!("https://www.beatleader.xyz/u/{}", player.id))
+            .thumbnail(player.avatar)
+            .field("Rank", player.rank, true)
+            .field("PP", format!("{:.2}", player.pp), true)
+            .field("Country", player.country, true)
+            .field("Top PP", format!("{:.2}", player.top_pp), true)
+            .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
+            .field("Max streak", player.max_streak, true)
+    });
+}
+
+async fn say_profile_not_linked(ctx: Context<'_>, user_id: &UserId) -> Result<(), Error> {
+    ctx.send(|f| {
+        f.content(format!(
+            "<@{}> is not linked to the BL profile. Use ``/bl-link`` command first.",
+            user_id
+        ))
+        .allowed_mentions(|am| am.empty_parse())
+        .ephemeral(false)
+    })
+    .await?;
 
     Ok(())
 }

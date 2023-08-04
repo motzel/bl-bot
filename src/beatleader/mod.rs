@@ -62,7 +62,10 @@ impl Client {
     }
 
     pub async fn send_request(&self, request: Request) -> Result<Response> {
+        // TODO: implement simple rate limiter with tokio semaphore
+
         let base = Url::parse(self.base_url.as_str()).unwrap();
+
         debug!(
             "Sending request to {}",
             base.make_relative(request.url()).unwrap()
