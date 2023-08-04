@@ -1,3 +1,4 @@
+use super::Result;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
@@ -51,9 +52,7 @@ where
     K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone,
     V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
 {
-    pub async fn new(
-        storage: ShuttleStorage<'a, K, V>,
-    ) -> Result<CachedStorage<'a, K, V>, PersistError> {
+    pub async fn new(storage: ShuttleStorage<'a, K, V>) -> Result<CachedStorage<'a, K, V>> {
         let keys = storage.load_index().await?;
         let mut hm = HashMap::new();
         for key in keys.into_iter() {
@@ -67,7 +66,7 @@ where
         })
     }
 
-    pub async fn get(&self, key: &K) -> Result<Option<V>, PersistError> {
+    pub async fn get(&self, key: &K) -> Result<Option<V>> {
         let hm_lock = self.state.read().await;
 
         match hm_lock.get(key) {
@@ -76,7 +75,7 @@ where
         }
     }
 
-    pub async fn upsert(&self, key: K, value: V) -> Result<Option<()>, PersistError> {
+    pub async fn upsert(&self, key: K, value: V) -> Result<Option<()>> {
         let read_lock = self.state.read().await;
         let mut key_added: Option<K> = None;
 
@@ -114,7 +113,7 @@ where
         Ok(Some(()))
     }
 
-    pub async fn remove(&self, key: &K) -> Result<Option<()>, PersistError> {
+    pub async fn remove(&self, key: &K) -> Result<Option<()>> {
         let mut write_lock = self.state.write().await;
         let previous = write_lock.remove(key);
 
@@ -123,7 +122,7 @@ where
         Ok(previous.map(|_| ()))
     }
 
-    pub async fn update_index(&self) -> Result<(), PersistError> {
+    pub async fn update_index(&self) -> Result<()> {
         let read_lock = self.state.read().await;
 
         let keys = read_lock.keys().cloned().collect::<Vec<K>>();
@@ -160,7 +159,7 @@ where
         }
     }
 
-    async fn load_index(&self) -> Result<Vec<K>, PersistError> {
+    async fn load_index(&self) -> Result<Vec<K>> {
         let storage_name = self.get_storage_index_name();
 
         debug!(
@@ -188,7 +187,7 @@ where
         }
     }
 
-    async fn save_index(&self, keys: Vec<K>) -> Result<(), PersistError> {
+    async fn save_index(&self, keys: Vec<K>) -> Result<()> {
         let storage_name = self.get_storage_index_name();
 
         debug!(
@@ -216,7 +215,7 @@ where
         }
     }
 
-    async fn load(&self, key: &K) -> Result<V, PersistError> {
+    async fn load(&self, key: &K) -> Result<V> {
         let storage_name = self.get_storage_item_name(key);
 
         debug!(
@@ -253,7 +252,7 @@ where
         }
     }
 
-    async fn save(&self, key: K, value: V) -> Result<(), PersistError> {
+    async fn save(&self, key: K, value: V) -> Result<()> {
         let storage_name = self.get_storage_item_name(&key);
 
         debug!(
