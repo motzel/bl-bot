@@ -1,6 +1,6 @@
 use crate::storage::persist::PersistError;
 
-pub(crate) mod persist;
+mod persist;
 pub(crate) mod player;
 pub(crate) mod settings;
 

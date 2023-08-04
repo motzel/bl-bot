@@ -164,7 +164,7 @@ impl PartialOrd for PlayerMetricWithValue {
     }
 }
 
-type RoleGroup = String;
+pub(crate) type RoleGroup = String;
 
 type RoleConditionId = u32;
 
