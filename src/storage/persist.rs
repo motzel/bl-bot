@@ -1,19 +1,22 @@
-use super::Result;
-use log::{debug, error, trace};
-use serde::{Deserialize, Serialize};
-use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::{error, fmt};
+
+use log::{debug, error, trace};
+use serde::{Deserialize, Serialize};
+use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
+
+use super::Result;
 
 #[derive(Debug)]
 pub enum PersistError {
     Storage(ShuttlePersistError),
     JsonDeserialize(serde_json::Error),
     JsonSerialize(serde_json::Error),
+    BlApi(crate::beatleader::error::Error),
     NotFound(String),
     Unknown,
 }
@@ -24,6 +27,7 @@ impl error::Error for PersistError {
             PersistError::Storage(e) => Some(e),
             PersistError::JsonDeserialize(e) => Some(e),
             PersistError::JsonSerialize(e) => Some(e),
+            PersistError::BlApi(e) => Some(e),
             PersistError::Unknown | PersistError::NotFound(_) => None,
         }
     }
@@ -35,6 +39,7 @@ impl Display for PersistError {
             PersistError::Storage(e) => write!(f, "storage error: {}", e),
             PersistError::JsonDeserialize(e) => write!(f, "deserialization error: {}", e),
             PersistError::JsonSerialize(e) => write!(f, "serialization error: {}", e),
+            PersistError::BlApi(e) => write!(f, "Beat Leader API error: {}", e),
             PersistError::NotFound(e) => write!(f, "{}", e),
             PersistError::Unknown => write!(f, "unknown error"),
         }
@@ -128,7 +133,7 @@ where
         if let Some(value_mutex) = write_lock.get(key) {
             debug!("{} storage data for key {} exists", storage_name, key);
 
-            let mut value_mutex_guard = &mut value_mutex.lock().await;
+            let value_mutex_guard = &mut value_mutex.lock().await;
 
             modify_func(value_mutex_guard);
 

@@ -23,7 +23,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player) => Ok(player),
-            Err(_err) => Err(JsonDecode),
+            Err(e) => Err(JsonDecode(e)),
         }
     }
 
@@ -59,7 +59,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player_scores) => Ok(player_scores),
-            Err(_err) => Err(JsonDecode),
+            Err(e) => Err(JsonDecode(e)),
         }
     }
 }

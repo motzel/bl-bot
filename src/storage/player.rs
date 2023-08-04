@@ -1,9 +1,11 @@
+use log::debug;
 use poise::serenity_prelude::UserId;
 use shuttle_persist::PersistInstance;
 
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::Player as BotPlayer;
-use crate::storage::persist::{CachedStorage, ShuttleStorage};
+use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
+use crate::BL_CLIENT;
 
 use super::Result;
 
@@ -22,18 +24,42 @@ impl<'a> PlayerRepository<'a> {
         self.storage.get(user_id).await
     }
 
-    pub(crate) async fn link(user_id: UserId, player_id: PlayerId) -> Result<BotPlayer> {
-        // 1. fetch player from bl
-        // 2. store player in db & update index
-        // 3. return player
+    pub(crate) async fn link(&self, user_id: UserId, player_id: PlayerId) -> Result<BotPlayer> {
+        debug!("Linking user {} with BL player {}...", user_id, player_id);
 
-        todo!()
+        let bl_player = match BL_CLIENT.player().get_by_id(&player_id).await {
+            Ok(player) => BotPlayer::from_user_id_and_bl_player(user_id, player),
+            Err(e) => return Err(PersistError::BlApi(e)),
+        };
+
+        debug!(
+            "BL player {} fetched. Player name: {}",
+            bl_player.id, bl_player.name
+        );
+
+        let result = self.storage.set(&user_id, bl_player).await;
+
+        debug!("User {} linked with BL player {}.", user_id, player_id);
+
+        result
     }
 
-    pub(crate) async fn unlink(user_id: UserId) -> Result<()> {
-        // 1. check if player exists, return error if not
-        // 2. remove player and update index
+    pub(crate) async fn unlink(&self, user_id: UserId) -> Result<()> {
+        debug!("Unlinking user {}...", user_id);
 
-        todo!()
+        match self.storage.remove(&user_id).await {
+            Ok(existed) => {
+                if existed {
+                    debug!("User {} unlinked.", user_id);
+
+                    Ok(())
+                } else {
+                    debug!("User {} is not linked.", user_id);
+
+                    Err(PersistError::NotFound("user is not linked".to_owned()))
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }

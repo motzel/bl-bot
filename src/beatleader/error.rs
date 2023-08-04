@@ -7,7 +7,7 @@ pub enum Error {
     NotFound,
     Client,
     Server,
-    JsonDecode,
+    JsonDecode(reqwest::Error),
     DbError(String),
     Unknown,
 }
@@ -20,7 +20,7 @@ impl fmt::Display for Error {
             Error::NotFound => write!(f, "BL player not found"),
             Error::Client => write!(f, "BL client error"),
             Error::Server => write!(f, "BL server error"),
-            Error::JsonDecode => write!(f, "invalid BL response"),
+            Error::JsonDecode(e) => write!(f, "invalid BL response: {}", e),
             Error::DbError(e) => write!(f, "db error: {}", e),
             Error::Unknown => write!(f, "unknown error"),
         }
@@ -31,10 +31,10 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self {
             Error::Request(e) | Error::Network(e) => Some(e),
+            Error::JsonDecode(e) => Some(e),
             Error::NotFound
             | Error::Client
             | Error::Server
-            | Error::JsonDecode
             | Error::DbError(_)
             | Error::Unknown => None,
         }
