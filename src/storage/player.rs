@@ -119,6 +119,31 @@ impl<'a> PlayerRepository {
         }
     }
 
+    pub(crate) async fn update_all_players_stats(&self) -> Result<Vec<BotPlayer>> {
+        debug!("Updating all users stats...");
+
+        let mut ret = Vec::with_capacity(self.storage.len().await);
+
+        for player in self.storage.values().await {
+            if !player.is_linked_to_any_guild() {
+                debug!(
+                    "User {} / BL player {} is not linked to any guild, skipped.",
+                    player.user_id, player.id
+                );
+
+                continue;
+            }
+
+            if let Ok(player) = self.update_player_stats(&player).await {
+                ret.push(player);
+            }
+        }
+
+        debug!("All users stats updated.");
+
+        Ok(ret)
+    }
+
     pub(crate) async fn update_player_stats(&self, player: &BotPlayer) -> Result<BotPlayer> {
         debug!(
             "Updating user {} / BL player {} stats...",

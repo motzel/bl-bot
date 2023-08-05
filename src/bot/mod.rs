@@ -23,7 +23,6 @@ use crate::Context;
 
 pub(crate) mod beatleader;
 pub(crate) mod commands;
-pub(crate) mod db;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -280,8 +279,8 @@ impl std::fmt::Display for RoleSettings {
 
 #[derive(Default, Debug, Clone)]
 pub struct UserRoleChanges {
-    pub discord_user_id: UserId,
-    pub player_id: PlayerId,
+    pub guild_id: GuildId,
+    pub user_id: UserId,
     pub name: String,
     pub to_add: Vec<RoleId>,
     pub to_remove: Vec<RoleId>,
@@ -290,18 +289,14 @@ pub struct UserRoleChanges {
 impl UserRoleChanges {
     pub async fn apply(
         &self,
-        guild_id: GuildId,
         http: &Arc<poise::serenity_prelude::Http>,
     ) -> Result<&UserRoleChanges, Error> {
-        info!(
-            "Updating user {} ({}) roles...",
-            self.discord_user_id, self.name
-        );
+        info!("Updating user {} ({}) roles...", self.user_id, self.name);
 
         if self.to_add.is_empty() && self.to_remove.is_empty() {
             info!(
                 "No roles to add or remove for user {} ({}).",
-                self.discord_user_id, self.name
+                self.user_id, self.name
             );
             return Ok(self);
         }
@@ -309,20 +304,20 @@ impl UserRoleChanges {
         info!(
             "{} role(s) to add to user {} ({})",
             self.to_add.len(),
-            self.discord_user_id,
+            self.user_id,
             self.name
         );
 
         for role_id in self.to_add.iter() {
             debug!(
                 "Adding role {} to user {} ({})",
-                role_id, self.discord_user_id, self.name
+                role_id, self.user_id, self.name
             );
 
             if let Err(e) = http
                 .add_member_role(
-                    guild_id.into(),
-                    self.discord_user_id.into(),
+                    self.guild_id.into(),
+                    self.user_id.into(),
                     (*role_id).into(),
                     None,
                 )
@@ -330,34 +325,34 @@ impl UserRoleChanges {
             {
                 error!(
                     "Can not add role {} to user {} ({}): {}",
-                    role_id, self.discord_user_id, self.name, e
+                    role_id, self.user_id, self.name, e
                 );
                 continue;
             }
 
             debug!(
                 "Role {} added to user {} ({})",
-                role_id, self.discord_user_id, self.name
+                role_id, self.user_id, self.name
             );
         }
 
         info!(
             "{} role(s) to remove from user {} ({})",
             self.to_remove.len(),
-            self.discord_user_id,
+            self.user_id,
             self.name
         );
 
         for role_id in self.to_remove.iter() {
             debug!(
                 "Removing role {} from user {} ({})",
-                role_id, self.discord_user_id, self.name
+                role_id, self.user_id, self.name
             );
 
             if let Err(e) = http
                 .remove_member_role(
-                    guild_id.into(),
-                    self.discord_user_id.into(),
+                    self.guild_id.into(),
+                    self.user_id.into(),
                     (*role_id).into(),
                     None,
                 )
@@ -365,14 +360,14 @@ impl UserRoleChanges {
             {
                 error!(
                     "Can not remove role {} from user {} ({}): {}",
-                    role_id, self.discord_user_id, self.name, e
+                    role_id, self.user_id, self.name, e
                 );
                 continue;
             }
 
             debug!(
                 "Role {} removed from user {} ({})",
-                role_id, self.discord_user_id, self.name
+                role_id, self.user_id, self.name
             );
         }
 
@@ -408,7 +403,7 @@ impl std::fmt::Display for UserRoleChanges {
         write!(
             f,
             "The roles of user <@{}> have been updated\n**Added roles:** {}\n**Removed roles:** {}",
-            self.discord_user_id, to_add_list, to_remove_list,
+            self.user_id, to_add_list, to_remove_list,
         )
     }
 }
@@ -422,13 +417,13 @@ pub struct UserRoleStatus {
 impl UserRoleStatus {
     pub fn get_role_changes(
         &self,
+        guild_id: GuildId,
         player: &Player,
-        discord_user_id: UserId, // TODO: not needed when refactoring is over (player contains user_id field)
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         UserRoleChanges {
-            discord_user_id,
-            player_id: player.id.clone(),
+            guild_id,
+            user_id: player.user_id,
             name: player.name.clone(),
             to_add: self
                 .should_have
@@ -555,8 +550,8 @@ impl GuildSettings {
 
     pub(crate) fn get_role_updates(
         &self,
+        guild_id: GuildId,
         player: &Player,
-        discord_user_id: UserId, // TODO: not needed when refactoring is over (player contains user_id field)
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
         #[derive(Debug)]
@@ -603,7 +598,7 @@ impl GuildSettings {
 
                 acc
             })
-            .get_role_changes(player, discord_user_id, current_roles)
+            .get_role_changes(guild_id, player, current_roles)
     }
 }
 
@@ -973,7 +968,7 @@ mod tests {
         };
 
         let mut roles_updates =
-            gs.get_role_updates(&player, UserId(1), &vec![RoleId(1), RoleId(3)]);
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1), RoleId(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -983,7 +978,7 @@ mod tests {
 
         player.top_accuracy = 89.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![RoleId(1)]);
+        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -993,7 +988,7 @@ mod tests {
 
         player.pp = 10000.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![]);
+        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1003,7 +998,7 @@ mod tests {
 
         player.rank = 1000;
 
-        let mut roles_updates = gs.get_role_updates(&player, UserId(1), &vec![RoleId(2)]);
+        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1014,7 +1009,7 @@ mod tests {
         player.rank = 500;
 
         let mut roles_updates =
-            gs.get_role_updates(&player, UserId(1), &vec![RoleId(2), RoleId(3)]);
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();

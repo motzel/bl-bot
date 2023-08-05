@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
@@ -10,7 +11,6 @@ use serenity::model::id::GuildId;
 use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-use tokio::sync::Mutex;
 
 use crate::beatleader::Client;
 use crate::bot::commands::{
@@ -105,7 +105,7 @@ async fn poise(
         .options(options)
         .token(discord_token)
         .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTEN
-        .setup(move |ctx, _ready, framework| {
+        .setup(move |ctx, _ready, _framework| {
             Box::pin(async move {
                 info!("Logged in as {}", _ready.user.name);
 
@@ -147,70 +147,88 @@ async fn poise(
                     loop {
                         debug!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         debug!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
-                        //
-                        //         if let Ok(players) = fetch_and_update_all_players(&global_persist).await {
-                        //             info!("Updating players roles ({})...", players.len());
-                        //
-                        //             let mut current_players_roles = Vec::new();
-                        //             for (player, user_id) in players {
-                        //                 debug!("Fetching user {} ({}) roles...", user_id, player.name);
-                        //
-                        //                 let Ok(member) = global_ctx
-                        //                     .http
-                        //                     .get_member(guild_id.into(), user_id.into())
-                        //                     .await else {
-                        //                     error!("Can not fetch user {} membership.", user_id);
-                        //                     continue;
-                        //                 };
-                        //
-                        //                 current_players_roles.push((player, user_id, member.roles));
-                        //             }
-                        //
-                        //             let lock = guild_settings_worker.lock().await;
-                        //             let role_changes = current_players_roles
-                        //                 .iter()
-                        //                 .map(|(player, user_id, roles)| {
-                        //                     lock.get_role_updates(player, *user_id, roles)
-                        //                 })
-                        //                 .collect::<Vec<UserRoleChanges>>();
-                        //             drop(lock);
-                        //
-                        //             for rc in role_changes {
-                        //                 match rc.apply(global_guild_id, &global_ctx.http).await {
-                        //                     Ok(rc) => {
-                        //                         if rc.is_changed() {
-                        //                             if let Some(bot_channel_id) = bot_channel_id_opt {
-                        //                                 info!(
-                        //                                     "Logging changes to channel #{}",
-                        //                                     bot_channel_id
-                        //                                 );
-                        //
-                        //                                 match bot_channel_id
-                        //                                     .send_message(global_ctx.clone(), |m| {
-                        //                                         m.content(format!("{}", rc))
-                        //                                             .allowed_mentions(|am| am.empty_parse())
-                        //                                     })
-                        //                                     .await {
-                        //                                     Ok(_) => {}
-                        //                                     Err(err) => {
-                        //                                         info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
-                        //                                     }
-                        //                                 };
-                        //                             }
-                        //                         }
-                        //                     }
-                        //                     Err(e) => {
-                        //                         error!(
-                        //                             "Failed to update roles for user {}: {}",
-                        //                             rc.discord_user_id, e
-                        //                         );
-                        //                     }
-                        //                 }
-                        //             }
-                        //
-                        //             info!("Players roles updated.");
-                        //         }
-                        //
+
+                        if let Ok(bot_players) =
+                            players_repository_worker.update_all_players_stats().await
+                        {
+                            info!("Updating players roles ({})...", bot_players.len());
+
+                            let mut current_players_roles = Vec::new();
+                            for bot_player in bot_players {
+                                debug!(
+                                    "Fetching user {} ({}) roles...",
+                                    &bot_player.user_id, &bot_player.name
+                                );
+
+                                for guild_id in &bot_player.linked_guilds {
+                                    let Ok(member) = global_ctx
+                                        .http
+                                        .get_member(u64::from(*guild_id), bot_player.user_id.into())
+                                        .await else {
+                                        error!("Can not fetch user {} membership.", bot_player.user_id);
+                                        continue;
+                                    };
+
+                                    current_players_roles.push((
+                                        *guild_id,
+                                        bot_player.clone(),
+                                        member.roles,
+                                    ));
+                                }
+                            }
+
+                            let guild_ids = current_players_roles.iter().map(|(guild_id, _player, _roles)| *guild_id).collect::<Vec<GuildId>>();
+                            let mut guilds : HashMap<GuildId, GuildSettings> = HashMap::new();
+
+                            for guild_id in &guild_ids {
+                                if let Ok(guild_settings) = guild_settings_repository_worker.get(guild_id).await {
+                                    guilds.insert(*guild_id, guild_settings);
+                                }
+                            }
+
+                            let role_changes = current_players_roles
+                                .iter()
+                                .filter_map(|(guild_id, player, roles)| {
+                                    guilds.get(guild_id).map(|guild_settings| guild_settings.get_role_updates(*guild_id, player, roles))
+                                })
+                                .collect::<Vec<UserRoleChanges>>();
+
+                            for rc in role_changes {
+                                match rc.apply(&global_ctx.http).await {
+                                    Ok(rc) => {
+                                        if rc.is_changed() {
+                                            if let Some(bot_channel_id) = guilds.get(&rc.guild_id).map_or_else(|| None, |guild_settings| guild_settings.get_channel()) {
+                                                info!(
+                                                    "Logging changes to channel #{}",
+                                                    bot_channel_id
+                                                );
+
+                                                match bot_channel_id
+                                                    .send_message(global_ctx.clone(), |m| {
+                                                        m.content(format!("{}", rc))
+                                                            .allowed_mentions(|am| am.empty_parse())
+                                                    })
+                                                    .await {
+                                                    Ok(_) => {}
+                                                    Err(err) => {
+                                                        info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
+                                                    }
+                                                };
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!(
+                                            "Failed to update roles for user {}: {}",
+                                            rc.user_id, e
+                                        );
+                                    }
+                                }
+                            }
+
+                            info!("Players roles updated.");
+                        }
+
                         tokio::time::sleep(interval).await;
                     }
                 });

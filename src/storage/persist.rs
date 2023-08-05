@@ -115,12 +115,32 @@ where
             Some(value) => {
                 let value = (*value.lock().await).clone();
 
-                debug!("{} storage data for key {} returned", storage_name, key);
+                debug!("{} storage data for key {} returned.", storage_name, key);
 
                 Some(value)
             }
             None => None,
         }
+    }
+
+    pub(super) async fn values(&self) -> Vec<V> {
+        let storage_name = self.storage.get_name();
+
+        debug!("Getting all {} storage data...", storage_name);
+
+        let read_lock = self.state.read().await;
+
+        let mut ret = Vec::with_capacity(read_lock.len());
+
+        for value in read_lock.values() {
+            let value = (*value.lock().await).clone();
+
+            ret.push(value);
+        }
+
+        debug!("All {} storage data cloned and returned.", storage_name);
+
+        ret
     }
 
     pub(super) async fn contains_key(&self, key: &K) -> bool {
