@@ -40,6 +40,15 @@ pub(crate) enum PlayerMetric {
     CountryRank,
     #[name = "Top Acc"]
     TopAcc,
+
+    #[name = "Max Streak"]
+    MaxStreak,
+    #[name = "#1 Count"]
+    Top1Count,
+    #[name = "My replays watched"]
+    MyReplaysWatched,
+    #[name = "Replays I watched"]
+    ReplaysIWatched,
 }
 
 impl From<&PlayerMetricWithValue> for PlayerMetric {
@@ -50,6 +59,10 @@ impl From<&PlayerMetricWithValue> for PlayerMetric {
             PlayerMetricWithValue::TotalPp(_) => PlayerMetric::TotalPp,
             PlayerMetricWithValue::Rank(_) => PlayerMetric::Rank,
             PlayerMetricWithValue::CountryRank(_) => PlayerMetric::CountryRank,
+            PlayerMetricWithValue::MaxStreak(_) => PlayerMetric::MaxStreak,
+            PlayerMetricWithValue::Top1Count(_) => PlayerMetric::Top1Count,
+            PlayerMetricWithValue::MyReplaysWatched(_) => PlayerMetric::MyReplaysWatched,
+            PlayerMetricWithValue::ReplaysIWatched(_) => PlayerMetric::ReplaysIWatched,
         }
     }
 }
@@ -78,6 +91,10 @@ pub(crate) enum PlayerMetricWithValue {
     TotalPp(f64),
     Rank(u32),
     CountryRank(u32),
+    MaxStreak(u32),
+    Top1Count(u32),
+    MyReplaysWatched(u32),
+    ReplaysIWatched(u32),
 }
 
 impl PlayerMetricWithValue {
@@ -88,6 +105,10 @@ impl PlayerMetricWithValue {
             PlayerMetric::Rank => PlayerMetricWithValue::Rank(value as u32),
             PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(value as u32),
             PlayerMetric::TopAcc => PlayerMetricWithValue::TopAcc(value),
+            PlayerMetric::MaxStreak => PlayerMetricWithValue::MaxStreak(value as u32),
+            PlayerMetric::Top1Count => PlayerMetricWithValue::Top1Count(value as u32),
+            PlayerMetric::MyReplaysWatched => PlayerMetricWithValue::MyReplaysWatched(value as u32),
+            PlayerMetric::ReplaysIWatched => PlayerMetricWithValue::ReplaysIWatched(value as u32),
         }
     }
 
@@ -158,6 +179,34 @@ impl PartialOrd for PlayerMetricWithValue {
                     None
                 }
             }
+            PlayerMetricWithValue::MaxStreak(v) => {
+                if let PlayerMetricWithValue::MaxStreak(o) = other {
+                    v.partial_cmp(o)
+                } else {
+                    None
+                }
+            }
+            PlayerMetricWithValue::Top1Count(v) => {
+                if let PlayerMetricWithValue::Top1Count(o) = other {
+                    v.partial_cmp(o)
+                } else {
+                    None
+                }
+            }
+            PlayerMetricWithValue::MyReplaysWatched(v) => {
+                if let PlayerMetricWithValue::MyReplaysWatched(o) = other {
+                    v.partial_cmp(o)
+                } else {
+                    None
+                }
+            }
+            PlayerMetricWithValue::ReplaysIWatched(v) => {
+                if let PlayerMetricWithValue::ReplaysIWatched(o) = other {
+                    v.partial_cmp(o)
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -201,6 +250,26 @@ impl std::fmt::Display for RoleCondition {
                 ),
                 PlayerMetricWithValue::CountryRank(v) => format!(
                     "**Country rank** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::MaxStreak(v) => format!(
+                    "**Max streak** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::Top1Count(v) => format!(
+                    "**#1 count** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::MyReplaysWatched(v) => format!(
+                    "**My replays watched** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                PlayerMetricWithValue::ReplaysIWatched(v) => format!(
+                    "**I watched replays** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
@@ -454,8 +523,9 @@ impl UserRoleStatus {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Default, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct GuildSettings {
     guild_id: GuildId,
     bot_channel_id: Option<ChannelId>,

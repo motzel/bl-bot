@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 #[non_exhaustive]
 pub struct Player {
     pub id: PlayerId,
@@ -38,6 +39,12 @@ pub struct Player {
     pub total_play_count: u32,
     pub ranked_play_count: u32,
     pub unranked_play_count: u32,
+    pub peak_rank: u32,
+    pub top1_count: u32,
+    pub anonymous_replay_watched: u32,
+    pub authorized_replay_watched: u32,
+    pub total_replay_watched: u32,
+    pub watched_replays: u32,
 }
 
 impl Player {
@@ -66,6 +73,7 @@ impl Player {
             top_accuracy: bl_player.score_stats.top_accuracy * 100.0,
             top_ranked_accuracy: bl_player.score_stats.top_ranked_accuracy * 100.0,
             top_unranked_accuracy: bl_player.score_stats.top_unranked_accuracy * 100.0,
+
             top_acc_pp: bl_player.score_stats.top_acc_pp,
             top_tech_pp: bl_player.score_stats.top_tech_pp,
             top_pass_pp: bl_player.score_stats.top_pass_pp,
@@ -73,6 +81,13 @@ impl Player {
             total_play_count: bl_player.score_stats.total_play_count,
             ranked_play_count: bl_player.score_stats.ranked_play_count,
             unranked_play_count: bl_player.score_stats.unranked_play_count,
+            peak_rank: bl_player.score_stats.peak_rank,
+            top1_count: bl_player.score_stats.top1_count,
+            anonymous_replay_watched: bl_player.score_stats.anonymous_replay_watched,
+            authorized_replay_watched: bl_player.score_stats.authorized_replay_watched,
+            total_replay_watched: bl_player.score_stats.anonymous_replay_watched
+                + bl_player.score_stats.authorized_replay_watched,
+            watched_replays: bl_player.score_stats.watched_replays,
         }
     }
 
@@ -91,6 +106,15 @@ impl Player {
             PlayerMetric::TotalPp => PlayerMetricWithValue::TotalPp(self.pp),
             PlayerMetric::Rank => PlayerMetricWithValue::Rank(self.rank),
             PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(self.country_rank),
+
+            PlayerMetric::MaxStreak => PlayerMetricWithValue::MaxStreak(self.max_streak),
+            PlayerMetric::Top1Count => PlayerMetricWithValue::Top1Count(self.top1_count),
+            PlayerMetric::MyReplaysWatched => {
+                PlayerMetricWithValue::MyReplaysWatched(self.total_replay_watched)
+            }
+            PlayerMetric::ReplaysIWatched => {
+                PlayerMetricWithValue::ReplaysIWatched(self.watched_replays)
+            }
         }
     }
 }
