@@ -31,7 +31,7 @@ pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     }
 }
 
-/// Set bot log channel
+/// Set or unset bot log channel
 #[poise::command(
     slash_command,
     rename = "bl-set-log-channel",

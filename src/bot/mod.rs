@@ -612,29 +612,38 @@ impl std::fmt::Display for GuildSettings {
 
         write!(
             f,
-            "# Current settings\nBot log channel: {}\n## Auto roles:\n{}",
+            "# __Current settings__\nBot log channel: {}\n## Auto roles:\n{}",
             self.bot_channel_id.map_or_else(
                 || "**None**".to_owned(),
                 |channel_id| format!("<#{}>", channel_id.to_owned())
             ),
-            rg_vec
-                .iter()
-                .map(|(rg, rs_hm)| {
-                    let mut rs_vec = rs_hm.values().cloned().collect::<Vec<RoleSettings>>();
-                    rs_vec.sort_unstable_by(|a, b| Ord::cmp(&b.weight, &a.weight));
+            {
+                let roles = rg_vec
+                    .iter()
+                    .map(|(rg, rs_hm)| {
+                        let mut rs_vec = rs_hm.values().cloned().collect::<Vec<RoleSettings>>();
+                        rs_vec.sort_unstable_by(|a, b| Ord::cmp(&b.weight, &a.weight));
 
-                    format!(
-                        "### Group: __{}__\n{}",
-                        rg,
-                        rs_vec
-                            .iter()
-                            .map(|rs| format!("{}", rs))
-                            .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
-                            .trim_end()
-                    )
-                })
-                .fold(String::new(), |out, rg| out + &*format!("{}\n", rg))
-                .trim_end() // TODO: replace with None if empty
+                        format!(
+                            "### Group: __{}__\n{}",
+                            rg,
+                            rs_vec
+                                .iter()
+                                .map(|rs| format!("{}", rs))
+                                .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
+                                .trim_end()
+                        )
+                    })
+                    .fold(String::new(), |out, rg| out + &*format!("{}\n", rg))
+                    .trim()
+                    .to_owned();
+
+                if !roles.is_empty() {
+                    roles
+                } else {
+                    "None".to_owned()
+                }
+            }
         )
     }
 }

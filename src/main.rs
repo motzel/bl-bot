@@ -104,7 +104,7 @@ async fn poise(
     let framework = poise::Framework::builder()
         .options(options)
         .token(discord_token)
-        .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTEN
+        .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTENT
         .setup(move |ctx, _ready, _framework| {
             Box::pin(async move {
                 info!("Logged in as {}", _ready.user.name);
