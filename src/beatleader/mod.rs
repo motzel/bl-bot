@@ -1,6 +1,12 @@
+use std::num::NonZeroU32;
+use std::time::Duration;
+
+use governor::clock::DefaultClock;
+use governor::middleware::NoOpMiddleware;
+use governor::state::{InMemoryState, NotKeyed};
+use governor::{Jitter, Quota, RateLimiter};
 use log::{debug, error, info};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
-use std::time::Duration;
 
 use player::PlayerRequest;
 
@@ -27,6 +33,7 @@ pub struct Client {
     base_url: String,
     http_client: HttpClient,
     timeout: u64,
+    rate_limiter: RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>,
 }
 
 impl Client {
@@ -46,6 +53,7 @@ impl Client {
                 .build()
                 .unwrap(),
             timeout,
+            rate_limiter: RateLimiter::direct(Quota::per_second(NonZeroU32::new(10u32).unwrap())),
         }
     }
 
@@ -62,7 +70,13 @@ impl Client {
     }
 
     pub async fn send_request(&self, request: Request) -> Result<Response> {
-        // TODO: implement simple rate limiter with tokio semaphore
+        debug!("Waiting for rate limiter...");
+
+        self.rate_limiter
+            .until_ready_with_jitter(Jitter::up_to(Duration::from_millis(100)))
+            .await;
+
+        debug!("Got permit from rate limiter.");
 
         let base = Url::parse(self.base_url.as_str()).unwrap();
 
