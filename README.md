@@ -28,11 +28,11 @@ All of the following commands require a Rust environment installed on your compu
 4. Create free [shuttle.rs](https://www.shuttle.rs/) account
 5. ``cargo install cargo-shuttle``
 6. ``cargo shuttle login``
+7. ``cargo shuttle project start --idle-minutes 0``
 
 ## Deploy
 
 ```bash
-cargo shuttle project start --idle-minutes 0
 cargo shuttle deploy
 ```
 
