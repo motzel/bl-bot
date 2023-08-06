@@ -23,7 +23,7 @@ All of the following commands require a Rust environment installed on your compu
 - Create New Application
 - Copy Discord Token (click ``Reset Token`` button on Bot tab to obtain it) and set ``DISCORD_TOKEN`` in ``Secrets.toml``
 3. Invite a bot to your server (**replace ``<APP_ID>`` with your application ID**, you can find it on General Information tab in Discord Developer Portal)
-https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536
+``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
 4. Create free [shuttle.rs](https://www.shuttle.rs/) account
 5. ``cargo install cargo-shuttle``
@@ -32,6 +32,7 @@ https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=24
 ## Deploy
 
 ```bash
+cargo shuttle project start --idle-minutes 0
 cargo shuttle deploy
 ```
 
