@@ -17,7 +17,7 @@ A simple Discord bot providing the following commands:
 
 All of the following commands require a Rust environment installed on your computer.
 
-1. Copy ``Secrets.example.toml`` as ``Secrets.toml``
+1. Copy ``Secrets.example.toml`` as ``Secrets.toml`` and ``Secrets.dev.toml``. The first will be used production, the second for development.
 2. Register bot:
 - Go to [Discord Developer Portal](https://discord.com/developers/applications)
 - Create New Application

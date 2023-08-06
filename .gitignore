@@ -3,4 +3,3 @@ shuttle_persist/*
 /target
 Secrets.toml
 Secrets.dev.toml
-Secrets.prod.toml
