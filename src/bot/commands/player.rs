@@ -46,14 +46,13 @@ impl Sort {
 pub(crate) async fn cmd_link(
     ctx: Context<'_>,
     #[description = "Beat Leader PlayerID"] bl_player_id: String,
-    #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
         return Ok(());
     };
 
-    let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
+    let selected_user = ctx.author();
 
     match ctx
         .data()
