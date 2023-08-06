@@ -40,6 +40,8 @@ After you launch and invite the bot to your server, it will be visible in the li
 
 ![](assets/register.png)
 
+Note: If you register commands globally remember that [global commands can take up to 1 hour to update](https://discordnet.dev/guides/int_basics/application-commands/slash-commands/creating-slash-commands.html#:~:text=Note%3A%20Global%20commands%20will%20take,yet%20please%20follow%20this%20guide.). During development, it is better to register them only on the test server, because they update immediately.
+
 ## Develop
 ```bash
 cargo shuttle run
