@@ -1,5 +1,6 @@
 use reqwest::Method;
 use serde::Deserialize;
+use serde_with::{serde_as, DefaultOnNull};
 
 use crate::beatleader;
 use crate::beatleader::error::Error::{JsonDecode, Request};
@@ -203,6 +204,7 @@ pub struct Leaderboard {
     pub difficulty: Difficulty,
 }
 
+#[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
@@ -214,7 +216,9 @@ pub struct Song {
     pub author: String,
     pub duration: u32,
     pub bpm: f32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub cover_image: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub full_cover_image: String,
 }
 
