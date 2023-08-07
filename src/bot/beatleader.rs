@@ -1,12 +1,13 @@
+use poise::serenity_prelude::{GuildId, UserId};
+use serde::{Deserialize, Serialize};
+
 use crate::beatleader::player::{MetaData, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
-use crate::beatleader::{error::Error as BlError, Client, SortOrder};
+use crate::beatleader::{error::Error as BlError, SortOrder};
 use crate::bot::{PlayerMetric, PlayerMetricWithValue};
 use crate::BL_CLIENT;
-use poise::serenity_prelude::{GuildId, UserId};
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +46,7 @@ pub struct Player {
     pub authorized_replay_watched: u32,
     pub total_replay_watched: u32,
     pub watched_replays: u32,
+    pub clans: Vec<String>,
 }
 
 impl Player {
@@ -61,6 +63,11 @@ impl Player {
             active: !bl_player.inactive && !bl_player.banned && !bl_player.bot,
             avatar: bl_player.avatar,
             country: bl_player.country,
+            clans: bl_player
+                .clans
+                .iter()
+                .map(|clan| clan.tag.clone())
+                .collect::<Vec<String>>(),
             rank: bl_player.rank,
             country_rank: bl_player.country_rank,
             pp: bl_player.pp,
@@ -73,7 +80,6 @@ impl Player {
             top_accuracy: bl_player.score_stats.top_accuracy * 100.0,
             top_ranked_accuracy: bl_player.score_stats.top_ranked_accuracy * 100.0,
             top_unranked_accuracy: bl_player.score_stats.top_unranked_accuracy * 100.0,
-
             top_acc_pp: bl_player.score_stats.top_acc_pp,
             top_tech_pp: bl_player.score_stats.top_tech_pp,
             top_pass_pp: bl_player.score_stats.top_pass_pp,
@@ -115,6 +121,7 @@ impl Player {
             PlayerMetric::ReplaysIWatched => {
                 PlayerMetricWithValue::ReplaysIWatched(self.watched_replays)
             }
+            PlayerMetric::Clan => PlayerMetricWithValue::Clan(self.clans.clone()),
         }
     }
 }

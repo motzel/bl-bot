@@ -1,5 +1,4 @@
 use std::convert::From;
-use std::sync::Arc;
 
 use log::{debug, info};
 use poise::serenity_prelude::UserId;
@@ -329,6 +328,11 @@ pub(crate) async fn cmd_replay(
 
 fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
     reply.embed(|f| {
+        let mut clans = player.clans.join(", ");
+        if clans.is_empty() {
+            clans = "None".to_string()
+        }
+
         f.title(player.name)
             .url(format!("https://www.beatleader.xyz/u/{}", player.id))
             .thumbnail(player.avatar)
@@ -337,7 +341,7 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
-            .field("Max streak", player.max_streak, true)
+            .field("Clans", clans, true)
     });
 }
 

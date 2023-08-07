@@ -90,9 +90,7 @@ pub(crate) async fn cmd_add_auto_role(
     role: serenity_prelude::Role,
     #[description = "Metric to check"] metric: PlayerMetric,
     #[description = "Condition to check"] condition: MetricCondition,
-    #[description = "Metric value"]
-    #[min = 1]
-    value: f64,
+    #[description = "Metric value"] value: String,
     #[description = "Weight of auto role in the group (100, 200, etc.; the better role, the higher value)"]
     #[min = 1]
     weight: u32,
@@ -102,6 +100,14 @@ pub(crate) async fn cmd_add_auto_role(
         return Ok(());
     };
 
+    let metric_and_value = match PlayerMetricWithValue::new(metric, value.as_str()) {
+        Ok(v) => v,
+        Err(e) => {
+            ctx.say(format!("Invalid metric value: {}", e)).await?;
+            return Ok(());
+        }
+    };
+
     match ctx
         .data()
         .guild_settings_repository
@@ -109,7 +115,7 @@ pub(crate) async fn cmd_add_auto_role(
             guild_id,
             group,
             role.id,
-            PlayerMetricWithValue::new(metric, value),
+            metric_and_value,
             condition,
             weight,
         )

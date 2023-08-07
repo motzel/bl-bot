@@ -135,6 +135,14 @@ pub struct Player {
     pub banned: bool,
     pub bot: bool,
     pub inactive: bool,
+    pub clans: Vec<Clan>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Clan {
+    pub id: u32,
+    pub tag: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]

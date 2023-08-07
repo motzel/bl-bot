@@ -20,11 +20,10 @@ use shuttle_secrets::SecretStore;
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::Context;
+use crate::Error;
 
 pub(crate) mod beatleader;
 pub(crate) mod commands;
-
-pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
@@ -40,7 +39,6 @@ pub(crate) enum PlayerMetric {
     CountryRank,
     #[name = "Top Acc"]
     TopAcc,
-
     #[name = "Max Streak"]
     MaxStreak,
     #[name = "#1 Count"]
@@ -49,6 +47,8 @@ pub(crate) enum PlayerMetric {
     MyReplaysWatched,
     #[name = "Replays I watched"]
     ReplaysIWatched,
+    #[name = "Clans"]
+    Clan,
 }
 
 impl From<&PlayerMetricWithValue> for PlayerMetric {
@@ -63,6 +63,7 @@ impl From<&PlayerMetricWithValue> for PlayerMetric {
             PlayerMetricWithValue::Top1Count(_) => PlayerMetric::Top1Count,
             PlayerMetricWithValue::MyReplaysWatched(_) => PlayerMetric::MyReplaysWatched,
             PlayerMetricWithValue::ReplaysIWatched(_) => PlayerMetric::ReplaysIWatched,
+            PlayerMetricWithValue::Clan(_) => PlayerMetric::Clan,
         }
     }
 }
@@ -80,6 +81,8 @@ pub(crate) enum MetricCondition {
     WorseThanOrEqualTo,
     #[name = "Worse than"]
     WorseThan,
+    #[name = "Contains (clan metric only)"]
+    Contains,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -95,20 +98,34 @@ pub(crate) enum PlayerMetricWithValue {
     Top1Count(u32),
     MyReplaysWatched(u32),
     ReplaysIWatched(u32),
+    Clan(Vec<String>),
 }
 
 impl PlayerMetricWithValue {
-    pub fn new(metric: PlayerMetric, value: f64) -> Self {
+    pub fn new(metric: PlayerMetric, value: &str) -> Result<Self, Error> {
         match metric {
-            PlayerMetric::TotalPp => PlayerMetricWithValue::TotalPp(value),
-            PlayerMetric::TopPp => PlayerMetricWithValue::TopPp(value),
-            PlayerMetric::Rank => PlayerMetricWithValue::Rank(value as u32),
-            PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(value as u32),
-            PlayerMetric::TopAcc => PlayerMetricWithValue::TopAcc(value),
-            PlayerMetric::MaxStreak => PlayerMetricWithValue::MaxStreak(value as u32),
-            PlayerMetric::Top1Count => PlayerMetricWithValue::Top1Count(value as u32),
-            PlayerMetric::MyReplaysWatched => PlayerMetricWithValue::MyReplaysWatched(value as u32),
-            PlayerMetric::ReplaysIWatched => PlayerMetricWithValue::ReplaysIWatched(value as u32),
+            PlayerMetric::TotalPp => Ok(PlayerMetricWithValue::TotalPp(value.parse::<f64>()?)),
+            PlayerMetric::TopPp => Ok(PlayerMetricWithValue::TopPp(value.parse::<f64>()?)),
+            PlayerMetric::Rank => Ok(PlayerMetricWithValue::Rank(value.parse::<u32>()?)),
+            PlayerMetric::CountryRank => {
+                Ok(PlayerMetricWithValue::CountryRank(value.parse::<u32>()?))
+            }
+            PlayerMetric::TopAcc => Ok(PlayerMetricWithValue::TopAcc(value.parse::<f64>()?)),
+            PlayerMetric::MaxStreak => Ok(PlayerMetricWithValue::MaxStreak(value.parse::<u32>()?)),
+            PlayerMetric::Top1Count => Ok(PlayerMetricWithValue::Top1Count(value.parse::<u32>()?)),
+            PlayerMetric::MyReplaysWatched => Ok(PlayerMetricWithValue::MyReplaysWatched(
+                value.parse::<u32>()?,
+            )),
+            PlayerMetric::ReplaysIWatched => Ok(PlayerMetricWithValue::ReplaysIWatched(
+                value.parse::<u32>()?,
+            )),
+            PlayerMetric::Clan => {
+                if value.len() < 2 || value.len() > 4 {
+                    return Err(From::from("name of the clan should have 2 to 4 characters"));
+                }
+
+                Ok(PlayerMetricWithValue::Clan(vec![value.to_string()]))
+            }
         }
     }
 
@@ -129,6 +146,28 @@ impl PlayerMetricWithValue {
             MetricCondition::EqualTo => self.eq(value),
             MetricCondition::BetterThan => self.gt(value),
             MetricCondition::BetterThanOrEqualTo => self.ge(value),
+            MetricCondition::Contains => self.contains(value),
+        }
+    }
+
+    pub fn contains(&self, other: &Self) -> bool {
+        match self {
+            PlayerMetricWithValue::TopPp(_) => false,
+            PlayerMetricWithValue::TopAcc(_) => false,
+            PlayerMetricWithValue::TotalPp(_) => false,
+            PlayerMetricWithValue::Rank(_) => false,
+            PlayerMetricWithValue::CountryRank(_) => false,
+            PlayerMetricWithValue::MaxStreak(_) => false,
+            PlayerMetricWithValue::Top1Count(_) => false,
+            PlayerMetricWithValue::MyReplaysWatched(_) => false,
+            PlayerMetricWithValue::ReplaysIWatched(_) => false,
+            PlayerMetricWithValue::Clan(player_clans) => {
+                if let PlayerMetricWithValue::Clan(clans) = other {
+                    clans.iter().all(|clan| player_clans.contains(clan))
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -207,6 +246,7 @@ impl PartialOrd for PlayerMetricWithValue {
                     None
                 }
             }
+            PlayerMetricWithValue::Clan(_) => None,
         }
     }
 }
@@ -227,7 +267,7 @@ impl std::fmt::Display for RoleCondition {
         write!(
             f,
             "{}",
-            match self.value {
+            match &self.value {
                 PlayerMetricWithValue::TopPp(v) => format!(
                     "**Top PP** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
@@ -272,6 +312,11 @@ impl std::fmt::Display for RoleCondition {
                     "**I watched replays** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
+                ),
+                PlayerMetricWithValue::Clan(v) => format!(
+                    "**Clan** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v.join(", "),
                 ),
             }
         )
@@ -788,6 +833,17 @@ mod tests {
         rs
     }
 
+    fn create_clan_member_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(6), 100);
+
+        rs.add_condition(
+            MetricCondition::Contains,
+            PlayerMetricWithValue::Clan(vec!["Clan1".to_string()]),
+        );
+
+        rs
+    }
+
     fn create_empty_guild_settings() -> GuildSettings {
         GuildSettings::new(GuildId(1))
     }
@@ -801,7 +857,8 @@ mod tests {
             .add("pp".to_string(), create_10kpp_role_settings())
             .add("rank".to_string(), create_1k_rank_role_settings())
             .add("rank".to_string(), create_500_rank_role_settings())
-            .add("rank".to_string(), create_100_rank_role_settings());
+            .add("rank".to_string(), create_100_rank_role_settings())
+            .add("clan".to_string(), create_clan_member_role_settings());
 
         gs
     }
@@ -823,6 +880,17 @@ mod tests {
         assert_eq!(val > worse, true);
         assert_eq!(val < better, true);
         assert_eq!(val == val, true);
+
+        let val = PlayerMetricWithValue::Clan(vec![
+            "Clan1".to_string(),
+            "Clan2".to_string(),
+            "Clan3".to_string(),
+        ]);
+        let ok = PlayerMetricWithValue::Clan(vec!["Clan1".to_string(), "Clan2".to_string()]);
+        let fail = PlayerMetricWithValue::Clan(vec!["Other1".to_string(), "Other2".to_string()]);
+
+        assert!(val.contains(&ok));
+        assert!(!val.contains(&fail));
     }
 
     #[test]
@@ -872,6 +940,12 @@ mod tests {
                 .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
             true
         );
+
+        let player_metric = PlayerMetricWithValue::Rank(90);
+        assert_eq!(
+            player_metric.is_fulfilled_for(&MetricCondition::Contains, &condition_metric),
+            false
+        );
     }
 
     #[test]
@@ -894,6 +968,7 @@ mod tests {
             top_accuracy: 91.0,
             country_rank: 20,
             rank: 1000,
+            clans: vec!["Clan1".to_string()],
             ..Default::default()
         };
 
@@ -917,22 +992,30 @@ mod tests {
             player.get_metric_with_value(PlayerMetric::Rank),
             PlayerMetricWithValue::Rank(1000)
         );
+
+        assert_eq!(
+            player.get_metric_with_value(PlayerMetric::Clan),
+            PlayerMetricWithValue::Clan(vec!["Clan1".to_string()])
+        );
     }
 
     #[test]
-    fn it_check_if_player_metric_that_fulfill_role_setting_conditions() {
+    fn it_check_if_player_metric_fulfills_role_setting_conditions() {
         let rs_5k = create_5kpp_ss_50_country_role_settings();
         let rs_10k = create_10kpp_role_settings();
+        let rs_clan = create_clan_member_role_settings();
 
         let mut player = Player {
             pp: 12000.0,
             top_accuracy: 91.0,
             country_rank: 20,
+            clans: vec!["Clan1".to_string(), "Clan2".to_string()],
             ..Default::default()
         };
 
         assert_eq!(rs_5k.is_fulfilled_for(&player), true);
         assert_eq!(rs_10k.is_fulfilled_for(&player), true);
+        assert_eq!(rs_clan.is_fulfilled_for(&player), true);
 
         player.top_accuracy = 89.0;
         assert_eq!(rs_5k.is_fulfilled_for(&player), false);
@@ -946,15 +1029,19 @@ mod tests {
 
         assert_eq!(rs_5k.is_fulfilled_for(&player), true);
         assert_eq!(rs_10k.is_fulfilled_for(&player), false);
+
+        player.clans = vec!["Other clan".to_string()];
+        assert_eq!(rs_clan.is_fulfilled_for(&player), false);
     }
 
     #[test]
     fn it_can_add_role_settings_to_guild() {
         let gs = create_guild_settings();
 
-        assert_eq!(gs.role_groups.keys().len(), 2);
+        assert_eq!(gs.role_groups.keys().len(), 3);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 3);
+        assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
     }
 
     #[test]
@@ -988,9 +1075,10 @@ mod tests {
         gs.remove("rank".to_string(), RoleId(3));
         gs.remove("rank".to_string(), RoleId(5));
 
-        assert_eq!(gs.role_groups.keys().len(), 2);
+        assert_eq!(gs.role_groups.keys().len(), 3);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 1);
+        assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
 
         gs.remove("rank".to_string(), RoleId(4));
         assert_eq!(gs.role_groups.contains_key("rank"), false);
@@ -1021,7 +1109,14 @@ mod tests {
 
         assert_eq!(
             roles,
-            vec![&RoleId(1), &RoleId(2), &RoleId(3), &RoleId(4), &RoleId(5)]
+            vec![
+                &RoleId(1),
+                &RoleId(2),
+                &RoleId(3),
+                &RoleId(4),
+                &RoleId(5),
+                &RoleId(6)
+            ]
         );
     }
 
@@ -1095,5 +1190,27 @@ mod tests {
 
         assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+
+        player.clans = vec!["Clan1".to_string()];
+
+        let mut roles_updates =
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(6)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+
+        player.clans = vec!["Other".to_string()];
+
+        let mut roles_updates =
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3), RoleId(6)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
     }
 }
