@@ -44,7 +44,7 @@ impl Sort {
 #[poise::command(slash_command, rename = "bl-link", guild_only)]
 pub(crate) async fn cmd_link(
     ctx: Context<'_>,
-    #[description = "Beat Leader PlayerID"] bl_player_id: String,
+    #[description = "Beat Leader PlayerID or profile URL"] bl_player_id: String,
     #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
 ) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
@@ -57,14 +57,18 @@ pub(crate) async fn cmd_link(
             if let Some(member) = ctx.author_member().await {
                 match member.permissions {
                     None => {
-                        ctx.say("Error: can not get user permissions").await?;
+                        say_without_ping(ctx, "Error: can not get user permissions", true).await?;
 
                         return Ok(());
                     }
                     Some(permissions) => {
                         if !permissions.administrator() {
-                            ctx.say("Error: linking another user requires administrator privilege")
-                                .await?;
+                            say_without_ping(
+                                ctx,
+                                "Error: linking another user requires administrator privilege",
+                                true,
+                            )
+                            .await?;
 
                             return Ok(());
                         }
@@ -73,7 +77,7 @@ pub(crate) async fn cmd_link(
                     }
                 }
             } else {
-                ctx.say("Error: can not get user permissions").await?;
+                say_without_ping(ctx, "Error: can not get user permissions", true).await?;
 
                 return Ok(());
             }
@@ -81,10 +85,16 @@ pub(crate) async fn cmd_link(
         None => ctx.author().id,
     };
 
+    let mut player_id = bl_player_id;
+    let re = regex::Regex::new(r"beatleader.xyz/u/(?<player_id>[^\/\?$]+)").unwrap();
+    if let Some(caps) = re.captures(&player_id) {
+        player_id = caps["player_id"].to_owned().clone();
+    }
+
     match ctx
         .data()
         .players_repository
-        .link(guild_id, selected_user_id, bl_player_id.to_owned())
+        .link(guild_id, selected_user_id, player_id.to_owned())
         .await
     {
         Ok(player) => {
@@ -104,11 +114,7 @@ pub(crate) async fn cmd_link(
             Ok(())
         }
         Err(e) => {
-            ctx.send(|f| {
-                f.content(format!("An error occurred: {}", e))
-                    .ephemeral(true)
-            })
-            .await?;
+            say_without_ping(ctx, format!("An error occurred: {}", e).as_str(), true).await?;
 
             Ok(())
         }
@@ -374,13 +380,25 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
 }
 
 async fn say_profile_not_linked(ctx: Context<'_>, user_id: &UserId) -> Result<(), Error> {
-    ctx.send(|f| {
-        f.content(format!(
+    say_without_ping(
+        ctx,
+        format!(
             "<@{}> is not linked to the BL profile. Use ``/bl-link`` command first.",
             user_id
-        ))
-        .allowed_mentions(|am| am.empty_parse())
-        .ephemeral(false)
+        )
+        .as_str(),
+        false,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn say_without_ping(ctx: Context<'_>, message: &str, ephemeral: bool) -> Result<(), Error> {
+    ctx.send(|f| {
+        f.content(message)
+            .allowed_mentions(|am| am.empty_parse())
+            .ephemeral(ephemeral)
     })
     .await?;
 
