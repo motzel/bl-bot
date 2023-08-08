@@ -1,7 +1,7 @@
 use std::convert::From;
 
 use log::{debug, info};
-use poise::serenity_prelude::UserId;
+use poise::serenity_prelude::{Permissions, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::beatleader::player::PlayerScoreSort;
@@ -45,18 +45,46 @@ impl Sort {
 pub(crate) async fn cmd_link(
     ctx: Context<'_>,
     #[description = "Beat Leader PlayerID"] bl_player_id: String,
+    #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
 ) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
         return Ok(());
     };
 
-    let selected_user = ctx.author();
+    let selected_user_id = match user {
+        Some(user) => {
+            if let Some(member) = ctx.author_member().await {
+                match member.permissions {
+                    None => {
+                        ctx.say("Error: can not get user permissions").await?;
+
+                        return Ok(());
+                    }
+                    Some(permissions) => {
+                        if !permissions.administrator() {
+                            ctx.say("Error: linking another user requires administrator privilege")
+                                .await?;
+
+                            return Ok(());
+                        }
+
+                        user.id
+                    }
+                }
+            } else {
+                ctx.say("Error: can not get user permissions").await?;
+
+                return Ok(());
+            }
+        }
+        None => ctx.author().id,
+    };
 
     match ctx
         .data()
         .players_repository
-        .link(guild_id, selected_user.id, bl_player_id.to_owned())
+        .link(guild_id, selected_user_id, bl_player_id.to_owned())
         .await
     {
         Ok(player) => {
@@ -65,7 +93,7 @@ pub(crate) async fn cmd_link(
 
                 m.content(format!(
                     "<@{}> has been linked to the BL profile",
-                    selected_user.id
+                    selected_user_id
                 ))
                 // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
                 .allowed_mentions(|am| am.parse(serenity::builder::ParseValue::Users))
@@ -143,14 +171,14 @@ pub(crate) async fn cmd_unlink(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command, rename = "bl-profile", guild_only)]
 pub(crate) async fn cmd_profile(
     ctx: Context<'_>,
-    #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
+    #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
         return Ok(());
     };
 
-    let selected_user = dsc_user.as_ref().unwrap_or_else(|| ctx.author());
+    let selected_user = user.as_ref().unwrap_or_else(|| ctx.author());
 
     match ctx.data().players_repository.get(&selected_user.id).await {
         Some(player) => {
@@ -184,7 +212,7 @@ pub(crate) async fn cmd_profile(
 pub(crate) async fn cmd_replay(
     ctx: Context<'_>,
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
-    #[description = "Discord user (YOU if not specified)"] dsc_user: Option<serenity::User>,
+    #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
@@ -192,7 +220,7 @@ pub(crate) async fn cmd_replay(
     };
 
     let current_user = ctx.author();
-    let selected_user = dsc_user.as_ref().unwrap_or(current_user);
+    let selected_user = user.as_ref().unwrap_or(current_user);
 
     let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
 
