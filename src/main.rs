@@ -15,7 +15,7 @@ use shuttle_secrets::SecretStore;
 use crate::beatleader::Client;
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_link, cmd_profile, cmd_register, cmd_remove_auto_role, cmd_replay,
-    cmd_set_log_channel, cmd_show_settings, cmd_unlink,
+    cmd_set_log_channel, cmd_set_profile_verification, cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildSettings, UserRoleChanges};
 use crate::storage::guild::GuildSettingsRepository;
@@ -84,6 +84,7 @@ async fn poise(
             cmd_add_auto_role(),
             cmd_remove_auto_role(),
             cmd_set_log_channel(),
+            cmd_set_profile_verification(),
             cmd_register(),
         ],
         pre_command: |ctx| {

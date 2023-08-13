@@ -52,7 +52,7 @@ pub(crate) async fn cmd_link(
         return Ok(());
     };
 
-    let selected_user_id = match user {
+    let (selected_user_id, requires_verification) = match user {
         Some(user) => {
             if let Some(member) = ctx.author_member().await {
                 match member.permissions {
@@ -73,7 +73,7 @@ pub(crate) async fn cmd_link(
                             return Ok(());
                         }
 
-                        user.id
+                        (user.id, false)
                     }
                 }
             } else {
@@ -82,7 +82,15 @@ pub(crate) async fn cmd_link(
                 return Ok(());
             }
         }
-        None => ctx.author().id,
+        None => {
+            let Ok(guild) = ctx.data().guild_settings_repository.get(&guild_id).await else {
+                say_without_ping(ctx, "Error: can not get guild settings", true).await?;
+
+                return Ok(());
+            };
+
+            (ctx.author().id, guild.requires_verified_profile)
+        }
     };
 
     let mut player_id = bl_player_id;
@@ -94,7 +102,12 @@ pub(crate) async fn cmd_link(
     match ctx
         .data()
         .players_repository
-        .link(guild_id, selected_user_id, player_id.to_owned())
+        .link(
+            guild_id,
+            selected_user_id,
+            player_id.to_owned(),
+            requires_verification,
+        )
         .await
     {
         Ok(player) => {
@@ -409,7 +422,13 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
-            .field("Clans", clans, true)
+            .field("Clans", clans, true);
+
+        if !player.is_verified {
+            f.footer(|footer| footer.text("Profile is NOT VERIFIED"));
+        }
+
+        f
     });
 }
 

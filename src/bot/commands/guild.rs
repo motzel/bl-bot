@@ -70,6 +70,45 @@ pub(crate) async fn cmd_set_log_channel(
     }
 }
 
+/// Set profile verification requirement
+#[poise::command(
+    slash_command,
+    rename = "bl-set-profile-verification",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only
+)]
+pub(crate) async fn cmd_set_profile_verification(
+    ctx: Context<'_>,
+    #[description = "Does the bl-link command require a verified profile or not."]
+    requires_verified_profile: bool,
+) -> Result<(), Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_verified_profile_requirement(&guild_id, requires_verified_profile)
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
 /// Set conditions for automatic role assignment.
 #[poise::command(
     slash_command,

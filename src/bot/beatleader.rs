@@ -47,6 +47,7 @@ pub struct Player {
     pub total_replay_watched: u32,
     pub watched_replays: u32,
     pub clans: Vec<String>,
+    pub is_verified: bool,
 }
 
 impl Player {
@@ -94,6 +95,10 @@ impl Player {
             total_replay_watched: bl_player.score_stats.anonymous_replay_watched
                 + bl_player.score_stats.authorized_replay_watched,
             watched_replays: bl_player.score_stats.watched_replays,
+            is_verified: bl_player
+                .socials
+                .iter()
+                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string()),
         }
     }
 

@@ -136,6 +136,7 @@ pub struct Player {
     pub bot: bool,
     pub inactive: bool,
     pub clans: Vec<Clan>,
+    pub socials: Vec<Social>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -143,6 +144,16 @@ pub struct Player {
 pub struct Clan {
     pub id: u32,
     pub tag: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Social {
+    pub id: u32,
+    pub service: String,
+    pub user: String,
+    pub user_id: String,
+    pub link: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]

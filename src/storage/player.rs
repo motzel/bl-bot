@@ -35,10 +35,21 @@ impl<'a> PlayerRepository {
         guild_id: GuildId,
         user_id: UserId,
         player_id: PlayerId,
+        requires_verification: bool,
     ) -> Result<BotPlayer> {
         debug!("Linking user {} with BL player {}...", user_id, player_id);
 
         let bl_player = PlayerRepository::fetch_player_from_bl(&player_id).await?;
+
+        if requires_verification
+            && !bl_player
+                .socials
+                .iter()
+                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
+        {
+            return Err(PersistError::ProfileNotVerified);
+        }
+
         let bl_player_clone = bl_player.clone();
 
         trace!(

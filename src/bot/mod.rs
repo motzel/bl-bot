@@ -574,6 +574,7 @@ impl UserRoleStatus {
 pub struct GuildSettings {
     guild_id: GuildId,
     bot_channel_id: Option<ChannelId>,
+    requires_verified_profile: bool,
     role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
 }
 
@@ -582,6 +583,7 @@ impl GuildSettings {
         Self {
             guild_id,
             bot_channel_id: None,
+            requires_verified_profile: false,
             role_groups: HashMap::new(),
         }
     }
@@ -592,6 +594,10 @@ impl GuildSettings {
 
     pub fn set_channel(&mut self, channel_id: Option<ChannelId>) {
         self.bot_channel_id = channel_id;
+    }
+
+    pub fn set_verified_profile_requirement(&mut self, requires_verified_profile: bool) {
+        self.requires_verified_profile = requires_verified_profile;
     }
 
     pub fn add(&mut self, role_group: RoleGroup, role_settings: RoleSettings) -> &mut Self {
@@ -727,11 +733,12 @@ impl std::fmt::Display for GuildSettings {
 
         write!(
             f,
-            "# __Current settings__\nBot log channel: {}\n## Auto roles:\n{}",
+            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\n## Auto roles:\n{}",
             self.bot_channel_id.map_or_else(
                 || "**None**".to_owned(),
                 |channel_id| format!("<#{}>", channel_id.to_owned())
             ),
+            if self.requires_verified_profile {"Yes"} else {"No"},
             {
                 let roles = rg_vec
                     .iter()

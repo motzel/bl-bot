@@ -75,6 +75,42 @@ impl<'a> GuildSettingsRepository {
         }
     }
 
+    pub(crate) async fn set_verified_profile_requirement(
+        &self,
+        guild_id: &GuildId,
+        requires_verified_profile: bool,
+    ) -> Result<GuildSettings> {
+        debug!(
+            "Setting verified profile requirement for guild {}...",
+            guild_id
+        );
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| {
+                    guild_settings.set_verified_profile_requirement(requires_verified_profile)
+                },
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.set_verified_profile_requirement(requires_verified_profile);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            debug!("Verified profile requirement for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
     pub(crate) async fn add_auto_role(
         &self,
         guild_id: GuildId,
