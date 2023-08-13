@@ -123,25 +123,59 @@ pub(crate) async fn cmd_link(
 
 /// Unlink your account from your Beat Leader profile.
 #[poise::command(slash_command, rename = "bl-unlink", guild_only)]
-pub(crate) async fn cmd_unlink(ctx: Context<'_>) -> Result<(), Error> {
+pub(crate) async fn cmd_unlink(
+    ctx: Context<'_>,
+    #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
+) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
         return Ok(());
     };
 
-    let selected_user = ctx.author();
+    let selected_user_id = match user {
+        Some(user) => {
+            if let Some(member) = ctx.author_member().await {
+                match member.permissions {
+                    None => {
+                        say_without_ping(ctx, "Error: can not get user permissions", true).await?;
+
+                        return Ok(());
+                    }
+                    Some(permissions) => {
+                        if !permissions.administrator() {
+                            say_without_ping(
+                                ctx,
+                                "Error: unlinking another user requires administrator privilege",
+                                true,
+                            )
+                            .await?;
+
+                            return Ok(());
+                        }
+
+                        user.id
+                    }
+                }
+            } else {
+                say_without_ping(ctx, "Error: can not get user permissions", true).await?;
+
+                return Ok(());
+            }
+        }
+        None => ctx.author().id,
+    };
 
     match ctx
         .data()
         .players_repository
-        .unlink(&guild_id, &selected_user.id)
+        .unlink(&guild_id, &selected_user_id)
         .await
     {
         Ok(_) => {
             ctx.send(|m| {
                 m.content(format!(
                     "<@{}> has been unlinked from BL profile",
-                    selected_user.id
+                    selected_user_id
                 ))
                 // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
                 .allowed_mentions(|am| {
@@ -156,7 +190,7 @@ pub(crate) async fn cmd_unlink(ctx: Context<'_>) -> Result<(), Error> {
         }
         Err(e) => match e {
             PersistError::NotFound(_) => {
-                say_profile_not_linked(ctx, &selected_user.id).await?;
+                say_profile_not_linked(ctx, &selected_user_id).await?;
 
                 Ok(())
             }
