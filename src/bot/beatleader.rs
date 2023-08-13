@@ -1,4 +1,5 @@
 use poise::serenity_prelude::{GuildId, UserId};
+use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 
 use crate::beatleader::player::{MetaData, PlayerId};
@@ -136,32 +137,153 @@ impl Player {
 pub struct Score {
     pub id: u32,
     pub accuracy: f64,
+    pub fc_accuracy: f64,
+    pub acc_left: f64,
+    pub acc_right: f64,
     pub pp: f64,
+    pub fc_pp: f64,
+    pub rank: u32,
+    pub mistakes: u32,
+    pub max_streak: u32,
+    pub max_combo: u32,
+    pub pauses: u32,
+    pub full_combo: bool,
     pub modifiers: String,
     pub leaderboard_id: String,
     pub song_name: String,
     pub song_sub_name: String,
     pub song_mapper: String,
     pub song_author: String,
+    pub song_cover: String,
     pub difficulty_name: String,
+    pub difficulty_stars: f64,
+    pub difficulty_stars_modified: bool,
     pub mode_name: String,
 }
 
 impl From<BlScore> for Score {
     fn from(bl_score: BlScore) -> Self {
+        let mut modified_stars = false;
+        let mut stars = bl_score.leaderboard.difficulty.stars;
+
+        if let Some(ratings) = bl_score.leaderboard.difficulty.modifiers_rating {
+            if bl_score.modifiers.contains("SS") && ratings.ss_stars > 0.00 {
+                modified_stars = true;
+                stars = ratings.ss_stars;
+            } else if bl_score.modifiers.contains("FS") && ratings.fs_stars > 0.00 {
+                modified_stars = true;
+                stars = ratings.fs_stars;
+            } else if bl_score.modifiers.contains("SF") && ratings.sf_stars > 0.00 {
+                modified_stars = true;
+                stars = ratings.sf_stars;
+            }
+        }
+
         Score {
             id: bl_score.id,
             accuracy: bl_score.accuracy * 100.0,
+            fc_accuracy: bl_score.fc_accuracy * 100.0,
+            acc_left: bl_score.acc_left,
+            acc_right: bl_score.acc_right,
             pp: bl_score.pp,
+            fc_pp: bl_score.fc_pp,
+            rank: bl_score.rank,
+            mistakes: bl_score.bad_cuts
+                + bl_score.missed_notes
+                + bl_score.bomb_cuts
+                + bl_score.walls_hit,
+            max_streak: bl_score.max_streak,
+            max_combo: bl_score.max_combo,
+            pauses: bl_score.pauses,
+            full_combo: bl_score.full_combo,
             modifiers: bl_score.modifiers,
             leaderboard_id: bl_score.leaderboard.id,
             song_name: bl_score.leaderboard.song.name,
             song_sub_name: bl_score.leaderboard.song.sub_name,
             song_mapper: bl_score.leaderboard.song.mapper,
             song_author: bl_score.leaderboard.song.author,
+            song_cover: bl_score.leaderboard.song.cover_image,
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
+            difficulty_stars: stars,
+            difficulty_stars_modified: modified_stars,
             mode_name: bl_score.leaderboard.difficulty.mode_name,
         }
+    }
+}
+
+impl Score {
+    pub(crate) fn add_embed(&self, reply: &mut CreateReply, player: &Player) {
+        reply.embed(|f| {
+            let mut desc = "**".to_owned() + &self.difficulty_name.clone();
+
+            if self.difficulty_stars > 0.0 {
+                let stars = format!(
+                    " / {:.2}⭐{}",
+                    self.difficulty_stars,
+                    if self.difficulty_stars_modified {
+                        "(M)"
+                    } else {
+                        ""
+                    }
+                );
+                desc.push_str(&stars);
+            }
+
+            if !self.modifiers.is_empty() {
+                desc.push_str(&(" / ".to_owned() + &self.modifiers.clone()));
+            }
+
+            desc.push_str("**");
+
+            f.author(|a| {
+                a.name(player.name.clone())
+                    .icon_url(player.avatar.clone())
+                    .url(format!("https://www.beatleader.xyz/u/{}", player.id))
+            })
+            .title(format!("{} {}", self.song_name, self.song_sub_name,))
+            .description(desc)
+            .url(format!(
+                "https://replay.beatleader.xyz/?scoreId={}",
+                self.id
+            ))
+            .thumbnail(self.song_cover.clone());
+
+            if self.pp > 0.00 {
+                if self.full_combo {
+                    f.field("PP", format!("{:.2}", self.pp), true);
+                } else {
+                    f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
+                }
+            }
+
+            if self.full_combo {
+                f.field("Acc", format!("{:.2}%", self.accuracy), true);
+            } else {
+                f.field(
+                    "Acc",
+                    format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
+                    true,
+                );
+            }
+
+            f.field("Rank", format!("#{}", self.rank), true)
+                .field(
+                    "Mistakes",
+                    if self.mistakes == 0 {
+                        "FC".to_string()
+                    } else {
+                        self.mistakes.to_string()
+                    },
+                    true,
+                )
+                .field("Acc Left", format!("{:.2}", self.acc_left), true)
+                .field("Acc Right", format!("{:.2}", self.acc_right), true)
+                .field("Pauses", self.pauses, true)
+                .field("Max combo", self.max_combo, true)
+                .field("Max streak", self.max_streak, true);
+
+            f
+        });
     }
 }
 

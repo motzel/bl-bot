@@ -1,7 +1,7 @@
 use std::convert::From;
 
 use log::{debug, info};
-use poise::serenity_prelude::{Permissions, User, UserId};
+use poise::serenity_prelude::{User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::beatleader::player::PlayerScoreSort;
@@ -289,7 +289,7 @@ pub(crate) async fn cmd_replay(
         return Ok(());
     }
 
-    let player_scores = match fetch_scores(player.id, 25, player_score_sort).await {
+    let player_scores = match fetch_scores(player.id.clone(), 25, player_score_sort).await {
         Ok(player_scores) => player_scores,
         Err(e) => {
             ctx.say(format!("Error fetching scores: {}", e)).await?;
@@ -308,9 +308,10 @@ pub(crate) async fn cmd_replay(
                                 player_scores.scores.iter().fold(o, |acc, s| {
                                     acc.create_option(|o| {
                                         o.label(format!(
-                                            "{} {}",
+                                            "{} {} ({})",
                                             s.song_name.clone(),
-                                            s.song_sub_name.clone()
+                                            s.song_sub_name.clone(),
+                                            s.difficulty_name.clone(),
                                         ))
                                         .value(s.id.to_string())
                                         .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
@@ -360,12 +361,19 @@ pub(crate) async fn cmd_replay(
                     .await?;
                 } else {
                     for score_id in &score_ids {
+                        let Some(score) = player_scores.scores.iter().find(|s| &s.id.to_string() == score_id) else {
+                            continue;
+                        };
+
                         info!("Posting replay for scoreId: {}", score_id);
 
                         ctx.send(|m| {
-                            m.content(format!(
-                                "<@{}> used ``/bl-replay`` command to show you the replay: https://replay.beatleader.xyz/?scoreId={}", current_user.id, score_id
-                            ))
+                            score.add_embed(m, &player);
+
+                            m
+                                //     .content(format!(
+                                //     "<@{}> used ``/bl-replay`` command to show you the replay: https://replay.beatleader.xyz/?scoreId={}", current_user.id, score_id
+                                // ))
                                 .allowed_mentions(|am| {
                                     am.parse(serenity::builder::ParseValue::Users)
                                         .parse(serenity::builder::ParseValue::Roles)
@@ -373,7 +381,7 @@ pub(crate) async fn cmd_replay(
                                 .reply(false)
                                 .ephemeral(false)
                         })
-                            .await?;
+                        .await?;
                     }
 
                     // EDITS message, works for both ephemeral and normal messages

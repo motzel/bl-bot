@@ -204,36 +204,80 @@ pub struct MetaData {
     pub total: u32,
 }
 
+#[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Score {
     pub id: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub accuracy: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fc_accuracy: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub pp: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fc_pp: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub weight: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub rank: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub acc_left: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub acc_right: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub bad_cuts: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub bomb_cuts: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub missed_notes: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub walls_hit: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub full_combo: bool,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub max_streak: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub max_combo: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub pauses: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub leaderboard: Leaderboard,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub modifiers: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[serde_as]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Leaderboard {
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub id: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub song: Song,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub difficulty: Difficulty,
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub id: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub hash: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub name: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub sub_name: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub mapper: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub author: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub duration: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub bpm: f32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub cover_image: String,
@@ -241,14 +285,46 @@ pub struct Song {
     pub full_cover_image: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[serde_as]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Difficulty {
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub id: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub value: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub difficulty_name: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub mode: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub mode_name: String,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub pass_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub notes: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub modifiers_rating: Option<ModifiersRatings>,
+}
+
+#[serde_as]
+#[derive(Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ModifiersRatings {
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub id: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub ss_stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fs_stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub sf_stars: f64,
 }
 
 #[derive(Deserialize, Debug)]
