@@ -1,11 +1,12 @@
 use std::convert::From;
+use std::sync::Arc;
 
 use log::{debug, info};
-use poise::serenity_prelude::{User, UserId};
+use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::beatleader::player::PlayerScoreSort;
-use crate::bot::beatleader::{fetch_scores, Player as BotPlayer};
+use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
 use crate::storage::PersistError;
 use crate::{Context, Error};
 
@@ -299,38 +300,9 @@ pub(crate) async fn cmd_replay(
 
     let msg = ctx
         .send(|m| {
-            m.components(|c| {
-                c.create_action_row(|r| {
-                    r.create_select_menu(|m| {
-                        m.custom_id("score_id")
-                            .placeholder("Select replay to post")
-                            .options(|o| {
-                                player_scores.scores.iter().fold(o, |acc, s| {
-                                    acc.create_option(|o| {
-                                        o.label(format!(
-                                            "{} {} ({})",
-                                            s.song_name.clone(),
-                                            s.song_sub_name.clone(),
-                                            s.difficulty_name.clone(),
-                                        ))
-                                        .value(s.id.to_string())
-                                        .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
-                                    })
-                                })
-                            })
-                            .min_values(1)
-                            .max_values(1)
-                    })
-                })
-                .create_action_row(|r| {
-                    r.create_button(|b| {
-                        b.custom_id("post_btn")
-                            .label("Post replay")
-                            .style(serenity::ButtonStyle::Primary)
-                    })
-                })
-            })
-            .ephemeral(true)
+            let selected_ids = Vec::new();
+            m.components(|c| add_replay_components(c, &player_scores, &selected_ids))
+                .ephemeral(true)
         })
         .await?;
 
@@ -348,55 +320,26 @@ pub(crate) async fn cmd_replay(
         match mci.data.custom_id.as_str() {
             "score_id" => {
                 score_ids = mci.data.values.clone();
-                mci.defer(ctx).await?;
+
+                // edit message
+                mci.create_interaction_response(ctx, |ir| {
+                    ir.kind(serenity::InteractionResponseType::UpdateMessage)
+                        .interaction_response_data(|message| {
+                            message.components(|c| {
+                                add_replay_components(c, &player_scores, &score_ids)
+                            })
+                        })
+                })
+                .await?;
             }
             "post_btn" => {
-                if score_ids.is_empty() {
-                    mci.create_interaction_response(ctx, |ir| {
-                        ir.kind(serenity::InteractionResponseType::UpdateMessage)
-                            .interaction_response_data(|message| {
-                                message.content("**Please choose replay to post!**")
-                            })
-                    })
-                    .await?;
+                if !score_ids.is_empty() {
+                    post_replays(ctx, mci, &score_ids, &player_scores, &player).await?;
                 } else {
-                    for score_id in &score_ids {
-                        let Some(score) = player_scores.scores.iter().find(|s| &s.id.to_string() == score_id) else {
-                            continue;
-                        };
-
-                        info!("Posting replay for scoreId: {}", score_id);
-
-                        ctx.send(|m| {
-                            score.add_embed(m, &player);
-
-                            m
-                                //     .content(format!(
-                                //     "<@{}> used ``/bl-replay`` command to show you the replay: https://replay.beatleader.xyz/?scoreId={}", current_user.id, score_id
-                                // ))
-                                .allowed_mentions(|am| {
-                                    am.parse(serenity::builder::ParseValue::Users)
-                                        .parse(serenity::builder::ParseValue::Roles)
-                                })
-                                .reply(false)
-                                .ephemeral(false)
-                        })
-                        .await?;
-                    }
-
-                    // EDITS message, works for both ephemeral and normal messages
-                    mci.create_interaction_response(ctx, |ir| {
-                        ir.kind(serenity::InteractionResponseType::UpdateMessage)
-                            .interaction_response_data(|message| {
-                                message
-                                    .content("Replay posted. You can dismiss this message.")
-                                    .components(|c| c)
-                            })
-                    })
-                    .await?;
-
-                    replay_posted = true;
+                    mci.defer(ctx).await?;
                 }
+
+                replay_posted = true;
             }
             _ => {
                 mci.defer(ctx).await?;
@@ -411,6 +354,84 @@ pub(crate) async fn cmd_replay(
         })
         .await?;
     }
+
+    Ok(())
+}
+
+fn add_replay_components<'a>(
+    c: &'a mut CreateComponents,
+    player_scores: &Scores,
+    selected_ids: &Vec<String>,
+) -> &'a mut CreateComponents {
+    c.create_action_row(|r| {
+        r.create_select_menu(|m| {
+            m.custom_id("score_id")
+                .placeholder("Select replay(s) to post")
+                .options(|o| {
+                    player_scores.scores.iter().fold(o, |acc, s| {
+                        acc.create_option(|o| {
+                            o.label(format!(
+                                "{} {} ({})",
+                                s.song_name.clone(),
+                                s.song_sub_name.clone(),
+                                s.difficulty_name.clone(),
+                            ))
+                            .value(s.id.to_string())
+                            .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
+                            .default_selection(selected_ids.contains(&s.id.to_string()))
+                        })
+                    })
+                })
+                .min_values(1)
+                .max_values(3)
+        })
+    })
+    .create_action_row(|r| {
+        r.create_button(|b| {
+            b.custom_id("post_btn")
+                .label("Post replay")
+                .style(serenity::ButtonStyle::Primary)
+                .disabled(selected_ids.is_empty())
+        })
+    })
+}
+
+async fn post_replays(
+    ctx: Context<'_>,
+    mci: Arc<MessageComponentInteraction>,
+    score_ids: &Vec<String>,
+    player_scores: &Scores,
+    player: &Player,
+) -> Result<(), Error> {
+    for score_id in score_ids {
+        let Some(score) = player_scores.scores.iter().find(|s| &s.id.to_string() == score_id) else {
+            continue;
+        };
+
+        info!("Posting replay for scoreId: {}", score_id);
+
+        ctx.send(|m| {
+            score.add_embed(m, player);
+
+            m.allowed_mentions(|am| {
+                am.parse(serenity::builder::ParseValue::Users)
+                    .parse(serenity::builder::ParseValue::Roles)
+            })
+            .reply(false)
+            .ephemeral(false)
+        })
+        .await?;
+    }
+
+    mci.create_interaction_response(ctx, |ir| {
+        ir.kind(serenity::InteractionResponseType::UpdateMessage)
+            .interaction_response_data(|message| {
+                message
+                    .content("Replay(s) posted. You can dismiss this message.")
+                    .components(|c| c)
+            })
+    })
+    .await?;
 
     Ok(())
 }
