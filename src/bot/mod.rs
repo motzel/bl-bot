@@ -49,6 +49,8 @@ pub(crate) enum PlayerMetric {
     ReplaysIWatched,
     #[name = "Clans"]
     Clan,
+    #[name = "TopStars"]
+    TopStars,
 }
 
 impl From<&PlayerMetricWithValue> for PlayerMetric {
@@ -64,6 +66,7 @@ impl From<&PlayerMetricWithValue> for PlayerMetric {
             PlayerMetricWithValue::MyReplaysWatched(_) => PlayerMetric::MyReplaysWatched,
             PlayerMetricWithValue::ReplaysIWatched(_) => PlayerMetric::ReplaysIWatched,
             PlayerMetricWithValue::Clan(_) => PlayerMetric::Clan,
+            PlayerMetricWithValue::TopStars(_) => PlayerMetric::TopStars,
         }
     }
 }
@@ -99,6 +102,7 @@ pub(crate) enum PlayerMetricWithValue {
     MyReplaysWatched(u32),
     ReplaysIWatched(u32),
     Clan(Vec<String>),
+    TopStars(f64),
 }
 
 impl PlayerMetricWithValue {
@@ -126,6 +130,7 @@ impl PlayerMetricWithValue {
 
                 Ok(PlayerMetricWithValue::Clan(vec![value.to_string()]))
             }
+            PlayerMetric::TopStars => Ok(PlayerMetricWithValue::TopStars(value.parse::<f64>()?)),
         }
     }
 
@@ -168,6 +173,7 @@ impl PlayerMetricWithValue {
                     false
                 }
             }
+            PlayerMetricWithValue::TopStars(_) => false,
         }
     }
 
@@ -247,6 +253,13 @@ impl PartialOrd for PlayerMetricWithValue {
                 }
             }
             PlayerMetricWithValue::Clan(_) => None,
+            PlayerMetricWithValue::TopStars(v) => {
+                if let PlayerMetricWithValue::TopStars(o) = other {
+                    v.partial_cmp(o)
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -317,6 +330,11 @@ impl std::fmt::Display for RoleCondition {
                     "**Clan** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v.join(", "),
+                ),
+                PlayerMetricWithValue::TopStars(v) => format!(
+                    "**Top Stars** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
                 ),
             }
         )

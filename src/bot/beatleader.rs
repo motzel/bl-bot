@@ -177,6 +177,7 @@ impl Player {
                 PlayerMetricWithValue::ReplaysIWatched(self.watched_replays)
             }
             PlayerMetric::Clan => PlayerMetricWithValue::Clan(self.clans.clone()),
+            PlayerMetric::TopStars => PlayerMetricWithValue::TopStars(self.top_stars),
         }
     }
 }
