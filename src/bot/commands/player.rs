@@ -453,8 +453,17 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
             .field("Clans", clans, true);
 
-        if !player.is_verified {
-            f.footer(|footer| footer.text("Profile is NOT VERIFIED"));
+        let footer_text = if !player.is_verified {
+            "Profile is NOT VERIFIED\n\n"
+        } else {
+            ""
+        };
+
+        if let Some(last_fetch) = player.last_fetch {
+            f.footer(|footer| footer.text(format!("{}Last updated", footer_text)))
+                .timestamp(last_fetch);
+        } else {
+            f.footer(|footer| footer.text(footer_text));
         }
 
         f
