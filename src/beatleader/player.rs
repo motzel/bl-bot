@@ -2,6 +2,9 @@ use reqwest::Method;
 use serde::Deserialize;
 use serde_with::{serde_as, DefaultOnNull};
 
+use chrono::serde::ts_seconds;
+use chrono::{DateTime, Utc};
+
 use crate::beatleader;
 use crate::beatleader::error::Error::{JsonDecode, Request};
 use crate::beatleader::{Client, QueryParam, SortOrder};
@@ -167,9 +170,12 @@ pub struct PlayerScoreStats {
     pub average_accuracy: f64,
     pub average_ranked_accuracy: f64,
     pub average_unranked_accuracy: f64,
-    pub last_ranked_score_time: u32,
-    pub last_unranked_score_time: u32,
-    pub last_score_time: u32,
+    #[serde(with = "ts_seconds")]
+    pub last_ranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_unranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_score_time: DateTime<Utc>,
     pub max_streak: u32,
     pub ranked_max_streak: u32,
     pub unranked_max_streak: u32,

@@ -70,6 +70,7 @@ impl<'a> PlayerRepository {
                         user_id,
                         player.linked_guilds.clone(),
                         bl_player,
+                        None,
                     );
                 },
                 || {
@@ -77,6 +78,7 @@ impl<'a> PlayerRepository {
                         user_id,
                         vec![guild_id],
                         bl_player_clone,
+                        None,
                     ))
                 },
             )
@@ -183,6 +185,7 @@ impl<'a> PlayerRepository {
                         player.user_id,
                         player.linked_guilds.clone(),
                         bl_player,
+                        player.last_scores_fetch,
                     );
                 },
                 || None,

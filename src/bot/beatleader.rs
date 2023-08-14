@@ -2,6 +2,9 @@ use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 
+use chrono::serde::{ts_seconds, ts_seconds_option};
+use chrono::{DateTime, Utc};
+
 use crate::beatleader::player::{MetaData, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
@@ -49,6 +52,14 @@ pub struct Player {
     pub watched_replays: u32,
     pub clans: Vec<String>,
     pub is_verified: bool,
+    #[serde(with = "ts_seconds")]
+    pub last_ranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_unranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds_option")]
+    pub last_scores_fetch: Option<DateTime<Utc>>,
 }
 
 impl Player {
@@ -56,6 +67,7 @@ impl Player {
         user_id: UserId,
         guild_ids: Vec<GuildId>,
         bl_player: BlPlayer,
+        last_scores_fetch: Option<DateTime<Utc>>,
     ) -> Self {
         Player {
             id: bl_player.id,
@@ -100,6 +112,10 @@ impl Player {
                 .socials
                 .iter()
                 .any(|social| social.service == "Discord" && social.user_id == user_id.to_string()),
+            last_ranked_score_time: bl_player.score_stats.last_ranked_score_time,
+            last_unranked_score_time: bl_player.score_stats.last_unranked_score_time,
+            last_score_time: bl_player.score_stats.last_score_time,
+            last_scores_fetch,
         }
     }
 
