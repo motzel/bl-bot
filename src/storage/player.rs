@@ -4,10 +4,8 @@ use log::{debug, trace};
 use poise::serenity_prelude::{GuildId, UserId};
 use shuttle_persist::PersistInstance;
 
-use chrono::Utc;
-
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
-use crate::bot::beatleader::Player as BotPlayer;
+use crate::bot::beatleader::{fetch_ranked_scores_stats, Player as BotPlayer};
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 use crate::BL_CLIENT;
 
@@ -72,8 +70,7 @@ impl<'a> PlayerRepository {
                         user_id,
                         player.linked_guilds.clone(),
                         bl_player,
-                        Some(Utc::now()),
-                        None,
+                        Some(player),
                     );
                 },
                 || {
@@ -81,7 +78,6 @@ impl<'a> PlayerRepository {
                         user_id,
                         vec![guild_id],
                         bl_player_clone,
-                        Some(Utc::now()),
                         None,
                     ))
                 },
@@ -180,17 +176,25 @@ impl<'a> PlayerRepository {
             bl_player.name
         );
 
+        let scores_stats = fetch_ranked_scores_stats(player).await?;
+
         match self
             .storage
             .get_and_modify_or_insert(
                 &player.user_id,
                 move |player| {
+                    if let Some(score_stats) = scores_stats {
+                        player.last_scores_fetch = Some(score_stats.last_scores_fetch);
+                        player.plus_1pp = score_stats.plus_1pp;
+                        player.last_ranked_paused_at = score_stats.last_ranked_paused_at;
+                        player.top_stars = score_stats.top_stars;
+                    }
+
                     **player = BotPlayer::from_user_id_and_bl_player(
                         player.user_id,
                         player.linked_guilds.clone(),
                         bl_player,
-                        Some(Utc::now()),
-                        player.last_scores_fetch,
+                        Some(player),
                     );
                 },
                 || None,
@@ -214,9 +218,6 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer> {
-        match BL_CLIENT.player().get_by_id(player_id).await {
-            Ok(player) => Ok(player),
-            Err(e) => Err(PersistError::BlApi(e)),
-        }
+        Ok(BL_CLIENT.player().get_by_id(player_id).await?)
     }
 }

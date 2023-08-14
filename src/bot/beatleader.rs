@@ -1,11 +1,15 @@
+use std::cmp::Ordering;
+
+use log::{debug, info};
 use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
 
 use chrono::serde::{ts_seconds, ts_seconds_option};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
-use crate::beatleader::player::{MetaData, PlayerId};
+use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
@@ -41,6 +45,8 @@ pub struct Player {
     pub top_tech_pp: f64,
     pub top_pass_pp: f64,
     pub top_pp: f64,
+    pub top_stars: f64,
+    pub plus_1pp: f64,
     pub total_play_count: u32,
     pub ranked_play_count: u32,
     pub unranked_play_count: u32,
@@ -62,6 +68,8 @@ pub struct Player {
     pub last_fetch: Option<DateTime<Utc>>,
     #[serde(with = "ts_seconds_option")]
     pub last_scores_fetch: Option<DateTime<Utc>>,
+    #[serde(with = "ts_seconds_option")]
+    pub last_ranked_paused_at: Option<DateTime<Utc>>,
 }
 
 impl Player {
@@ -69,8 +77,7 @@ impl Player {
         user_id: UserId,
         guild_ids: Vec<GuildId>,
         bl_player: BlPlayer,
-        last_fetch: Option<DateTime<Utc>>,
-        last_scores_fetch: Option<DateTime<Utc>>,
+        previous: Option<&Player>,
     ) -> Self {
         Player {
             id: bl_player.id,
@@ -101,6 +108,12 @@ impl Player {
             top_tech_pp: bl_player.score_stats.top_tech_pp,
             top_pass_pp: bl_player.score_stats.top_pass_pp,
             top_pp: bl_player.score_stats.top_pp,
+            top_stars: if let Some(old_player) = previous {
+                old_player.top_stars
+            } else {
+                0.0
+            },
+            plus_1pp: 0.0,
             total_play_count: bl_player.score_stats.total_play_count,
             ranked_play_count: bl_player.score_stats.ranked_play_count,
             unranked_play_count: bl_player.score_stats.unranked_play_count,
@@ -118,8 +131,21 @@ impl Player {
             last_ranked_score_time: bl_player.score_stats.last_ranked_score_time,
             last_unranked_score_time: bl_player.score_stats.last_unranked_score_time,
             last_score_time: bl_player.score_stats.last_score_time,
-            last_fetch,
-            last_scores_fetch,
+            last_fetch: if let Some(player) = previous {
+                player.last_fetch
+            } else {
+                None
+            },
+            last_scores_fetch: if let Some(player) = previous {
+                player.last_scores_fetch
+            } else {
+                None
+            },
+            last_ranked_paused_at: if let Some(player) = previous {
+                player.last_ranked_paused_at
+            } else {
+                None
+            },
         }
     }
 
@@ -152,6 +178,7 @@ impl Player {
     }
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Score {
@@ -178,7 +205,14 @@ pub struct Score {
     pub difficulty_name: String,
     pub difficulty_stars: f64,
     pub difficulty_stars_modified: bool,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    #[serde(default)]
+    pub difficulty_status: DifficultyStatus,
     pub mode_name: String,
+    #[serde_as(as = "TimestampSeconds<String>")]
+    pub timeset: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub timepost: DateTime<Utc>,
 }
 
 impl From<BlScore> for Score {
@@ -226,7 +260,10 @@ impl From<BlScore> for Score {
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
             difficulty_stars: stars,
             difficulty_stars_modified: modified_stars,
+            difficulty_status: bl_score.leaderboard.difficulty.status,
             mode_name: bl_score.leaderboard.difficulty.mode_name,
+            timeset: bl_score.timeset,
+            timepost: bl_score.timepost,
         }
     }
 }
@@ -234,7 +271,10 @@ impl From<BlScore> for Score {
 impl Score {
     pub(crate) fn add_embed(&self, reply: &mut CreateReply, player: &Player) {
         reply.embed(|f| {
-            let mut desc = "**".to_owned() + &self.difficulty_name.clone();
+            let mut desc = "**".to_owned()
+                + &self.difficulty_name.clone()
+                + " / "
+                + &self.difficulty_status.to_string();
 
             if self.difficulty_stars > 0.0 {
                 let stars = format!(
@@ -325,21 +365,122 @@ impl From<BlScores> for Scores {
 
 pub(crate) async fn fetch_scores(
     player_id: &PlayerId,
-    count: u32,
-    sort_by: PlayerScoreSort,
+    params: &[PlayerScoreParam],
 ) -> Result<Scores, BlError> {
     Ok(Scores::from(
-        BL_CLIENT
-            .player()
-            .get_scores(
-                player_id,
-                &[
-                    PlayerScoreParam::Page(1),
-                    PlayerScoreParam::Count(count),
-                    PlayerScoreParam::Sort(sort_by),
-                    PlayerScoreParam::Order(SortOrder::Descending),
-                ],
-            )
-            .await?,
+        BL_CLIENT.player().get_scores(player_id, params).await?,
     ))
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ScoreStats {
+    pub last_scores_fetch: DateTime<Utc>,
+    pub last_ranked_paused_at: Option<DateTime<Utc>>,
+    pub top_stars: f64,
+    pub plus_1pp: f64,
+}
+
+pub(crate) async fn fetch_ranked_scores_stats(
+    player: &Player,
+) -> Result<Option<ScoreStats>, BlError> {
+    info!("Fetching all ranked scores of {}...", player.name);
+
+    if player.last_scores_fetch.is_some()
+        && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
+        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::hours(1)
+    {
+        info!(
+            "No new scores since last fetching ({}), skipping.",
+            player.last_scores_fetch.unwrap()
+        );
+
+        return Ok(None);
+    }
+
+    const ITEMS_PER_PAGE: u32 = 100;
+
+    let time_param: Vec<PlayerScoreParam> = match player.last_scores_fetch {
+        Some(last_scores_fetch) => vec![PlayerScoreParam::TimeFrom(last_scores_fetch)],
+        None => vec![],
+    };
+
+    let mut player_scores = Vec::<f64>::with_capacity(player.ranked_play_count as usize);
+
+    let mut last_scores_fetch;
+    let mut top_stars = 0.0;
+    let mut last_ranked_paused_at: Option<DateTime<Utc>> = None;
+
+    let mut page = 1;
+    let mut page_count = 1;
+    'outer: loop {
+        debug!("Fetching scores page {} / {}...", page, page_count);
+
+        last_scores_fetch = Utc::now();
+
+        match fetch_scores(
+            &player.id,
+            &[
+                &[
+                    PlayerScoreParam::Page(page),
+                    PlayerScoreParam::Count(ITEMS_PER_PAGE),
+                    PlayerScoreParam::Sort(PlayerScoreSort::Date),
+                    PlayerScoreParam::Order(SortOrder::Ascending),
+                    PlayerScoreParam::Type(MapType::Ranked),
+                ],
+                &time_param[..],
+            ]
+            .concat(),
+        )
+        .await
+        {
+            Ok(scores_page) => {
+                debug!("Scores page #{} fetched.", page);
+
+                if scores_page.scores.is_empty() {
+                    break 'outer;
+                }
+
+                page_count = scores_page.metadata.total / ITEMS_PER_PAGE
+                    + u32::from(scores_page.metadata.total % ITEMS_PER_PAGE != 0);
+
+                for score in scores_page.scores {
+                    player_scores.push(score.pp);
+
+                    if top_stars < score.difficulty_stars {
+                        top_stars = score.difficulty_stars;
+                    }
+
+                    if score.pauses > 0
+                        && (last_ranked_paused_at.is_none()
+                            || last_ranked_paused_at.unwrap() < score.timepost)
+                    {
+                        last_ranked_paused_at = Some(score.timepost);
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        page += 1;
+
+        if page > page_count {
+            break;
+        }
+    }
+
+    player_scores.sort_unstable_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
+
+    // TODO: calculate plus_1pp
+    let plus_1pp = 0.0;
+
+    info!("All ranked scores of {} fetched.", player.name);
+
+    Ok(Some(ScoreStats {
+        last_scores_fetch,
+        top_stars,
+        last_ranked_paused_at,
+        plus_1pp,
+    }))
 }

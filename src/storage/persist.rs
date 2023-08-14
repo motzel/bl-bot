@@ -37,6 +37,12 @@ impl error::Error for PersistError {
     }
 }
 
+impl From<crate::beatleader::error::Error> for PersistError {
+    fn from(err: crate::beatleader::error::Error) -> Self {
+        PersistError::BlApi(err)
+    }
+}
+
 impl Display for PersistError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

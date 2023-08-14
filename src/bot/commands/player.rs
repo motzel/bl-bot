@@ -5,7 +5,8 @@ use log::{debug, info};
 use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
-use crate::beatleader::player::PlayerScoreSort;
+use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
+use crate::beatleader::SortOrder;
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
 use crate::storage::PersistError;
 use crate::{Context, Error};
@@ -290,7 +291,17 @@ pub(crate) async fn cmd_replay(
         return Ok(());
     }
 
-    let player_scores = match fetch_scores(&player.id, 25, player_score_sort).await {
+    let player_scores = match fetch_scores(
+        &player.id,
+        &[
+            PlayerScoreParam::Page(1),
+            PlayerScoreParam::Count(25),
+            PlayerScoreParam::Sort(player_score_sort),
+            PlayerScoreParam::Order(SortOrder::Descending),
+        ],
+    )
+    .await
+    {
         Ok(player_scores) => player_scores,
         Err(e) => {
             ctx.say(format!("Error fetching scores: {}", e)).await?;
@@ -451,6 +462,20 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
+            .field("Top Stars", format!("{:.2}⭐", player.top_stars), true)
+            .field("+1pp", format!("{:.2}pp", player.plus_1pp), true)
+            .field(
+                "Last pause",
+                if player.last_ranked_paused_at.is_some() {
+                    format!(
+                        "<t:{}:R>",
+                        player.last_ranked_paused_at.unwrap().timestamp()
+                    )
+                } else {
+                    "Never".to_owned()
+                },
+                true,
+            )
             .field("Clans", clans, true);
 
         let footer_text = if !player.is_verified {
