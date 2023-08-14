@@ -17,6 +17,7 @@ use crate::beatleader::error::Error::{
 
 pub mod error;
 pub mod player;
+pub mod pp;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

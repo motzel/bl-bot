@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use log::{debug, info};
 use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
@@ -13,6 +11,7 @@ use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
+use crate::beatleader::pp::calculate_pp_boundary;
 use crate::beatleader::{error::Error as BlError, SortOrder};
 use crate::bot::{PlayerMetric, PlayerMetricWithValue};
 use crate::BL_CLIENT;
@@ -113,7 +112,11 @@ impl Player {
             } else {
                 0.0
             },
-            plus_1pp: 0.0,
+            plus_1pp: if let Some(old_player) = previous {
+                old_player.plus_1pp
+            } else {
+                0.0
+            },
             total_play_count: bl_player.score_stats.total_play_count,
             ranked_play_count: bl_player.score_stats.ranked_play_count,
             unranked_play_count: bl_player.score_stats.unranked_play_count,
@@ -387,7 +390,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
 
     if player.last_scores_fetch.is_some()
         && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
-        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::hours(1)
+        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::minutes(30)
     {
         info!(
             "No new scores since last fetching ({}), skipping.",
@@ -470,10 +473,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
         }
     }
 
-    player_scores.sort_unstable_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
-
-    // TODO: calculate plus_1pp
-    let plus_1pp = 0.0;
+    let plus_1pp = calculate_pp_boundary(&mut player_scores, 1.0);
 
     info!("All ranked scores of {} fetched.", player.name);
 

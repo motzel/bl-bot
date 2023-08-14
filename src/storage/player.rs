@@ -58,6 +58,8 @@ impl<'a> PlayerRepository {
             bl_player.name
         );
 
+        let player_id_clone = player_id.clone();
+
         match self
             .storage
             .get_and_modify_or_insert(
@@ -70,7 +72,11 @@ impl<'a> PlayerRepository {
                         user_id,
                         player.linked_guilds.clone(),
                         bl_player,
-                        Some(player),
+                        if player.id == player_id_clone {
+                            Some(player)
+                        } else {
+                            None
+                        },
                     );
                 },
                 || {

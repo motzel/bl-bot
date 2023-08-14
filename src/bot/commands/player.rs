@@ -462,17 +462,37 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
-            .field("Top Stars", format!("{:.2}⭐", player.top_stars), true)
-            .field("+1pp", format!("{:.2}pp", player.plus_1pp), true)
+            .field(
+                "Top Stars",
+                if player.last_scores_fetch.is_some() {
+                    format!("{:.2}⭐", player.top_stars)
+                } else {
+                    "-".to_owned()
+                },
+                true,
+            )
+            .field(
+                "+1pp",
+                if player.last_scores_fetch.is_some() {
+                    format!("{:.2}pp", player.plus_1pp)
+                } else {
+                    "-".to_owned()
+                },
+                true,
+            )
             .field(
                 "Last pause",
-                if player.last_ranked_paused_at.is_some() {
-                    format!(
-                        "<t:{}:R>",
-                        player.last_ranked_paused_at.unwrap().timestamp()
-                    )
+                if player.last_scores_fetch.is_some() {
+                    if player.last_ranked_paused_at.is_some() {
+                        format!(
+                            "<t:{}:R>",
+                            player.last_ranked_paused_at.unwrap().timestamp()
+                        )
+                    } else {
+                        "Never".to_owned()
+                    }
                 } else {
-                    "Never".to_owned()
+                    "-".to_owned()
                 },
                 true,
             )
