@@ -290,7 +290,7 @@ pub(crate) async fn cmd_replay(
         return Ok(());
     }
 
-    let player_scores = match fetch_scores(player.id.clone(), 25, player_score_sort).await {
+    let player_scores = match fetch_scores(&player.id, 25, player_score_sort).await {
         Ok(player_scores) => player_scores,
         Err(e) => {
             ctx.say(format!("Error fetching scores: {}", e)).await?;

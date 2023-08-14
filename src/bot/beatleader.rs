@@ -59,6 +59,8 @@ pub struct Player {
     #[serde(with = "ts_seconds")]
     pub last_score_time: DateTime<Utc>,
     #[serde(with = "ts_seconds_option")]
+    pub last_fetch: Option<DateTime<Utc>>,
+    #[serde(with = "ts_seconds_option")]
     pub last_scores_fetch: Option<DateTime<Utc>>,
 }
 
@@ -67,6 +69,7 @@ impl Player {
         user_id: UserId,
         guild_ids: Vec<GuildId>,
         bl_player: BlPlayer,
+        last_fetch: Option<DateTime<Utc>>,
         last_scores_fetch: Option<DateTime<Utc>>,
     ) -> Self {
         Player {
@@ -115,6 +118,7 @@ impl Player {
             last_ranked_score_time: bl_player.score_stats.last_ranked_score_time,
             last_unranked_score_time: bl_player.score_stats.last_unranked_score_time,
             last_score_time: bl_player.score_stats.last_score_time,
+            last_fetch,
             last_scores_fetch,
         }
     }
@@ -320,7 +324,7 @@ impl From<BlScores> for Scores {
 }
 
 pub(crate) async fn fetch_scores(
-    player_id: PlayerId,
+    player_id: &PlayerId,
     count: u32,
     sort_by: PlayerScoreSort,
 ) -> Result<Scores, BlError> {
@@ -328,7 +332,7 @@ pub(crate) async fn fetch_scores(
         BL_CLIENT
             .player()
             .get_scores(
-                &player_id,
+                player_id,
                 &[
                     PlayerScoreParam::Page(1),
                     PlayerScoreParam::Count(count),

@@ -4,6 +4,8 @@ use log::{debug, trace};
 use poise::serenity_prelude::{GuildId, UserId};
 use shuttle_persist::PersistInstance;
 
+use chrono::Utc;
+
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::bot::beatleader::Player as BotPlayer;
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
@@ -70,6 +72,7 @@ impl<'a> PlayerRepository {
                         user_id,
                         player.linked_guilds.clone(),
                         bl_player,
+                        Some(Utc::now()),
                         None,
                     );
                 },
@@ -78,6 +81,7 @@ impl<'a> PlayerRepository {
                         user_id,
                         vec![guild_id],
                         bl_player_clone,
+                        Some(Utc::now()),
                         None,
                     ))
                 },
@@ -185,6 +189,7 @@ impl<'a> PlayerRepository {
                         player.user_id,
                         player.linked_guilds.clone(),
                         bl_player,
+                        Some(Utc::now()),
                         player.last_scores_fetch,
                     );
                 },
