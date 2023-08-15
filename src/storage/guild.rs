@@ -4,7 +4,7 @@ use log::debug;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
 
-use crate::bot::{GuildSettings, MetricCondition, PlayerMetricWithValue, RoleGroup, RoleSettings};
+use crate::bot::{Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings};
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 
 use super::Result;
@@ -116,14 +116,14 @@ impl<'a> GuildSettingsRepository {
         guild_id: GuildId,
         role_group: RoleGroup,
         role_id: RoleId,
-        metric_and_value: PlayerMetricWithValue,
-        condition: MetricCondition,
+        metric_and_value: RequirementMetricValue,
+        condition: Condition,
         weight: u32,
     ) -> Result<GuildSettings> {
         debug!("Adding auto role for guild {}...", guild_id);
 
         let mut rs = RoleSettings::new(role_id, weight);
-        rs.add_condition(condition, metric_and_value);
+        rs.add_requirement(condition, metric_and_value);
 
         let role_group_clone = role_group.clone();
         let role_settings_clone = rs.clone();

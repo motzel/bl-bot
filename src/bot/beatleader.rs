@@ -13,7 +13,7 @@ use crate::beatleader::player::{
 };
 use crate::beatleader::pp::calculate_pp_boundary;
 use crate::beatleader::{error::Error as BlError, SortOrder};
-use crate::bot::{PlayerMetric, PlayerMetricWithValue};
+use crate::bot::{Metric, PlayerMetricValue, RequirementMetricValue};
 use crate::BL_CLIENT;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -160,24 +160,23 @@ impl Player {
         self.linked_guilds.contains(guild_id)
     }
 
-    pub(crate) fn get_metric_with_value(&self, metric: PlayerMetric) -> PlayerMetricWithValue {
+    pub(crate) fn get_metric_with_value(&self, metric: Metric) -> PlayerMetricValue {
         match metric {
-            PlayerMetric::TopPp => PlayerMetricWithValue::TopPp(self.top_pp),
-            PlayerMetric::TopAcc => PlayerMetricWithValue::TopAcc(self.top_accuracy),
-            PlayerMetric::TotalPp => PlayerMetricWithValue::TotalPp(self.pp),
-            PlayerMetric::Rank => PlayerMetricWithValue::Rank(self.rank),
-            PlayerMetric::CountryRank => PlayerMetricWithValue::CountryRank(self.country_rank),
+            Metric::TopPp => PlayerMetricValue::TopPp(self.top_pp),
+            Metric::TopAcc => PlayerMetricValue::TopAcc(self.top_accuracy),
+            Metric::TotalPp => PlayerMetricValue::TotalPp(self.pp),
+            Metric::Rank => PlayerMetricValue::Rank(self.rank),
+            Metric::CountryRank => PlayerMetricValue::CountryRank(self.country_rank),
 
-            PlayerMetric::MaxStreak => PlayerMetricWithValue::MaxStreak(self.max_streak),
-            PlayerMetric::Top1Count => PlayerMetricWithValue::Top1Count(self.top1_count),
-            PlayerMetric::MyReplaysWatched => {
-                PlayerMetricWithValue::MyReplaysWatched(self.total_replay_watched)
+            Metric::MaxStreak => PlayerMetricValue::MaxStreak(self.max_streak),
+            Metric::Top1Count => PlayerMetricValue::Top1Count(self.top1_count),
+            Metric::MyReplaysWatched => {
+                PlayerMetricValue::MyReplaysWatched(self.total_replay_watched)
             }
-            PlayerMetric::ReplaysIWatched => {
-                PlayerMetricWithValue::ReplaysIWatched(self.watched_replays)
-            }
-            PlayerMetric::Clan => PlayerMetricWithValue::Clan(self.clans.clone()),
-            PlayerMetric::TopStars => PlayerMetricWithValue::TopStars(self.top_stars),
+            Metric::ReplaysIWatched => PlayerMetricValue::ReplaysIWatched(self.watched_replays),
+            Metric::Clan => PlayerMetricValue::Clan(self.clans.clone()),
+            Metric::TopStars => PlayerMetricValue::TopStars(self.top_stars),
+            Metric::LastPause => PlayerMetricValue::LastPause(self.last_ranked_paused_at),
         }
     }
 }

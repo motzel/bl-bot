@@ -17,6 +17,8 @@ use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
+use chrono::{DateTime, Duration, Utc};
+
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::Context;
@@ -28,7 +30,7 @@ pub(crate) mod commands;
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub(crate) enum PlayerMetric {
+pub(crate) enum Metric {
     #[name = "Total PP"]
     TotalPp,
     #[name = "Top PP"]
@@ -49,31 +51,34 @@ pub(crate) enum PlayerMetric {
     ReplaysIWatched,
     #[name = "Clans"]
     Clan,
-    #[name = "TopStars"]
+    #[name = "Top Stars"]
     TopStars,
+    #[name = "Last pause (days)"]
+    LastPause,
 }
 
-impl From<&PlayerMetricWithValue> for PlayerMetric {
-    fn from(value: &PlayerMetricWithValue) -> Self {
+impl From<&RequirementMetricValue> for Metric {
+    fn from(value: &RequirementMetricValue) -> Self {
         match value {
-            PlayerMetricWithValue::TopPp(_) => PlayerMetric::TopPp,
-            PlayerMetricWithValue::TopAcc(_) => PlayerMetric::TopAcc,
-            PlayerMetricWithValue::TotalPp(_) => PlayerMetric::TotalPp,
-            PlayerMetricWithValue::Rank(_) => PlayerMetric::Rank,
-            PlayerMetricWithValue::CountryRank(_) => PlayerMetric::CountryRank,
-            PlayerMetricWithValue::MaxStreak(_) => PlayerMetric::MaxStreak,
-            PlayerMetricWithValue::Top1Count(_) => PlayerMetric::Top1Count,
-            PlayerMetricWithValue::MyReplaysWatched(_) => PlayerMetric::MyReplaysWatched,
-            PlayerMetricWithValue::ReplaysIWatched(_) => PlayerMetric::ReplaysIWatched,
-            PlayerMetricWithValue::Clan(_) => PlayerMetric::Clan,
-            PlayerMetricWithValue::TopStars(_) => PlayerMetric::TopStars,
+            RequirementMetricValue::TopPp(_) => Metric::TopPp,
+            RequirementMetricValue::TopAcc(_) => Metric::TopAcc,
+            RequirementMetricValue::TotalPp(_) => Metric::TotalPp,
+            RequirementMetricValue::Rank(_) => Metric::Rank,
+            RequirementMetricValue::CountryRank(_) => Metric::CountryRank,
+            RequirementMetricValue::MaxStreak(_) => Metric::MaxStreak,
+            RequirementMetricValue::Top1Count(_) => Metric::Top1Count,
+            RequirementMetricValue::MyReplaysWatched(_) => Metric::MyReplaysWatched,
+            RequirementMetricValue::ReplaysIWatched(_) => Metric::ReplaysIWatched,
+            RequirementMetricValue::Clan(_) => Metric::Clan,
+            RequirementMetricValue::TopStars(_) => Metric::TopStars,
+            RequirementMetricValue::LastPause(_) => Metric::LastPause,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, poise::ChoiceParameter)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum MetricCondition {
+pub(crate) enum Condition {
     #[name = "Better than or equal to"]
     BetterThanOrEqualTo,
     #[name = "Better than"]
@@ -88,10 +93,10 @@ pub(crate) enum MetricCondition {
     Contains,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub(crate) enum PlayerMetricWithValue {
+pub(crate) enum RequirementMetricValue {
     TopPp(f64),
     TopAcc(f64),
     TotalPp(f64),
@@ -103,77 +108,59 @@ pub(crate) enum PlayerMetricWithValue {
     ReplaysIWatched(u32),
     Clan(Vec<String>),
     TopStars(f64),
+    LastPause(u32),
 }
 
-impl PlayerMetricWithValue {
-    pub fn new(metric: PlayerMetric, value: &str) -> Result<Self, Error> {
+impl RequirementMetricValue {
+    pub fn new(metric: Metric, value: &str) -> Result<Self, Error> {
         match metric {
-            PlayerMetric::TotalPp => Ok(PlayerMetricWithValue::TotalPp(value.parse::<f64>()?)),
-            PlayerMetric::TopPp => Ok(PlayerMetricWithValue::TopPp(value.parse::<f64>()?)),
-            PlayerMetric::Rank => Ok(PlayerMetricWithValue::Rank(value.parse::<u32>()?)),
-            PlayerMetric::CountryRank => {
-                Ok(PlayerMetricWithValue::CountryRank(value.parse::<u32>()?))
-            }
-            PlayerMetric::TopAcc => Ok(PlayerMetricWithValue::TopAcc(value.parse::<f64>()?)),
-            PlayerMetric::MaxStreak => Ok(PlayerMetricWithValue::MaxStreak(value.parse::<u32>()?)),
-            PlayerMetric::Top1Count => Ok(PlayerMetricWithValue::Top1Count(value.parse::<u32>()?)),
-            PlayerMetric::MyReplaysWatched => Ok(PlayerMetricWithValue::MyReplaysWatched(
+            Metric::TotalPp => Ok(RequirementMetricValue::TotalPp(value.parse::<f64>()?)),
+            Metric::TopPp => Ok(RequirementMetricValue::TopPp(value.parse::<f64>()?)),
+            Metric::Rank => Ok(RequirementMetricValue::Rank(value.parse::<u32>()?)),
+            Metric::CountryRank => Ok(RequirementMetricValue::CountryRank(value.parse::<u32>()?)),
+            Metric::TopAcc => Ok(RequirementMetricValue::TopAcc(value.parse::<f64>()?)),
+            Metric::MaxStreak => Ok(RequirementMetricValue::MaxStreak(value.parse::<u32>()?)),
+            Metric::Top1Count => Ok(RequirementMetricValue::Top1Count(value.parse::<u32>()?)),
+            Metric::MyReplaysWatched => Ok(RequirementMetricValue::MyReplaysWatched(
                 value.parse::<u32>()?,
             )),
-            PlayerMetric::ReplaysIWatched => Ok(PlayerMetricWithValue::ReplaysIWatched(
+            Metric::ReplaysIWatched => Ok(RequirementMetricValue::ReplaysIWatched(
                 value.parse::<u32>()?,
             )),
-            PlayerMetric::Clan => {
+            Metric::Clan => {
                 if value.len() < 2 || value.len() > 4 {
                     return Err(From::from("name of the clan should have 2 to 4 characters"));
                 }
 
-                Ok(PlayerMetricWithValue::Clan(vec![value.to_string()]))
+                Ok(RequirementMetricValue::Clan(vec![value.to_string()]))
             }
-            PlayerMetric::TopStars => Ok(PlayerMetricWithValue::TopStars(value.parse::<f64>()?)),
+            Metric::TopStars => Ok(RequirementMetricValue::TopStars(value.parse::<f64>()?)),
+            Metric::LastPause => Ok(RequirementMetricValue::LastPause(value.parse::<u32>()?)),
         }
     }
 
-    pub fn is_fulfilled_for(
-        &self,
-        condition: &MetricCondition,
-        value: &PlayerMetricWithValue,
-    ) -> bool {
-        if std::mem::discriminant(&PlayerMetric::from(self))
-            != std::mem::discriminant(&PlayerMetric::from(value))
-        {
-            return false;
-        }
-
-        match condition {
-            MetricCondition::WorseThan => self.lt(value),
-            MetricCondition::WorseThanOrEqualTo => self.le(value),
-            MetricCondition::EqualTo => self.eq(value),
-            MetricCondition::BetterThan => self.gt(value),
-            MetricCondition::BetterThanOrEqualTo => self.ge(value),
-            MetricCondition::Contains => self.contains(value),
-        }
-    }
-
-    pub fn contains(&self, other: &Self) -> bool {
+    pub fn is_contained_by(&self, other: &PlayerMetricValue) -> bool {
         match self {
-            PlayerMetricWithValue::TopPp(_) => false,
-            PlayerMetricWithValue::TopAcc(_) => false,
-            PlayerMetricWithValue::TotalPp(_) => false,
-            PlayerMetricWithValue::Rank(_) => false,
-            PlayerMetricWithValue::CountryRank(_) => false,
-            PlayerMetricWithValue::MaxStreak(_) => false,
-            PlayerMetricWithValue::Top1Count(_) => false,
-            PlayerMetricWithValue::MyReplaysWatched(_) => false,
-            PlayerMetricWithValue::ReplaysIWatched(_) => false,
-            PlayerMetricWithValue::Clan(player_clans) => {
-                if let PlayerMetricWithValue::Clan(clans) = other {
-                    clans.iter().all(|clan| player_clans.contains(clan))
+            RequirementMetricValue::TopPp(_) => false,
+            RequirementMetricValue::TopAcc(_) => false,
+            RequirementMetricValue::TotalPp(_) => false,
+            RequirementMetricValue::Rank(_) => false,
+            RequirementMetricValue::CountryRank(_) => false,
+            RequirementMetricValue::MaxStreak(_) => false,
+            RequirementMetricValue::Top1Count(_) => false,
+            RequirementMetricValue::MyReplaysWatched(_) => false,
+            RequirementMetricValue::ReplaysIWatched(_) => false,
+            RequirementMetricValue::Clan(requirement_clans) => {
+                if let PlayerMetricValue::Clan(player_clans) = other {
+                    requirement_clans
+                        .iter()
+                        .all(|clan| player_clans.contains(clan))
                 } else {
                     false
                 }
             }
-            PlayerMetricWithValue::TopStars(_) => false,
+            RequirementMetricValue::TopStars(_) => false,
+            RequirementMetricValue::LastPause(_) => false,
         }
     }
 
@@ -186,153 +173,320 @@ impl PlayerMetricWithValue {
     }
 }
 
-impl PartialOrd for PlayerMetricWithValue {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl PartialEq<PlayerMetricValue> for RequirementMetricValue {
+    fn eq(&self, other: &PlayerMetricValue) -> bool {
+        if std::mem::discriminant(&Metric::from(self))
+            != std::mem::discriminant(&Metric::from(other))
+        {
+            return false;
+        }
+
         match self {
-            PlayerMetricWithValue::TopPp(v) => {
-                if let PlayerMetricWithValue::TopPp(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::TopPp(v) => {
+                if let PlayerMetricValue::TopPp(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::TopAcc(v) => {
-                if let PlayerMetricWithValue::TopAcc(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::TopAcc(v) => {
+                if let PlayerMetricValue::TopAcc(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::TotalPp(v) => {
-                if let PlayerMetricWithValue::TotalPp(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::TotalPp(v) => {
+                if let PlayerMetricValue::TotalPp(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::Rank(v) => {
-                if let PlayerMetricWithValue::Rank(o) = other {
-                    PlayerMetricWithValue::reverse_ordering(v.partial_cmp(o))
+            RequirementMetricValue::Rank(v) => {
+                if let PlayerMetricValue::Rank(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::CountryRank(v) => {
-                if let PlayerMetricWithValue::CountryRank(o) = other {
-                    PlayerMetricWithValue::reverse_ordering(v.partial_cmp(o))
+            RequirementMetricValue::CountryRank(v) => {
+                if let PlayerMetricValue::CountryRank(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::MaxStreak(v) => {
-                if let PlayerMetricWithValue::MaxStreak(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::MaxStreak(v) => {
+                if let PlayerMetricValue::MaxStreak(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::Top1Count(v) => {
-                if let PlayerMetricWithValue::Top1Count(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::Top1Count(v) => {
+                if let PlayerMetricValue::Top1Count(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::MyReplaysWatched(v) => {
-                if let PlayerMetricWithValue::MyReplaysWatched(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::MyReplaysWatched(v) => {
+                if let PlayerMetricValue::MyReplaysWatched(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::ReplaysIWatched(v) => {
-                if let PlayerMetricWithValue::ReplaysIWatched(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::ReplaysIWatched(v) => {
+                if let PlayerMetricValue::ReplaysIWatched(player_metric_value) = other {
+                    v == player_metric_value
                 } else {
-                    None
+                    false
                 }
             }
-            PlayerMetricWithValue::Clan(_) => None,
-            PlayerMetricWithValue::TopStars(v) => {
-                if let PlayerMetricWithValue::TopStars(o) = other {
-                    v.partial_cmp(o)
+            RequirementMetricValue::Clan(v) => {
+                if let PlayerMetricValue::Clan(player_metric_value) = other {
+                    v.iter().all(|clan| player_metric_value.contains(clan))
                 } else {
-                    None
+                    false
+                }
+            }
+            RequirementMetricValue::TopStars(v) => {
+                if let PlayerMetricValue::TopStars(player_metric_value) = other {
+                    v == player_metric_value
+                } else {
+                    false
+                }
+            }
+            RequirementMetricValue::LastPause(v) => {
+                if let PlayerMetricValue::LastPause(Some(last_pause_date)) = other {
+                    (Utc::now() - Duration::days(*v as i64)) == *last_pause_date
+                } else {
+                    false
                 }
             }
         }
     }
 }
 
+impl PartialOrd<PlayerMetricValue> for RequirementMetricValue {
+    fn partial_cmp(&self, other: &PlayerMetricValue) -> Option<Ordering> {
+        match self {
+            RequirementMetricValue::TopPp(v) => {
+                if let PlayerMetricValue::TopPp(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::TopAcc(v) => {
+                if let PlayerMetricValue::TopAcc(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::TotalPp(v) => {
+                if let PlayerMetricValue::TotalPp(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::Rank(v) => {
+                if let PlayerMetricValue::Rank(player_metric_value) = other {
+                    RequirementMetricValue::reverse_ordering(v.partial_cmp(player_metric_value))
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::CountryRank(v) => {
+                if let PlayerMetricValue::CountryRank(player_metric_value) = other {
+                    RequirementMetricValue::reverse_ordering(v.partial_cmp(player_metric_value))
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::MaxStreak(v) => {
+                if let PlayerMetricValue::MaxStreak(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::Top1Count(v) => {
+                if let PlayerMetricValue::Top1Count(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::MyReplaysWatched(v) => {
+                if let PlayerMetricValue::MyReplaysWatched(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::ReplaysIWatched(v) => {
+                if let PlayerMetricValue::ReplaysIWatched(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::Clan(_v) => None,
+            RequirementMetricValue::TopStars(v) => {
+                if let PlayerMetricValue::TopStars(player_metric_value) = other {
+                    v.partial_cmp(player_metric_value)
+                } else {
+                    None
+                }
+            }
+            RequirementMetricValue::LastPause(v) => {
+                if let PlayerMetricValue::LastPause(Some(last_pause_date)) = other {
+                    RequirementMetricValue::reverse_ordering(
+                        (Utc::now() - Duration::days(*v as i64)).partial_cmp(last_pause_date),
+                    )
+                } else {
+                    Some(Ordering::Less)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum PlayerMetricValue {
+    TopPp(f64),
+    TopAcc(f64),
+    TotalPp(f64),
+    Rank(u32),
+    CountryRank(u32),
+    MaxStreak(u32),
+    Top1Count(u32),
+    MyReplaysWatched(u32),
+    ReplaysIWatched(u32),
+    Clan(Vec<String>),
+    TopStars(f64),
+    LastPause(Option<DateTime<Utc>>),
+}
+
+impl From<&PlayerMetricValue> for Metric {
+    fn from(value: &PlayerMetricValue) -> Self {
+        match value {
+            PlayerMetricValue::TopPp(_) => Metric::TopPp,
+            PlayerMetricValue::TopAcc(_) => Metric::TopAcc,
+            PlayerMetricValue::TotalPp(_) => Metric::TotalPp,
+            PlayerMetricValue::Rank(_) => Metric::Rank,
+            PlayerMetricValue::CountryRank(_) => Metric::CountryRank,
+            PlayerMetricValue::MaxStreak(_) => Metric::MaxStreak,
+            PlayerMetricValue::Top1Count(_) => Metric::Top1Count,
+            PlayerMetricValue::MyReplaysWatched(_) => Metric::MyReplaysWatched,
+            PlayerMetricValue::ReplaysIWatched(_) => Metric::ReplaysIWatched,
+            PlayerMetricValue::Clan(_) => Metric::Clan,
+            PlayerMetricValue::TopStars(_) => Metric::TopStars,
+            PlayerMetricValue::LastPause(_) => Metric::LastPause,
+        }
+    }
+}
+
 pub(crate) type RoleGroup = String;
 
-type RoleConditionId = u32;
+type RoleRequirementId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct RoleCondition {
-    condition: MetricCondition,
-    value: PlayerMetricWithValue,
+pub struct Requirement {
+    condition: Condition,
+    value: RequirementMetricValue,
 }
 
-impl std::fmt::Display for RoleCondition {
+impl Requirement {
+    pub fn is_fulfilled_for(&self, player_metric: &PlayerMetricValue) -> bool {
+        if std::mem::discriminant(&Metric::from(&self.value))
+            != std::mem::discriminant(&Metric::from(player_metric))
+        {
+            return false;
+        }
+
+        match self.condition {
+            Condition::WorseThan => self.value.gt(player_metric),
+            Condition::WorseThanOrEqualTo => self.value.ge(player_metric),
+            Condition::EqualTo => self.value.eq(player_metric),
+            Condition::BetterThan => self.value.lt(player_metric),
+            Condition::BetterThanOrEqualTo => self.value.le(player_metric),
+            Condition::Contains => self.value.is_contained_by(player_metric),
+        }
+    }
+}
+
+impl std::fmt::Display for Requirement {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match &self.value {
-                PlayerMetricWithValue::TopPp(v) => format!(
+                RequirementMetricValue::TopPp(v) => format!(
                     "**Top PP** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::TopAcc(v) => format!(
+                RequirementMetricValue::TopAcc(v) => format!(
                     "**Top Acc** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::TotalPp(v) => format!(
+                RequirementMetricValue::TotalPp(v) => format!(
                     "**Total PP** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::Rank(v) => format!(
+                RequirementMetricValue::Rank(v) => format!(
                     "**Rank** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::CountryRank(v) => format!(
+                RequirementMetricValue::CountryRank(v) => format!(
                     "**Country rank** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::MaxStreak(v) => format!(
+                RequirementMetricValue::MaxStreak(v) => format!(
                     "**Max streak** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::Top1Count(v) => format!(
+                RequirementMetricValue::Top1Count(v) => format!(
                     "**#1 count** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::MyReplaysWatched(v) => format!(
+                RequirementMetricValue::MyReplaysWatched(v) => format!(
                     "**My replays watched** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::ReplaysIWatched(v) => format!(
+                RequirementMetricValue::ReplaysIWatched(v) => format!(
                     "**I watched replays** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
-                PlayerMetricWithValue::Clan(v) => format!(
+                RequirementMetricValue::Clan(v) => format!(
                     "**Clan** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v.join(", "),
                 ),
-                PlayerMetricWithValue::TopStars(v) => format!(
+                RequirementMetricValue::TopStars(v) => format!(
                     "**Top Stars** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v
+                ),
+                RequirementMetricValue::LastPause(v) => format!(
+                    "**Last pause** *{}* **{} days**",
                     self.condition.to_string().to_lowercase(),
                     v
                 ),
@@ -345,7 +499,7 @@ impl std::fmt::Display for RoleCondition {
 #[serde(rename_all = "camelCase")]
 pub struct RoleSettings {
     role_id: RoleId,
-    conditions: HashMap<RoleConditionId, RoleCondition>,
+    conditions: HashMap<RoleRequirementId, Requirement>,
     weight: u32,
 }
 
@@ -358,19 +512,15 @@ impl RoleSettings {
         }
     }
 
-    fn get_next_condition_id(&self) -> RoleConditionId {
+    fn get_next_condition_id(&self) -> RoleRequirementId {
         self.conditions
             .keys()
             .fold(0, |acc, condition_id| acc.max(*condition_id))
             + 1
     }
 
-    pub(crate) fn add_condition(
-        &mut self,
-        condition: MetricCondition,
-        value: PlayerMetricWithValue,
-    ) {
-        let rc = RoleCondition { condition, value };
+    pub(crate) fn add_requirement(&mut self, condition: Condition, value: RequirementMetricValue) {
+        let rc = Requirement { condition, value };
 
         self.conditions
             .entry(self.get_next_condition_id())
@@ -378,10 +528,10 @@ impl RoleSettings {
     }
 
     pub fn is_fulfilled_for(&self, player: &Player) -> bool {
-        self.conditions.iter().all(|(_role_id, role_condition)| {
-            player
-                .get_metric_with_value(PlayerMetric::from(&role_condition.value))
-                .is_fulfilled_for(&role_condition.condition, &role_condition.value)
+        self.conditions.iter().all(|(_role_id, role_requirement)| {
+            role_requirement.is_fulfilled_for(
+                &player.get_metric_with_value(Metric::from(&role_requirement.value)),
+            )
         })
     }
 }
@@ -392,7 +542,7 @@ impl std::fmt::Display for RoleSettings {
             .conditions
             .iter()
             .map(|(cond_id, cond)| (*cond_id, cond.clone()))
-            .collect::<Vec<(RoleConditionId, RoleCondition)>>();
+            .collect::<Vec<(RoleRequirementId, Requirement)>>();
         cond_vec.sort_unstable_by(|a, b| Ord::cmp(&a.0, &b.0));
 
         write!(
@@ -642,7 +792,7 @@ impl GuildSettings {
                 role_settings
                     .conditions
                     .values()
-                    .for_each(|rc| rs.add_condition(rc.condition.clone(), rc.value.clone()));
+                    .for_each(|rc| rs.add_requirement(rc.condition.clone(), rc.value.clone()));
             })
             .or_insert(role_settings_clone);
 
@@ -792,37 +942,40 @@ impl std::fmt::Display for GuildSettings {
 mod tests {
     use poise::serenity_prelude::UserId;
 
+    use chrono::{DateTime, Duration, Utc};
+
     use crate::bot::{
-        GuildId, GuildSettings, MetricCondition, Player, PlayerMetric, PlayerMetricWithValue,
-        RoleConditionId, RoleId, RoleSettings,
+        Condition, GuildId, GuildSettings, Metric, Player, PlayerMetricValue, Requirement,
+        RequirementMetricValue, RoleId, RoleRequirementId, RoleSettings,
     };
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(1), 100);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::TotalPp(5000.0),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::TotalPp(5000.0),
         );
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::TopAcc(90.0),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::TopAcc(90.0),
         );
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::CountryRank(50),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::CountryRank(50),
         );
 
         rs
     }
+
     fn create_10kpp_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(2), 200);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::TotalPp(10000.0),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::TotalPp(10000.0),
         );
 
         rs
@@ -830,9 +983,9 @@ mod tests {
     fn create_1k_rank_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(3), 100);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::Rank(1000),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::Rank(1000),
         );
 
         rs
@@ -840,9 +993,9 @@ mod tests {
     fn create_500_rank_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(4), 200);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::Rank(500),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::Rank(500),
         );
 
         rs
@@ -850,9 +1003,9 @@ mod tests {
     fn create_100_rank_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(5), 300);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::Rank(100),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::Rank(100),
         );
 
         rs
@@ -861,9 +1014,20 @@ mod tests {
     fn create_clan_member_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(6), 100);
 
-        rs.add_condition(
-            MetricCondition::Contains,
-            PlayerMetricWithValue::Clan(vec!["Clan1".to_string()]),
+        rs.add_requirement(
+            Condition::Contains,
+            RequirementMetricValue::Clan(vec!["Clan1".to_string()]),
+        );
+
+        rs
+    }
+
+    fn create_no_pause_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId(7), 100);
+
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::LastPause(30),
         );
 
         rs
@@ -883,94 +1047,88 @@ mod tests {
             .add("rank".to_string(), create_1k_rank_role_settings())
             .add("rank".to_string(), create_500_rank_role_settings())
             .add("rank".to_string(), create_100_rank_role_settings())
-            .add("clan".to_string(), create_clan_member_role_settings());
+            .add("clan".to_string(), create_clan_member_role_settings())
+            .add("no-pause".to_string(), create_no_pause_role_settings());
 
         gs
     }
 
     #[test]
-    fn it_properly_compares_player_metrics_with_value() {
-        let val = PlayerMetricWithValue::TopPp(100.0);
-        let better = PlayerMetricWithValue::TopPp(101.0);
-        let worse = PlayerMetricWithValue::TopPp(99.0);
+    fn it_properly_compares_player_metrics_with_requirement_metric() {
+        let requirement_metric = RequirementMetricValue::TopPp(100.0);
+        let better = PlayerMetricValue::TopPp(101.0);
+        let worse = PlayerMetricValue::TopPp(99.0);
 
-        assert_eq!(val > worse, true);
-        assert_eq!(val < better, true);
-        assert_eq!(val == val, true);
+        assert!(requirement_metric > worse);
+        assert!(requirement_metric < better);
+        assert_eq!(requirement_metric, requirement_metric);
 
-        let val = PlayerMetricWithValue::Rank(100);
-        let better = PlayerMetricWithValue::Rank(99);
-        let worse = PlayerMetricWithValue::Rank(101);
+        let requirement_metric = RequirementMetricValue::Rank(100);
+        let better = PlayerMetricValue::Rank(99);
+        let worse = PlayerMetricValue::Rank(101);
 
-        assert_eq!(val > worse, true);
-        assert_eq!(val < better, true);
-        assert_eq!(val == val, true);
+        assert!(requirement_metric > worse);
+        assert!(requirement_metric < better);
+        assert_eq!(requirement_metric, requirement_metric);
 
-        let val = PlayerMetricWithValue::Clan(vec![
+        let requirement_metric =
+            RequirementMetricValue::Clan(vec!["Clan1".to_string(), "Clan2".to_string()]);
+        let ok = PlayerMetricValue::Clan(vec![
             "Clan1".to_string(),
             "Clan2".to_string(),
-            "Clan3".to_string(),
+            "Other1".to_string(),
         ]);
-        let ok = PlayerMetricWithValue::Clan(vec!["Clan1".to_string(), "Clan2".to_string()]);
-        let fail = PlayerMetricWithValue::Clan(vec!["Other1".to_string(), "Other2".to_string()]);
+        let fail = PlayerMetricValue::Clan(vec!["Clan1".to_string(), "Other1".to_string()]);
 
-        assert!(val.contains(&ok));
-        assert!(!val.contains(&fail));
+        assert!(requirement_metric.is_contained_by(&ok));
+        assert!(!requirement_metric.is_contained_by(&fail));
+
+        let requirement_metric = RequirementMetricValue::LastPause(30);
+        let no_pause = PlayerMetricValue::LastPause(None);
+        let more_than_30_days_ago =
+            PlayerMetricValue::LastPause(Some(Utc::now() - Duration::days(50)));
+        let less_than_30_days_ago =
+            PlayerMetricValue::LastPause(Some(Utc::now() - Duration::days(3)));
+
+        assert!(requirement_metric < no_pause);
+        assert!(requirement_metric < more_than_30_days_ago);
+        assert!(requirement_metric > less_than_30_days_ago);
     }
 
     #[test]
-    fn it_check_if_condition_is_fulfilled() {
-        let condition_metric = PlayerMetricWithValue::TopPp(100.0);
+    fn it_check_if_requirement_is_fulfilled() {
+        let requirement = Requirement {
+            condition: Condition::BetterThanOrEqualTo,
+            value: RequirementMetricValue::TopPp(100.0),
+        };
+        assert!(requirement.is_fulfilled_for(&PlayerMetricValue::TopPp(100.0)));
+        assert!(requirement.is_fulfilled_for(&PlayerMetricValue::TopPp(150.0)));
+        assert!(!requirement.is_fulfilled_for(&PlayerMetricValue::TopPp(90.0)));
 
-        let player_metric = PlayerMetricWithValue::TopPp(100.0);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            true
-        );
+        let requirement = Requirement {
+            condition: Condition::BetterThanOrEqualTo,
+            value: RequirementMetricValue::Rank(100),
+        };
+        assert!(requirement.is_fulfilled_for(&PlayerMetricValue::Rank(100)));
+        assert!(requirement.is_fulfilled_for(&PlayerMetricValue::Rank(90)));
+        assert!(!requirement.is_fulfilled_for(&PlayerMetricValue::Rank(101)));
 
-        let player_metric = PlayerMetricWithValue::TopPp(150.0);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            true
-        );
+        let requirement = Requirement {
+            condition: Condition::BetterThanOrEqualTo,
+            value: RequirementMetricValue::LastPause(30),
+        };
+        let no_pause = PlayerMetricValue::LastPause(None);
+        let exactly_30_days_ago =
+            PlayerMetricValue::LastPause(Some(Utc::now() - Duration::days(30)));
+        let more_than_30_days_ago =
+            PlayerMetricValue::LastPause(Some(Utc::now() - Duration::days(50)));
+        let less_than_30_days_ago =
+            PlayerMetricValue::LastPause(Some(Utc::now() - Duration::days(3)));
 
-        let player_metric = PlayerMetricWithValue::TopPp(90.0);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            false
-        );
-
-        let condition_metric = PlayerMetricWithValue::Rank(100);
-
-        let player_metric = PlayerMetricWithValue::Rank(101);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            false
-        );
-
-        let player_metric = PlayerMetricWithValue::Rank(100);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            true
-        );
-
-        let player_metric = PlayerMetricWithValue::Rank(90);
-        assert_eq!(
-            player_metric
-                .is_fulfilled_for(&MetricCondition::BetterThanOrEqualTo, &condition_metric),
-            true
-        );
-
-        let player_metric = PlayerMetricWithValue::Rank(90);
-        assert_eq!(
-            player_metric.is_fulfilled_for(&MetricCondition::Contains, &condition_metric),
-            false
-        );
+        assert!(requirement.is_fulfilled_for(&no_pause));
+        assert!(requirement.is_fulfilled_for(&more_than_30_days_ago));
+        assert!(requirement.is_fulfilled_for(&exactly_30_days_ago));
+        assert!(!requirement.is_fulfilled_for(&less_than_30_days_ago));
     }
 
     #[test]
@@ -979,48 +1137,87 @@ mod tests {
 
         assert_eq!(rs.conditions.len(), 3);
 
-        let mut vec = rs.conditions.into_keys().collect::<Vec<RoleConditionId>>();
+        let mut vec = rs
+            .conditions
+            .into_keys()
+            .collect::<Vec<RoleRequirementId>>();
         vec.sort_unstable();
 
         assert_eq!(vec, [1, 2, 3]);
     }
 
     #[test]
-    fn it_can_get_player_metric_with_value_from_player() {
+    fn it_can_get_player_metric_value_from_player() {
         let player = Player {
             pp: 12000.0,
             top_pp: 400.0,
             top_accuracy: 91.0,
             country_rank: 20,
             rank: 1000,
+            total_replay_watched: 200,
+            watched_replays: 1000,
+            top1_count: 10,
+            top_stars: 11.5,
+            max_streak: 5,
+            last_ranked_paused_at: None,
             clans: vec!["Clan1".to_string()],
             ..Default::default()
         };
 
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::TotalPp),
-            PlayerMetricWithValue::TotalPp(12000.0)
+            player.get_metric_with_value(Metric::TotalPp),
+            PlayerMetricValue::TotalPp(12000.0)
         );
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::TopPp),
-            PlayerMetricWithValue::TopPp(400.0)
+            player.get_metric_with_value(Metric::TopPp),
+            PlayerMetricValue::TopPp(400.0)
         );
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::TopAcc),
-            PlayerMetricWithValue::TopAcc(91.0)
+            player.get_metric_with_value(Metric::TopAcc),
+            PlayerMetricValue::TopAcc(91.0)
         );
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::CountryRank),
-            PlayerMetricWithValue::CountryRank(20)
+            player.get_metric_with_value(Metric::CountryRank),
+            PlayerMetricValue::CountryRank(20)
         );
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::Rank),
-            PlayerMetricWithValue::Rank(1000)
+            player.get_metric_with_value(Metric::Rank),
+            PlayerMetricValue::Rank(1000)
         );
 
         assert_eq!(
-            player.get_metric_with_value(PlayerMetric::Clan),
-            PlayerMetricWithValue::Clan(vec!["Clan1".to_string()])
+            player.get_metric_with_value(Metric::Clan),
+            PlayerMetricValue::Clan(vec!["Clan1".to_string()])
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::MaxStreak),
+            PlayerMetricValue::MaxStreak(5)
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::ReplaysIWatched),
+            PlayerMetricValue::ReplaysIWatched(1000)
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::MyReplaysWatched),
+            PlayerMetricValue::MyReplaysWatched(200)
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::Top1Count),
+            PlayerMetricValue::Top1Count(10)
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::TopStars),
+            PlayerMetricValue::TopStars(11.5)
+        );
+
+        assert_eq!(
+            player.get_metric_with_value(Metric::LastPause),
+            PlayerMetricValue::LastPause(None)
         );
     }
 
@@ -1029,44 +1226,51 @@ mod tests {
         let rs_5k = create_5kpp_ss_50_country_role_settings();
         let rs_10k = create_10kpp_role_settings();
         let rs_clan = create_clan_member_role_settings();
+        let rs_no_pause = create_no_pause_role_settings();
 
         let mut player = Player {
             pp: 12000.0,
             top_accuracy: 91.0,
             country_rank: 20,
             clans: vec!["Clan1".to_string(), "Clan2".to_string()],
+            last_ranked_paused_at: Some(Utc::now() - Duration::days(50)),
             ..Default::default()
         };
 
-        assert_eq!(rs_5k.is_fulfilled_for(&player), true);
-        assert_eq!(rs_10k.is_fulfilled_for(&player), true);
-        assert_eq!(rs_clan.is_fulfilled_for(&player), true);
+        assert!(rs_5k.is_fulfilled_for(&player));
+        assert!(rs_10k.is_fulfilled_for(&player));
+        assert!(rs_clan.is_fulfilled_for(&player));
+        assert!(rs_no_pause.is_fulfilled_for(&player));
 
         player.top_accuracy = 89.0;
-        assert_eq!(rs_5k.is_fulfilled_for(&player), false);
+        assert!(!rs_5k.is_fulfilled_for(&player));
 
         player.top_accuracy = 91.0;
         player.country_rank = 100;
-        assert_eq!(rs_5k.is_fulfilled_for(&player), false);
+        assert!(!rs_5k.is_fulfilled_for(&player));
 
         player.pp = 7000.0;
         player.country_rank = 10;
 
-        assert_eq!(rs_5k.is_fulfilled_for(&player), true);
-        assert_eq!(rs_10k.is_fulfilled_for(&player), false);
+        assert!(rs_5k.is_fulfilled_for(&player));
+        assert!(!rs_10k.is_fulfilled_for(&player));
 
         player.clans = vec!["Other clan".to_string()];
-        assert_eq!(rs_clan.is_fulfilled_for(&player), false);
+        assert!(!rs_clan.is_fulfilled_for(&player));
+
+        player.last_ranked_paused_at = Some(Utc::now() - Duration::days(3));
+        assert!(!rs_no_pause.is_fulfilled_for(&player));
     }
 
     #[test]
     fn it_can_add_role_settings_to_guild() {
         let gs = create_guild_settings();
 
-        assert_eq!(gs.role_groups.keys().len(), 3);
+        assert_eq!(gs.role_groups.keys().len(), 4);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 3);
         assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
+        assert_eq!(gs.role_groups.get("no-pause").unwrap().keys().len(), 1);
     }
 
     #[test]
@@ -1075,9 +1279,9 @@ mod tests {
 
         let mut rs = RoleSettings::new(RoleId(1), 1000);
 
-        rs.add_condition(
-            MetricCondition::BetterThanOrEqualTo,
-            PlayerMetricWithValue::TotalPp(5000.0),
+        rs.add_requirement(
+            Condition::BetterThanOrEqualTo,
+            RequirementMetricValue::TotalPp(5000.0),
         );
 
         gs.merge("pp".to_string(), create_5kpp_ss_50_country_role_settings())
@@ -1100,29 +1304,24 @@ mod tests {
         gs.remove("rank".to_string(), RoleId(3));
         gs.remove("rank".to_string(), RoleId(5));
 
-        assert_eq!(gs.role_groups.keys().len(), 3);
+        assert_eq!(gs.role_groups.keys().len(), 4);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 1);
         assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
+        assert_eq!(gs.role_groups.get("no-pause").unwrap().keys().len(), 1);
 
         gs.remove("rank".to_string(), RoleId(4));
-        assert_eq!(gs.role_groups.contains_key("rank"), false);
+        assert!(!gs.role_groups.contains_key("rank"));
     }
 
     #[test]
     fn it_can_check_if_role_exists_in_guild_role_group() {
         let gs = create_guild_settings();
 
-        assert_eq!(
-            gs.contains_in_group("invalid".to_string(), RoleId(1)),
-            false
-        );
-        assert_eq!(
-            gs.contains_in_group("rank".to_string(), RoleId(1000)),
-            false
-        );
-        assert_eq!(gs.contains_in_group("rank".to_string(), RoleId(3)), true);
-        assert_eq!(gs.contains_in_group("rank".to_string(), RoleId(5)), true);
+        assert!(!gs.contains_in_group("invalid".to_string(), RoleId(1)));
+        assert!(!gs.contains_in_group("rank".to_string(), RoleId(1000)));
+        assert!(gs.contains_in_group("rank".to_string(), RoleId(3)));
+        assert!(gs.contains_in_group("rank".to_string(), RoleId(5)));
     }
 
     #[test]
@@ -1140,7 +1339,8 @@ mod tests {
                 &RoleId(3),
                 &RoleId(4),
                 &RoleId(5),
-                &RoleId(6)
+                &RoleId(6),
+                &RoleId(7)
             ]
         );
     }
@@ -1149,9 +1349,9 @@ mod tests {
     fn it_can_check_if_role_exists_in_any_guild_role_group() {
         let gs = create_guild_settings();
 
-        assert_eq!(gs.contains(RoleId(1000)), false);
-        assert_eq!(gs.contains(RoleId(1)), true);
-        assert_eq!(gs.contains(RoleId(5)), true);
+        assert!(!gs.contains(RoleId(1000)));
+        assert!(gs.contains(RoleId(1)));
+        assert!(gs.contains(RoleId(5)));
     }
 
     #[test]
@@ -1163,17 +1363,18 @@ mod tests {
             top_accuracy: 91.0,
             rank: 1001,
             country_rank: 20,
+            last_ranked_paused_at: Some(Utc::now() - Duration::days(1)),
             ..Default::default()
         };
 
         let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1), RoleId(3)]);
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1), RoleId(3), RoleId(7)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
         assert_eq!(roles_updates.to_add, Vec::<RoleId>::new());
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(7)]);
 
         player.top_accuracy = 89.0;
 
@@ -1236,6 +1437,17 @@ mod tests {
         roles_updates.to_remove.sort_unstable();
 
         assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
+
+        player.last_ranked_paused_at = Some(Utc::now() - Duration::days(50));
+
+        let mut roles_updates =
+            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3), RoleId(6)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(7)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
     }
 }
