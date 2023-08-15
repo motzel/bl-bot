@@ -2,7 +2,7 @@ use futures::Stream;
 use poise::serenity_prelude;
 use poise::serenity_prelude::ChannelId;
 
-use crate::bot::{MetricCondition, PlayerMetric, PlayerMetricWithValue};
+use crate::bot::{Condition, Metric, RequirementMetricValue};
 use crate::{Context, Error};
 
 /// Display current bot settings
@@ -127,8 +127,8 @@ pub(crate) async fn cmd_add_auto_role(
     group: String,
     #[description = "Role to assign. Only the role with the highest weight in the group will be assigned."]
     role: serenity_prelude::Role,
-    #[description = "Metric to check"] metric: PlayerMetric,
-    #[description = "Condition to check"] condition: MetricCondition,
+    #[description = "Metric to check"] metric: Metric,
+    #[description = "Condition to check"] condition: Condition,
     #[description = "Metric value"] value: String,
     #[description = "Weight of auto role in the group (100, 200, etc.; the better role, the higher value)"]
     #[min = 1]
@@ -139,7 +139,7 @@ pub(crate) async fn cmd_add_auto_role(
         return Ok(());
     };
 
-    let metric_and_value = match PlayerMetricWithValue::new(metric, value.as_str()) {
+    let metric_and_value = match RequirementMetricValue::new(metric, value.as_str()) {
         Ok(v) => v,
         Err(e) => {
             ctx.say(format!("Invalid metric value: {}", e)).await?;

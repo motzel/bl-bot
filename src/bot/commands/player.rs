@@ -5,7 +5,8 @@ use log::{debug, info};
 use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
-use crate::beatleader::player::PlayerScoreSort;
+use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
+use crate::beatleader::SortOrder;
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
 use crate::storage::PersistError;
 use crate::{Context, Error};
@@ -290,7 +291,17 @@ pub(crate) async fn cmd_replay(
         return Ok(());
     }
 
-    let player_scores = match fetch_scores(player.id.clone(), 25, player_score_sort).await {
+    let player_scores = match fetch_scores(
+        &player.id,
+        &[
+            PlayerScoreParam::Page(1),
+            PlayerScoreParam::Count(25),
+            PlayerScoreParam::Sort(player_score_sort),
+            PlayerScoreParam::Order(SortOrder::Descending),
+        ],
+    )
+    .await
+    {
         Ok(player_scores) => player_scores,
         Err(e) => {
             ctx.say(format!("Error fetching scores: {}", e)).await?;
@@ -451,10 +462,53 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
             .field("Top Acc", format!("{:.2}%", player.top_accuracy), true)
+            .field(
+                "Top Stars",
+                if player.last_scores_fetch.is_some() {
+                    format!("{:.2}⭐", player.top_stars)
+                } else {
+                    "-".to_owned()
+                },
+                true,
+            )
+            .field(
+                "+1pp",
+                if player.last_scores_fetch.is_some() {
+                    format!("{:.2}pp", player.plus_1pp)
+                } else {
+                    "-".to_owned()
+                },
+                true,
+            )
+            .field(
+                "Last pause",
+                if player.last_scores_fetch.is_some() {
+                    if player.last_ranked_paused_at.is_some() {
+                        format!(
+                            "<t:{}:R>",
+                            player.last_ranked_paused_at.unwrap().timestamp()
+                        )
+                    } else {
+                        "Never".to_owned()
+                    }
+                } else {
+                    "-".to_owned()
+                },
+                true,
+            )
             .field("Clans", clans, true);
 
-        if !player.is_verified {
-            f.footer(|footer| footer.text("Profile is NOT VERIFIED"));
+        let footer_text = if !player.is_verified {
+            "Profile is NOT VERIFIED\n\n"
+        } else {
+            ""
+        };
+
+        if let Some(last_fetch) = player.last_fetch {
+            f.footer(|footer| footer.text(format!("{}Last updated", footer_text)))
+                .timestamp(last_fetch);
+        } else {
+            f.footer(|footer| footer.text(footer_text));
         }
 
         f

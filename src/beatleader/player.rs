@@ -1,6 +1,10 @@
 use reqwest::Method;
 use serde::Deserialize;
-use serde_with::{serde_as, DefaultOnNull};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
+
+use chrono::serde::ts_seconds;
+use chrono::{DateTime, Utc};
 
 use crate::beatleader;
 use crate::beatleader::error::Error::{JsonDecode, Request};
@@ -66,6 +70,7 @@ impl<'a> PlayerRequest<'a> {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub enum PlayerScoreSort {
     Date,
     Pp,
@@ -79,11 +84,22 @@ pub enum PlayerScoreSort {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
+pub enum MapType {
+    All,
+    Ranked,
+    Unranked,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
 pub enum PlayerScoreParam {
     Page(u32),
     Sort(PlayerScoreSort),
     Order(SortOrder),
     Count(u32),
+    Type(MapType),
+    TimeFrom(DateTime<Utc>),
 }
 
 impl QueryParam for PlayerScoreParam {
@@ -112,6 +128,17 @@ impl QueryParam for PlayerScoreParam {
                 },
             ),
             PlayerScoreParam::Count(count) => ("count".to_owned(), count.to_string()),
+            PlayerScoreParam::TimeFrom(time) => {
+                ("from_time".to_owned(), time.timestamp().to_string())
+            }
+            PlayerScoreParam::Type(map_type) => (
+                "type".to_owned(),
+                match map_type {
+                    MapType::All => "all".to_owned(),
+                    MapType::Ranked => "ranked".to_owned(),
+                    MapType::Unranked => "unranked".to_owned(),
+                },
+            ),
         }
     }
 }
@@ -167,9 +194,12 @@ pub struct PlayerScoreStats {
     pub average_accuracy: f64,
     pub average_ranked_accuracy: f64,
     pub average_unranked_accuracy: f64,
-    pub last_ranked_score_time: u32,
-    pub last_unranked_score_time: u32,
-    pub last_score_time: u32,
+    #[serde(with = "ts_seconds")]
+    pub last_ranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_unranked_score_time: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub last_score_time: DateTime<Utc>,
     pub max_streak: u32,
     pub ranked_max_streak: u32,
     pub unranked_max_streak: u32,
@@ -245,6 +275,10 @@ pub struct Score {
     pub leaderboard: Leaderboard,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub modifiers: String,
+    #[serde_as(as = "TimestampSeconds<String>")]
+    pub timeset: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub timepost: DateTime<Utc>,
 }
 
 #[serde_as]
@@ -311,6 +345,39 @@ pub struct Difficulty {
     pub notes: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub modifiers_rating: Option<ModifiersRatings>,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    #[serde(default)]
+    pub status: DifficultyStatus,
+}
+
+#[allow(dead_code)]
+#[derive(Serialize_repr, Deserialize_repr, PartialEq, Default, Debug, Clone)]
+#[repr(u8)]
+pub enum DifficultyStatus {
+    Unranked = 0,
+    Nominated,
+    Qualified,
+    Ranked,
+    Unrankable,
+    Outdated,
+    InEvent,
+    #[default]
+    Unknown = 255,
+}
+
+impl std::fmt::Display for DifficultyStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifficultyStatus::Unranked => write!(f, "Unranked"),
+            DifficultyStatus::Nominated => write!(f, "Nominated"),
+            DifficultyStatus::Qualified => write!(f, "Qualified"),
+            DifficultyStatus::Ranked => write!(f, "Ranked"),
+            DifficultyStatus::Unrankable => write!(f, "Unrankable"),
+            DifficultyStatus::Outdated => write!(f, "Outdated"),
+            DifficultyStatus::InEvent => write!(f, "InEvent"),
+            DifficultyStatus::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 #[serde_as]
