@@ -309,7 +309,8 @@ impl Score {
                 "https://replay.beatleader.xyz/?scoreId={}",
                 self.id
             ))
-            .thumbnail(self.song_cover.clone());
+            .thumbnail(self.song_cover.clone())
+            .timestamp(self.timeset);
 
             if self.pp > 0.00 {
                 if self.full_combo {
