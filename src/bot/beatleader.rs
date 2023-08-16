@@ -449,6 +449,15 @@ pub(crate) async fn fetch_ranked_scores_stats(
                 for score in scores_page.scores {
                     player_scores.push(score.pp);
 
+                    if score.modifiers.contains("NF")
+                        || score.modifiers.contains("NB")
+                        || score.modifiers.contains("NO")
+                        || score.modifiers.contains("NA")
+                        || score.modifiers.contains("OP")
+                    {
+                        continue;
+                    }
+
                     if top_stars < score.difficulty_stars {
                         top_stars = score.difficulty_stars;
                     }
