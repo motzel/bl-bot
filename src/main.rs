@@ -181,7 +181,10 @@ async fn poise(
                                 }
                             }
 
-                            let guild_ids = current_players_roles.iter().map(|(guild_id, _player, _roles)| *guild_id).collect::<Vec<GuildId>>();
+                            let mut guild_ids = current_players_roles.iter().map(|(guild_id, _player, _roles)| *guild_id).collect::<Vec<GuildId>>();
+                            guild_ids.sort_unstable();
+                            guild_ids.dedup();
+
                             let mut guilds : HashMap<GuildId, GuildSettings> = HashMap::new();
 
                             for guild_id in &guild_ids {
