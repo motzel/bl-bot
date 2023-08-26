@@ -232,6 +232,6 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn restore(&self, values: Vec<BotPlayer>) -> Result<()> {
-        self.storage.restore(values, |v| v.get_key()).await
+        self.storage.restore(values).await
     }
 }

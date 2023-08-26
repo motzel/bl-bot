@@ -188,6 +188,6 @@ impl<'a> GuildSettingsRepository {
     }
 
     pub(crate) async fn restore(&self, values: Vec<GuildSettings>) -> Result<()> {
-        self.storage.restore(values, |v| v.get_key()).await
+        self.storage.restore(values).await
     }
 }

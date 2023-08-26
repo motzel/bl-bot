@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::{DateTime, Duration, Utc};
 use log::{debug, error, info};
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{ChannelId, User, UserId};
@@ -17,10 +18,9 @@ use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
-use chrono::{DateTime, Duration, Utc};
-
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
+use crate::storage::{StorageKey, StorageValue};
 use crate::Context;
 use crate::Error;
 
@@ -746,6 +746,13 @@ pub struct GuildSettings {
     role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
 }
 
+impl StorageKey for GuildId {}
+impl StorageValue<GuildId> for GuildSettings {
+    fn get_key(&self) -> GuildId {
+        self.guild_id
+    }
+}
+
 impl GuildSettings {
     pub fn new(guild_id: GuildId) -> Self {
         Self {
@@ -944,9 +951,8 @@ impl std::fmt::Display for GuildSettings {
 
 #[cfg(test)]
 mod tests {
-    use poise::serenity_prelude::UserId;
-
     use chrono::{DateTime, Duration, Utc};
+    use poise::serenity_prelude::UserId;
 
     use crate::bot::{
         Condition, GuildId, GuildSettings, Metric, Player, PlayerMetricValue, Requirement,

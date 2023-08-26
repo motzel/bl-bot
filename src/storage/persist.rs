@@ -57,10 +57,20 @@ impl Display for PersistError {
     }
 }
 
+pub(crate) trait StorageKey:
+    Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone + Display
+{
+}
+pub(crate) trait StorageValue<K: StorageKey>:
+    Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone
+{
+    fn get_key(&self) -> K;
+}
+
 pub(super) struct CachedStorage<K, V>
 where
-    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone,
-    V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
+    K: StorageKey,
+    V: StorageValue<K>,
 {
     state: RwLock<HashMap<K, Mutex<V>>>,
     storage: ShuttleStorage<K, V>,
@@ -68,8 +78,8 @@ where
 
 impl<'a, K, V> CachedStorage<K, V>
 where
-    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone + Display,
-    V: Serialize + for<'b> Deserialize<'b> + Send + Sync + Clone,
+    K: StorageKey,
+    V: StorageValue<K>,
 {
     pub(super) async fn new(storage: ShuttleStorage<K, V>) -> Result<CachedStorage<K, V>> {
         let storage_name = storage.get_name();
@@ -311,14 +321,7 @@ where
         result
     }
 
-    pub(super) async fn restore<GetKeyFunc>(
-        &self,
-        values: Vec<V>,
-        get_key: GetKeyFunc,
-    ) -> Result<()>
-    where
-        GetKeyFunc: Fn(&V) -> K,
-    {
+    pub(super) async fn restore(&self, values: Vec<V>) -> Result<()> {
         let storage_name = self.storage.get_name();
 
         debug!(
@@ -332,7 +335,7 @@ where
         // save all values to the storage first
         let mut saved_values = Vec::with_capacity(values.len());
         for value in values {
-            saved_values.push(self.storage.save(get_key(&value), value).await?);
+            saved_values.push(self.storage.save(value.get_key(), value).await?);
         }
 
         // clear hash map
@@ -340,7 +343,7 @@ where
 
         // add all values to the hash map
         for value in saved_values {
-            write_lock.insert(get_key(&value), Mutex::new(value));
+            write_lock.insert(value.get_key(), Mutex::new(value));
         }
 
         drop(write_lock);
@@ -355,8 +358,8 @@ where
 
 pub(super) struct ShuttleStorage<K, V>
 where
-    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
-    V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
+    K: StorageKey,
+    V: StorageValue<K>,
 {
     persist: Arc<PersistInstance>,
     name: String,
@@ -366,8 +369,8 @@ where
 
 impl<'a, K, V> ShuttleStorage<K, V>
 where
-    K: Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync,
-    V: Serialize + for<'b> Deserialize<'b> + Send + Sync,
+    K: StorageKey,
+    V: StorageValue<K>,
 {
     pub fn new(name: &str, persist: Arc<PersistInstance>) -> ShuttleStorage<K, V> {
         Self {
@@ -549,6 +552,6 @@ where
     }
 
     fn get_storage_item_name(&self, key: &K) -> String {
-        format!("{}-{}", self.name, key.to_string())
+        format!("{}-{}", self.name, key)
     }
 }

@@ -1,11 +1,10 @@
+use chrono::serde::{ts_seconds, ts_seconds_option};
+use chrono::{DateTime, Utc};
 use log::{debug, info};
 use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
-
-use chrono::serde::{ts_seconds, ts_seconds_option};
-use chrono::{DateTime, Duration, Utc};
 
 use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
 use crate::beatleader::player::{
@@ -13,7 +12,8 @@ use crate::beatleader::player::{
 };
 use crate::beatleader::pp::calculate_pp_boundary;
 use crate::beatleader::{error::Error as BlError, SortOrder};
-use crate::bot::{Metric, PlayerMetricValue, RequirementMetricValue};
+use crate::bot::{Metric, PlayerMetricValue};
+use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -69,6 +69,13 @@ pub struct Player {
     pub last_scores_fetch: Option<DateTime<Utc>>,
     #[serde(with = "ts_seconds_option")]
     pub last_ranked_paused_at: Option<DateTime<Utc>>,
+}
+
+impl StorageKey for UserId {}
+impl StorageValue<UserId> for Player {
+    fn get_key(&self) -> UserId {
+        self.user_id
+    }
 }
 
 impl Player {

@@ -131,7 +131,7 @@ pub(crate) async fn cmd_import(
         }
     };
 
-    ctx.say(format!("Data successfully restored.")).await?;
+    ctx.say("Data successfully restored.").await?;
 
     Ok(())
 }
