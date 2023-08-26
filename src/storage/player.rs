@@ -22,6 +22,10 @@ impl<'a> PlayerRepository {
         })
     }
 
+    pub(crate) async fn all(&self) -> Vec<BotPlayer> {
+        self.storage.values().await
+    }
+
     pub(crate) async fn len(&self) -> usize {
         self.storage.len().await
     }
@@ -225,5 +229,9 @@ impl<'a> PlayerRepository {
 
     pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer> {
         Ok(BL_CLIENT.player().get_by_id(player_id).await?)
+    }
+
+    pub(crate) async fn restore(&self, values: Vec<BotPlayer>) -> Result<()> {
+        self.storage.restore(values, |v| v.get_key()).await
     }
 }

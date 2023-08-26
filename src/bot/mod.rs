@@ -756,6 +756,10 @@ impl GuildSettings {
         }
     }
 
+    pub fn get_key(&self) -> GuildId {
+        self.guild_id
+    }
+
     pub fn get_channel(&self) -> Option<ChannelId> {
         self.bot_channel_id
     }

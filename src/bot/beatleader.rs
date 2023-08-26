@@ -72,6 +72,10 @@ pub struct Player {
 }
 
 impl Player {
+    pub fn get_key(&self) -> UserId {
+        self.user_id
+    }
+
     pub fn from_user_id_and_bl_player(
         user_id: UserId,
         guild_ids: Vec<GuildId>,

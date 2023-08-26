@@ -287,7 +287,7 @@ where
 
         self.update_index().await?;
 
-        debug!("key {} removed from {} storage...", key, storage_name);
+        debug!("key {} removed from {} storage.", key, storage_name);
 
         Ok(previous.is_some())
     }
@@ -309,6 +309,47 @@ where
         debug!("{} storage index updated.", storage_name);
 
         result
+    }
+
+    pub(super) async fn restore<GetKeyFunc>(
+        &self,
+        values: Vec<V>,
+        get_key: GetKeyFunc,
+    ) -> Result<()>
+    where
+        GetKeyFunc: Fn(&V) -> K,
+    {
+        let storage_name = self.storage.get_name();
+
+        debug!(
+            "Restoring {} storage, items count: {}...",
+            storage_name,
+            values.len()
+        );
+
+        let mut write_lock = self.state.write().await;
+
+        // save all values to the storage first
+        let mut saved_values = Vec::with_capacity(values.len());
+        for value in values {
+            saved_values.push(self.storage.save(get_key(&value), value).await?);
+        }
+
+        // clear hash map
+        *write_lock = HashMap::with_capacity(saved_values.len());
+
+        // add all values to the hash map
+        for value in saved_values {
+            write_lock.insert(get_key(&value), Mutex::new(value));
+        }
+
+        drop(write_lock);
+
+        self.update_index().await?;
+
+        debug!("{} storage restored.", storage_name);
+
+        Ok(())
     }
 }
 

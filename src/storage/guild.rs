@@ -20,6 +20,10 @@ impl<'a> GuildSettingsRepository {
         })
     }
 
+    pub(crate) async fn all(&self) -> Vec<GuildSettings> {
+        self.storage.values().await
+    }
+
     pub(crate) async fn len(&self) -> usize {
         self.storage.len().await
     }
@@ -181,5 +185,9 @@ impl<'a> GuildSettingsRepository {
                 "guild is not registered".to_string(),
             ))
         }
+    }
+
+    pub(crate) async fn restore(&self, values: Vec<GuildSettings>) -> Result<()> {
+        self.storage.restore(values, |v| v.get_key()).await
     }
 }

@@ -6,7 +6,15 @@ use crate::bot::{Condition, Metric, RequirementMetricValue};
 use crate::{Context, Error};
 
 /// Display current bot settings
-#[poise::command(slash_command, rename = "bl-show-settings", ephemeral, guild_only)]
+#[poise::command(
+    slash_command,
+    rename = "bl-show-settings",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only
+)]
 pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else {
         ctx.say("Can not get guild data".to_string()).await?;
