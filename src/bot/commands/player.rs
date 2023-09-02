@@ -1,7 +1,7 @@
 use std::convert::From;
 use std::sync::Arc;
 
-use log::{debug, info};
+use log::{info, trace};
 use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply};
 
@@ -326,7 +326,7 @@ pub(crate) async fn cmd_replay(
         .timeout(std::time::Duration::from_secs(120))
         .await
     {
-        debug!("Interaction response: {:?}", mci.data);
+        trace!("Interaction response: {:?}", mci.data);
 
         match mci.data.custom_id.as_str() {
             "score_id" => {

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
-use log::{debug, error, info};
+use log::{error, info, trace};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
@@ -149,8 +149,8 @@ async fn poise(
                     info!("Run a task that updates profiles every {:?}", interval);
 
                     loop {
-                        debug!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
-                        debug!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
+                        trace!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
+                        trace!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
 
                         if let Ok(bot_players) =
                             players_repository_worker.update_all_players_stats().await
@@ -159,7 +159,7 @@ async fn poise(
 
                             let mut current_players_roles = Vec::new();
                             for bot_player in bot_players {
-                                debug!(
+                                trace!(
                                     "Fetching user {} ({}) roles...",
                                     &bot_player.user_id, &bot_player.name
                                 );

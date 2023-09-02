@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use log::{debug, error, info};
+use log::{error, info, trace};
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
@@ -591,9 +591,11 @@ impl UserRoleChanges {
         );
 
         for role_id in self.to_add.iter() {
-            debug!(
+            trace!(
                 "Adding role {} to user {} ({})",
-                role_id, self.user_id, self.name
+                role_id,
+                self.user_id,
+                self.name
             );
 
             if let Err(e) = http
@@ -612,9 +614,11 @@ impl UserRoleChanges {
                 continue;
             }
 
-            debug!(
+            trace!(
                 "Role {} added to user {} ({})",
-                role_id, self.user_id, self.name
+                role_id,
+                self.user_id,
+                self.name
             );
         }
 
@@ -626,9 +630,11 @@ impl UserRoleChanges {
         );
 
         for role_id in self.to_remove.iter() {
-            debug!(
+            trace!(
                 "Removing role {} from user {} ({})",
-                role_id, self.user_id, self.name
+                role_id,
+                self.user_id,
+                self.name
             );
 
             if let Err(e) = http
@@ -647,9 +653,11 @@ impl UserRoleChanges {
                 continue;
             }
 
-            debug!(
+            trace!(
                 "Role {} removed from user {} ({})",
-                role_id, self.user_id, self.name
+                role_id,
+                self.user_id,
+                self.name
             );
         }
 

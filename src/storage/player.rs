@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use log::{debug, trace};
+use log::trace;
 use poise::serenity_prelude::{GuildId, UserId};
 use shuttle_persist::PersistInstance;
 
@@ -41,7 +41,7 @@ impl<'a> PlayerRepository {
         player_id: PlayerId,
         requires_verification: bool,
     ) -> Result<BotPlayer> {
-        debug!("Linking user {} with BL player {}...", user_id, player_id);
+        trace!("Linking user {} with BL player {}...", user_id, player_id);
 
         let bl_player = PlayerRepository::fetch_player_from_bl(&player_id).await?;
 
@@ -95,7 +95,7 @@ impl<'a> PlayerRepository {
             .await?
         {
             Some(player) => {
-                debug!("User {} linked with BL player {}.", user_id, player_id);
+                trace!("User {} linked with BL player {}.", user_id, player_id);
                 Ok(player)
             }
             None => Err(PersistError::Unknown),
@@ -103,7 +103,7 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn unlink(&self, guild_id: &GuildId, user_id: &UserId) -> Result<()> {
-        debug!("Unlinking user {} from guild {}...", user_id, guild_id);
+        trace!("Unlinking user {} from guild {}...", user_id, guild_id);
 
         let mut existed = false;
         let existed_ref = &mut existed;
@@ -125,17 +125,17 @@ impl<'a> PlayerRepository {
         {
             Some(_) => {
                 if existed {
-                    debug!("User {} unlinked from guild {}.", user_id, guild_id);
+                    trace!("User {} unlinked from guild {}.", user_id, guild_id);
 
                     Ok(())
                 } else {
-                    debug!("User {} is not linked to guild {}.", user_id, guild_id);
+                    trace!("User {} is not linked to guild {}.", user_id, guild_id);
 
                     Err(PersistError::NotFound("user is not linked".to_owned()))
                 }
             }
             None => {
-                debug!("User {} is not linked to guild {}.", user_id, guild_id);
+                trace!("User {} is not linked to guild {}.", user_id, guild_id);
 
                 Err(PersistError::NotFound("user is not linked".to_owned()))
             }
@@ -143,15 +143,16 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn update_all_players_stats(&self) -> Result<Vec<BotPlayer>> {
-        debug!("Updating all users stats...");
+        trace!("Updating all users stats...");
 
         let mut ret = Vec::with_capacity(self.storage.len().await);
 
         for player in self.storage.values().await {
             if !player.is_linked_to_any_guild() {
-                debug!(
+                trace!(
                     "User {} / BL player {} is not linked to any guild, skipped.",
-                    player.user_id, player.id
+                    player.user_id,
+                    player.id
                 );
 
                 continue;
@@ -162,15 +163,16 @@ impl<'a> PlayerRepository {
             }
         }
 
-        debug!("All users stats updated.");
+        trace!("All users stats updated.");
 
         Ok(ret)
     }
 
     pub(crate) async fn update_player_stats(&self, player: &BotPlayer) -> Result<BotPlayer> {
-        debug!(
+        trace!(
             "Updating user {} / BL player {} stats...",
-            player.user_id, player.name
+            player.user_id,
+            player.name
         );
 
         // do not update if not linked in any guild
@@ -212,14 +214,15 @@ impl<'a> PlayerRepository {
             .await?
         {
             None => {
-                debug!("User {} not found.", player.user_id);
+                trace!("User {} not found.", player.user_id);
 
                 Err(PersistError::NotFound("player not found".to_owned()))
             }
             Some(player) => {
-                debug!(
+                trace!(
                     "User {} / BL player {} stats updated.",
-                    player.user_id, player.name
+                    player.user_id,
+                    player.name
                 );
 
                 Ok(player)

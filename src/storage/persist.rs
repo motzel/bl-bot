@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{error, fmt};
 
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -84,11 +84,11 @@ where
     pub(super) async fn new(storage: ShuttleStorage<K, V>) -> Result<CachedStorage<K, V>> {
         let storage_name = storage.get_name();
 
-        debug!("Initializing {} storage...", storage_name);
+        trace!("Initializing {} storage...", storage_name);
 
         let mut hm = HashMap::new();
 
-        debug!("Loading {} storage index...", storage_name);
+        trace!("Loading {} storage index...", storage_name);
         let keys = match storage.load_index().await {
             Ok(keys) => keys,
             Err(e) => {
@@ -97,18 +97,18 @@ where
                 Vec::new()
             }
         };
-        debug!("{} storage loaded.", storage_name);
+        trace!("{} storage loaded.", storage_name);
 
-        debug!("Loading {} storage data...", storage_name);
+        trace!("Loading {} storage data...", storage_name);
         for key in keys.into_iter() {
             trace!("Loading {} storage data for key {}", storage_name, key);
             let value = storage.load(&key).await?;
             trace!("{} storage data for key {} loaded.", storage_name, key);
             hm.insert(key, Mutex::new(value));
         }
-        debug!("{} storage data loaded.", storage_name);
+        trace!("{} storage data loaded.", storage_name);
 
-        debug!("{} storage initialized.", storage_name);
+        trace!("{} storage initialized.", storage_name);
 
         Ok(Self {
             state: RwLock::new(hm),
@@ -119,7 +119,7 @@ where
     pub(super) async fn len(&self) -> usize {
         let storage_name = self.storage.get_name();
 
-        debug!("Getting {} storage length...", storage_name);
+        trace!("Getting {} storage length...", storage_name);
         let hm_lock = self.state.read().await;
 
         hm_lock.len()
@@ -128,14 +128,14 @@ where
     pub(super) async fn get(&self, key: &K) -> Option<V> {
         let storage_name = self.storage.get_name();
 
-        debug!("Getting {} storage data for key {}...", storage_name, key);
+        trace!("Getting {} storage data for key {}...", storage_name, key);
         let hm_lock = self.state.read().await;
 
         match hm_lock.get(key) {
             Some(value) => {
                 let value = (*value.lock().await).clone();
 
-                debug!("{} storage data for key {} returned.", storage_name, key);
+                trace!("{} storage data for key {} returned.", storage_name, key);
 
                 Some(value)
             }
@@ -146,7 +146,7 @@ where
     pub(super) async fn values(&self) -> Vec<V> {
         let storage_name = self.storage.get_name();
 
-        debug!("Getting all {} storage data...", storage_name);
+        trace!("Getting all {} storage data...", storage_name);
 
         let read_lock = self.state.read().await;
 
@@ -158,7 +158,7 @@ where
             ret.push(value);
         }
 
-        debug!("All {} storage data cloned and returned.", storage_name);
+        trace!("All {} storage data cloned and returned.", storage_name);
 
         ret
     }
@@ -181,20 +181,21 @@ where
     {
         let storage_name = self.storage.get_name();
 
-        debug!(
+        trace!(
             "Modifying or inserting {} storage data for key {}...",
-            storage_name, key
+            storage_name,
+            key
         );
         let mut write_lock = self.state.write().await;
 
         if let Some(value_mutex) = write_lock.get(key) {
-            debug!("{} storage data for key {} exists", storage_name, key);
+            trace!("{} storage data for key {} exists", storage_name, key);
 
             let value_mutex_guard = &mut value_mutex.lock().await;
 
             modify_func(value_mutex_guard);
 
-            debug!("{} storage data for key {} modified", storage_name, key);
+            trace!("{} storage data for key {} modified", storage_name, key);
 
             Ok(Some(
                 self.storage
@@ -202,15 +203,16 @@ where
                     .await?,
             ))
         } else {
-            debug!(
+            trace!(
                 "{} storage data for key {} does not exists",
-                storage_name, key
+                storage_name,
+                key
             );
 
             if let Some(value) = insert_func() {
                 write_lock.insert(key.clone(), Mutex::new(value.clone()));
 
-                debug!("{} storage data for key {} inserted", storage_name, key);
+                trace!("{} storage data for key {} inserted", storage_name, key);
 
                 let value = self.storage.save(key.clone(), value).await?;
 
@@ -228,7 +230,7 @@ where
     pub(super) async fn set(&self, key: &K, value: V) -> Result<V> {
         let storage_name = self.storage.get_name();
 
-        debug!("Setting {} storage data for key {}...", storage_name, key);
+        trace!("Setting {} storage data for key {}...", storage_name, key);
 
         let read_lock = self.state.read().await;
         let mut key_added: Option<K> = None;
@@ -269,17 +271,19 @@ where
         if let Some(_key) = key_added {
             self.update_index().await?;
 
-            debug!(
+            trace!(
                 "{} storage data for key {} set (previously NOT existed)",
-                storage_name, key
+                storage_name,
+                key
             );
 
             return Ok(value);
         }
 
-        debug!(
+        trace!(
             "{} storage data for key {} set (previously existed)",
-            storage_name, key
+            storage_name,
+            key
         );
 
         Ok(value)
@@ -288,7 +292,7 @@ where
     pub(super) async fn remove(&self, key: &K) -> Result<bool> {
         let storage_name = self.storage.get_name();
 
-        debug!("Removing key {} from {} storage...", key, storage_name);
+        trace!("Removing key {} from {} storage...", key, storage_name);
 
         let mut write_lock = self.state.write().await;
         let previous = write_lock.remove(key);
@@ -297,7 +301,7 @@ where
 
         self.update_index().await?;
 
-        debug!("key {} removed from {} storage.", key, storage_name);
+        trace!("key {} removed from {} storage.", key, storage_name);
 
         Ok(previous.is_some())
     }
@@ -305,7 +309,7 @@ where
     async fn update_index(&self) -> Result<()> {
         let storage_name = self.storage.get_name();
 
-        debug!("Updating {} storage index...", storage_name);
+        trace!("Updating {} storage index...", storage_name);
 
         let read_lock = self.state.read().await;
 
@@ -316,7 +320,7 @@ where
 
         let result = self.storage.save_index(keys).await;
 
-        debug!("{} storage index updated.", storage_name);
+        trace!("{} storage index updated.", storage_name);
 
         result
     }
@@ -324,7 +328,7 @@ where
     pub(super) async fn restore(&self, values: Vec<V>) -> Result<()> {
         let storage_name = self.storage.get_name();
 
-        debug!(
+        trace!(
             "Restoring {} storage, items count: {}...",
             storage_name,
             values.len()
@@ -350,7 +354,7 @@ where
 
         self.update_index().await?;
 
-        debug!("{} storage restored.", storage_name);
+        trace!("{} storage restored.", storage_name);
 
         Ok(())
     }
@@ -388,17 +392,19 @@ where
     async fn load_index(&self) -> Result<Vec<K>> {
         let storage_name = self.get_storage_index_name();
 
-        debug!(
+        trace!(
             "Loading {} storage index with name {}...",
-            self.name, storage_name
+            self.name,
+            storage_name
         );
 
         match self.persist.load::<String>(storage_name.as_str()) {
             Ok(json) => match serde_json::from_str::<Vec<K>>(json.as_str()) {
                 Ok(keys) => {
-                    debug!(
+                    trace!(
                         "{} storage index with name {} loaded.",
-                        self.name, storage_name
+                        self.name,
+                        storage_name
                     );
 
                     Ok(keys)
@@ -423,17 +429,19 @@ where
     async fn save_index(&self, keys: Vec<K>) -> Result<()> {
         let storage_name = self.get_storage_index_name();
 
-        debug!(
+        trace!(
             "Saving {} storage index with name {}...",
-            self.name, storage_name
+            self.name,
+            storage_name
         );
 
         match serde_json::to_string::<Vec<K>>(&keys) {
             Ok(json) => match self.persist.save::<String>(storage_name.as_str(), json) {
                 Ok(_) => {
-                    debug!(
+                    trace!(
                         "{} storage index with name {} saved.",
-                        self.name, storage_name
+                        self.name,
+                        storage_name
                     );
 
                     Ok(())
@@ -458,7 +466,7 @@ where
     async fn load(&self, key: &K) -> Result<V> {
         let storage_name = self.get_storage_item_name(key);
 
-        debug!(
+        trace!(
             "Loading item {} from {} storage with name {}...",
             key.to_string(),
             self.name,
@@ -468,7 +476,7 @@ where
         match self.persist.load::<String>(storage_name.as_str()) {
             Ok(json) => match serde_json::from_str::<V>(json.as_str()) {
                 Ok(value) => {
-                    debug!(
+                    trace!(
                         "item {} from {} storage with name {} loaded",
                         key.to_string(),
                         self.name,
@@ -504,7 +512,7 @@ where
     async fn save(&self, key: K, value: V) -> Result<V> {
         let storage_name = self.get_storage_item_name(&key);
 
-        debug!(
+        trace!(
             "Saving {} to {} storage with name {}...",
             key.to_string(),
             self.name,
@@ -514,7 +522,7 @@ where
         match serde_json::to_string::<V>(&value) {
             Ok(json) => match self.persist.save::<String>(storage_name.as_str(), json) {
                 Ok(_) => {
-                    debug!(
+                    trace!(
                         "{} to {} storage with name {} saved.",
                         key.to_string(),
                         self.name,

@@ -5,7 +5,7 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
-use log::{debug, error, info};
+use log::{error, info, trace};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
 
 use player::PlayerRequest;
@@ -71,17 +71,17 @@ impl Client {
     }
 
     pub async fn send_request(&self, request: Request) -> Result<Response> {
-        debug!("Waiting for rate limiter...");
+        trace!("Waiting for rate limiter...");
 
         self.rate_limiter
             .until_ready_with_jitter(Jitter::up_to(Duration::from_millis(100)))
             .await;
 
-        debug!("Got permit from rate limiter.");
+        trace!("Got permit from rate limiter.");
 
         let base = Url::parse(self.base_url.as_str()).unwrap();
 
-        debug!(
+        trace!(
             "Sending request to {}",
             base.make_relative(request.url()).unwrap()
         );
@@ -97,7 +97,7 @@ impl Client {
             Ok(response) => {
                 let base = Url::parse(self.base_url.as_str()).unwrap();
 
-                debug!(
+                trace!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),
                     response.status().as_u16()

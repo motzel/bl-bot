@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use log::debug;
+use log::trace;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
 
@@ -53,7 +53,7 @@ impl<'a> GuildSettingsRepository {
         guild_id: &GuildId,
         channel_id: Option<ChannelId>,
     ) -> Result<GuildSettings> {
-        debug!("Setting bot channel for guild {}...", guild_id);
+        trace!("Setting bot channel for guild {}...", guild_id);
 
         if let Some(guild_settings) = self
             .storage
@@ -69,7 +69,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            debug!("Bot channel for guild {} set.", guild_id);
+            trace!("Bot channel for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -84,7 +84,7 @@ impl<'a> GuildSettingsRepository {
         guild_id: &GuildId,
         requires_verified_profile: bool,
     ) -> Result<GuildSettings> {
-        debug!(
+        trace!(
             "Setting verified profile requirement for guild {}...",
             guild_id
         );
@@ -105,7 +105,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            debug!("Verified profile requirement for guild {} set.", guild_id);
+            trace!("Verified profile requirement for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -124,7 +124,7 @@ impl<'a> GuildSettingsRepository {
         condition: Condition,
         weight: u32,
     ) -> Result<GuildSettings> {
-        debug!("Adding auto role for guild {}...", guild_id);
+        trace!("Adding auto role for guild {}...", guild_id);
 
         let mut rs = RoleSettings::new(role_id, weight);
         rs.add_requirement(condition, metric_and_value);
@@ -148,7 +148,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            debug!("Auto role for guild {} added.", guild_id);
+            trace!("Auto role for guild {} added.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -164,7 +164,7 @@ impl<'a> GuildSettingsRepository {
         role_group: RoleGroup,
         role_id: RoleId,
     ) -> Result<GuildSettings> {
-        debug!("Removing auto role for guild {}...", guild_id);
+        trace!("Removing auto role for guild {}...", guild_id);
 
         if let Some(guild_settings) = self
             .storage
@@ -177,7 +177,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            debug!("Auto role for guild {} removed.", guild_id);
+            trace!("Auto role for guild {} removed.", guild_id);
 
             Ok(guild_settings)
         } else {

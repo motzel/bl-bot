@@ -1,6 +1,6 @@
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
-use log::{debug, info};
+use log::{info, trace};
 use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
@@ -428,7 +428,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
     let mut page = 1;
     let mut page_count = 1;
     'outer: loop {
-        debug!("Fetching scores page {} / {}...", page, page_count);
+        trace!("Fetching scores page {} / {}...", page, page_count);
 
         last_scores_fetch = Utc::now();
 
@@ -449,7 +449,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
         .await
         {
             Ok(scores_page) => {
-                debug!("Scores page #{} fetched.", page);
+                trace!("Scores page #{} fetched.", page);
 
                 if scores_page.scores.is_empty() {
                     break 'outer;
