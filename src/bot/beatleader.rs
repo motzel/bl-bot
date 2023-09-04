@@ -5,6 +5,7 @@ use poise::serenity_prelude::{GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
+use std::fmt::format;
 
 use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
 use crate::beatleader::player::{
@@ -309,6 +310,8 @@ impl Score {
 
             desc.push_str("**");
 
+            desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.xyz/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
+
             f.author(|a| {
                 a.name(player.name.clone())
                     .icon_url(player.avatar.clone())
@@ -317,8 +320,8 @@ impl Score {
             .title(format!("{} {}", self.song_name, self.song_sub_name,))
             .description(desc)
             .url(format!(
-                "https://replay.beatleader.xyz/?scoreId={}",
-                self.id
+                "https://www.beatleader.xyz/leaderboard/global/{}/1",
+                self.leaderboard_id
             ))
             .thumbnail(self.song_cover.clone())
             .timestamp(self.timeset);
