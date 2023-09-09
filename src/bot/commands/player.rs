@@ -3,11 +3,15 @@ use std::sync::Arc;
 
 use log::{info, trace};
 use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
-use poise::{serenity_prelude as serenity, CreateReply};
+use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
+
+use bytes::Bytes;
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::SortOrder;
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
+use crate::bot::get_binary_file;
+use crate::embed::embed_score;
 use crate::storage::PersistError;
 use crate::{Context, Error};
 
@@ -345,7 +349,7 @@ pub(crate) async fn cmd_replay(
             }
             "post_btn" => {
                 if !score_ids.is_empty() {
-                    post_replays(ctx, mci, &score_ids, &player_scores, &player).await?;
+                    post_replays(ctx, &score_ids, &player_scores, &player, &msg).await?;
                 } else {
                     mci.defer(ctx).await?;
                 }
@@ -409,11 +413,32 @@ fn add_replay_components<'a>(
 
 async fn post_replays(
     ctx: Context<'_>,
-    mci: Arc<MessageComponentInteraction>,
     score_ids: &Vec<String>,
     player_scores: &Scores,
     player: &Player,
+    msg: &ReplyHandle<'_>,
 ) -> Result<(), Error> {
+    let mut msg_contents = "Loading player avatar...".to_owned();
+
+    let msg_contents_clone = msg_contents.clone();
+    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+        .await?;
+
+    let player_avatar = get_binary_file(&player.avatar)
+        .await
+        .unwrap_or(Bytes::new());
+
+    if player_avatar.is_empty() {
+        msg_contents.push_str("FAILED\n");
+    } else {
+        msg_contents.push_str("OK\n");
+    }
+
+    let msg_contents_clone = msg_contents.clone();
+
+    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+        .await?;
+
     for score_id in score_ids {
         let Some(score) = player_scores.scores.iter().find(|s| &s.id.to_string() == score_id) else {
             continue;
@@ -421,8 +446,26 @@ async fn post_replays(
 
         info!("Posting replay for scoreId: {}", score_id);
 
+        msg_contents.push_str(&format!("Generating embed for {}...", score.song_name));
+
+        let msg_contents_clone = msg_contents.clone();
+        msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+            .await?;
+
+        let embed_image = if !player_avatar.is_empty() {
+            embed_score(score, player, player_avatar.as_ref()).await
+        } else {
+            None
+        };
+
+        if embed_image.is_some() {
+            msg_contents.push_str("OK\n");
+        } else {
+            msg_contents.push_str("FAILED\n");
+        }
+
         ctx.send(|m| {
-            score.add_embed(m, player);
+            score.add_embed(m, player, embed_image);
 
             m.allowed_mentions(|am| {
                 am.parse(serenity::builder::ParseValue::Users)
@@ -434,15 +477,10 @@ async fn post_replays(
         .await?;
     }
 
-    mci.create_interaction_response(ctx, |ir| {
-        ir.kind(serenity::InteractionResponseType::UpdateMessage)
-            .interaction_response_data(|message| {
-                message
-                    .content("Replay(s) posted. You can dismiss this message.")
-                    .components(|c| c)
-            })
-    })
-    .await?;
+    msg_contents.push_str("Replay(s) posted. You can dismiss this message.");
+
+    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents))
+        .await?;
 
     Ok(())
 }

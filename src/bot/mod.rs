@@ -11,13 +11,19 @@ use log::{error, info, trace};
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
+use std::time::Duration as TimeDuration;
 
+use crate::beatleader::APP_USER_AGENT;
+use bytes::Bytes;
+
+use crate::beatleader::error::Error as BlError;
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::storage::{StorageKey, StorageValue};
@@ -1467,5 +1473,43 @@ mod tests {
 
         assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(7)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
+    }
+}
+
+pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
+    let client_builder = reqwest::Client::builder()
+        .https_only(true)
+        .gzip(true)
+        .brotli(true)
+        .user_agent(APP_USER_AGENT)
+        .build();
+
+    let Ok(client) = client_builder else {
+        return Err(BlError::Unknown);
+    };
+
+    let request = client
+        .request(Method::GET, url)
+        .timeout(TimeDuration::from_secs(30))
+        .build();
+
+    if let Err(err) = request {
+        return Err(BlError::Request(err));
+    }
+
+    let response = client.execute(request.unwrap()).await;
+
+    match response {
+        Err(err) => Err(BlError::Network(err)),
+        Ok(response) => match response.status().as_u16() {
+            200..=299 => match response.bytes().await {
+                Ok(b) => Ok(b),
+                Err(_err) => Err(BlError::Unknown),
+            },
+            404 => Err(BlError::NotFound),
+            400..=499 => Err(BlError::Client),
+            500..=599 => Err(BlError::Server),
+            _ => Err(BlError::Unknown),
+        },
     }
 }

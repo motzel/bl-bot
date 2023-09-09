@@ -1,19 +1,26 @@
+use crate::Context;
+use bytes::Bytes;
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
 use log::{info, trace};
-use poise::serenity_prelude::{GuildId, UserId};
+use poise::serenity_prelude::{AttachmentType, CacheHttp, ChannelId, GuildId, Message, UserId};
 use poise::CreateReply;
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
+use std::borrow::Cow;
 use std::fmt::format;
+use std::time::Duration;
 
+use crate::beatleader::error::Error;
 use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, SortOrder};
+use crate::beatleader::{error::Error as BlError, SortOrder, APP_USER_AGENT};
 use crate::bot::{Metric, PlayerMetricValue};
+use crate::embed::embed_score;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 
@@ -284,15 +291,28 @@ impl From<BlScore> for Score {
 }
 
 impl Score {
-    pub(crate) fn add_embed(&self, reply: &mut CreateReply, player: &Player) {
+    pub(crate) fn add_embed(
+        &self,
+        reply: &mut CreateReply,
+        player: &Player,
+        embed_image: Option<Vec<u8>>,
+    ) {
+        let with_embed_image = embed_image.is_some();
+
+        if let Some(embed_buffer) = embed_image {
+            reply.attachment(AttachmentType::Bytes {
+                data: Cow::<[u8]>::from(embed_buffer),
+                filename: "embed.png".to_string(),
+            });
+        }
+
         reply.embed(|f| {
-            let mut desc = "**".to_owned()
-                + &self.difficulty_name.clone()
-                + " / "
-                + &self.difficulty_status.to_string();
+            let mut desc = "".to_owned();
+
+            desc.push_str(&format!("**{} / {}", self.difficulty_name, self.difficulty_status));
 
             if self.difficulty_stars > 0.0 {
-                let stars = format!(
+                desc.push_str(&format!(
                     " / {:.2}⭐{}",
                     self.difficulty_stars,
                     if self.difficulty_stars_modified {
@@ -300,8 +320,7 @@ impl Score {
                     } else {
                         ""
                     }
-                );
-                desc.push_str(&stars);
+                ));
             }
 
             if !self.modifiers.is_empty() {
@@ -323,42 +342,45 @@ impl Score {
                 "https://www.beatleader.xyz/leaderboard/global/{}/1",
                 self.leaderboard_id
             ))
-            .thumbnail(self.song_cover.clone())
             .timestamp(self.timeset);
 
-            if self.pp > 0.00 {
-                if self.full_combo {
-                    f.field("PP", format!("{:.2}", self.pp), true);
-                } else {
-                    f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
-                }
-            }
+            if !with_embed_image {
+                f.thumbnail(self.song_cover.clone());
 
-            if self.full_combo {
-                f.field("Acc", format!("{:.2}%", self.accuracy), true);
-            } else {
-                f.field(
-                    "Acc",
-                    format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
-                    true,
-                );
-            }
-
-            f.field("Rank", format!("#{}", self.rank), true)
-                .field(
-                    "Mistakes",
-                    if self.mistakes == 0 {
-                        "FC".to_string()
+                if self.pp > 0.00 {
+                    if self.full_combo {
+                        f.field("PP", format!("{:.2}", self.pp), true);
                     } else {
-                        self.mistakes.to_string()
-                    },
-                    true,
-                )
-                .field("Acc Left", format!("{:.2}", self.acc_left), true)
-                .field("Acc Right", format!("{:.2}", self.acc_right), true)
-                .field("Pauses", self.pauses, true)
-                .field("Max combo", self.max_combo, true)
-                .field("Max streak", self.max_streak, true);
+                        f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
+                    }
+                }
+
+                if self.full_combo {
+                    f.field("Acc", format!("{:.2}%", self.accuracy), true);
+                } else {
+                    f.field(
+                        "Acc",
+                        format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
+                        true,
+                    );
+                }
+
+                f.field("Rank", format!("#{}", self.rank), true)
+                    .field(
+                        "Mistakes",
+                        if self.mistakes == 0 {
+                            "FC".to_string()
+                        } else {
+                            self.mistakes.to_string()
+                        },
+                        true,
+                    )
+                    .field("Acc Left", format!("{:.2}", self.acc_left), true)
+                    .field("Acc Right", format!("{:.2}", self.acc_right), true)
+                    .field("Pauses", self.pauses, true)
+                    .field("Max combo", self.max_combo, true)
+                    .field("Max streak", self.max_streak, true);
+            }
 
             f
         });

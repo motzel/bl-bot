@@ -7,7 +7,7 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 
 use crate::beatleader;
-use crate::beatleader::error::Error::{JsonDecode, Request};
+use crate::beatleader::error::Error;
 use crate::beatleader::{Client, QueryParam, SortOrder};
 
 pub struct PlayerRequest<'a> {
@@ -28,7 +28,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player) => Ok(player),
-            Err(e) => Err(JsonDecode(e)),
+            Err(e) => Err(Error::JsonDecode(e)),
         }
     }
 
@@ -53,7 +53,7 @@ impl<'a> PlayerRequest<'a> {
             .build();
 
         if let Err(err) = request {
-            return Err(Request(err));
+            return Err(Error::Request(err));
         }
 
         match self
@@ -64,7 +64,7 @@ impl<'a> PlayerRequest<'a> {
             .await
         {
             Ok(player_scores) => Ok(player_scores),
-            Err(e) => Err(JsonDecode(e)),
+            Err(e) => Err(Error::JsonDecode(e)),
         }
     }
 }

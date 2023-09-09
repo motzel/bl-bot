@@ -24,6 +24,7 @@ use crate::storage::player::PlayerRepository;
 
 mod beatleader;
 mod bot;
+mod embed;
 mod storage;
 
 #[global_allocator]
@@ -149,8 +150,8 @@ async fn poise(
                     info!("Run a task that updates profiles every {:?}", interval);
 
                     loop {
-                        trace!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
-                        trace!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
+                        info!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
+                        info!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
 
                         if let Ok(bot_players) =
                             players_repository_worker.update_all_players_stats().await

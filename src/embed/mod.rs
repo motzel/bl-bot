@@ -1,0 +1,353 @@
+use crate::beatleader::player::DifficultyStatus;
+use crate::bot::beatleader::{Player, Score};
+use crate::bot::get_binary_file;
+use crate::embed::blur::gaussian_blur;
+use crate::embed::utils::{draw_rounded_rectangle, draw_text, Corner};
+use ril::prelude::*;
+
+mod blur;
+mod utils;
+
+const TTF_FONT: &[u8] = include_bytes!("./assets/RobotoCondensed-Bold.ttf") as &[u8];
+
+pub async fn embed_score(
+    score: &Score,
+    player: &Player,
+    player_avatar_bytes: &[u8],
+) -> Option<Vec<u8>> {
+    const FONT_SIZE: f32 = 32.0;
+    const WIDTH: u32 = 512;
+    const HEIGHT: u32 = 296;
+    const AVATAR_SIZE: u32 = 128;
+    const BORDER_SIZE: u32 = 28;
+    const BORDER_RADIUS: u32 = 32;
+    const BLUR_RADIUS_BORDER: f32 = 25.0;
+    const BLUR_RADIUS: f32 = 5.0;
+    const PADDING: u32 = 8;
+
+    let small_font_size = FONT_SIZE * 0.5;
+    let smaller_font_size = FONT_SIZE * 0.75;
+    let big_font_size = FONT_SIZE * 1.5;
+
+    // load font
+    let Ok(font) = Font::from_bytes(TTF_FONT, FONT_SIZE) else {
+        return None;
+    };
+
+    // load background
+    let bg_bytes = get_binary_file(&score.song_cover)
+        .await
+        .unwrap_or(bytes::Bytes::new());
+    if bg_bytes.is_empty() {
+        return None;
+    }
+
+    let Ok( mut bg) = Image::<Rgba>::from_bytes_inferred(bg_bytes.as_ref()) else {
+        return None;
+    };
+
+    // resize background to WIDTH x WIDTH and crop WIDTH x HEIGHT from the center
+    bg.resize(WIDTH, WIDTH, ResizeAlgorithm::Lanczos3);
+    let bg_y = (WIDTH - HEIGHT) / 2;
+    bg.crop(0, bg_y, WIDTH, bg_y + HEIGHT);
+
+    // blur the background
+    let mut bg_border = bg.clone();
+    gaussian_blur(
+        &mut bg_border.data,
+        WIDTH as usize,
+        HEIGHT as usize,
+        BLUR_RADIUS_BORDER,
+    );
+    gaussian_blur(&mut bg.data, WIDTH as usize, HEIGHT as usize, BLUR_RADIUS);
+
+    // load avatar
+    let Ok(mut avatar) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+        return None;
+    };
+    avatar.resize(AVATAR_SIZE, AVATAR_SIZE, ResizeAlgorithm::Lanczos3);
+
+    // create image
+    let mut image = Image::<Rgba>::new(WIDTH, HEIGHT, Rgba::new(66, 66, 66, 1))
+        .with_overlay_mode(OverlayMode::Merge);
+
+    // add rounded corners mask & paste background blurred with BLUR_RADIUS_BORDER
+    let mut bg_mask = Image::new(WIDTH, HEIGHT, L::new(0));
+    draw_rounded_rectangle(
+        &mut bg_mask,
+        L::new(255),
+        WIDTH,
+        HEIGHT,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    bg_border.mask_alpha(&bg_mask);
+    image.paste(0, 0, &bg_border);
+
+    // add rounder corners inner mask & paste background blurred with BLUR_RADIUS
+    let mut bg_mask = Image::new(WIDTH, HEIGHT, L::new(0));
+    draw_rounded_rectangle(
+        &mut bg_mask,
+        L::new(255),
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    bg.mask_alpha(&bg_mask);
+    image.paste(BORDER_SIZE / 2, BORDER_SIZE / 2, &bg);
+
+    let mut overlay = Image::new(
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        Rgba::transparent(),
+    );
+    draw_rounded_rectangle(
+        &mut overlay,
+        Rgba::new(1, 1, 1, 64),
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    image.paste(BORDER_SIZE / 2, BORDER_SIZE / 2, &overlay);
+
+    // paste masked avatar
+    let mut mask = Image::new(AVATAR_SIZE, AVATAR_SIZE, BitPixel::off());
+    mask.draw(
+        &Ellipse::from_bounding_box(0, 0, AVATAR_SIZE, AVATAR_SIZE).with_fill(BitPixel::on()),
+    );
+    let avatar_pos_x = BORDER_SIZE / 2 + AVATAR_SIZE / 4;
+    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 4 - FONT_SIZE as u32 - AVATAR_SIZE;
+    image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
+
+    let mut difficulty_desc = "".to_owned();
+    if score.difficulty_stars > 0.0 {
+        let stars = format!(
+            "{:.2}*{}",
+            score.difficulty_stars,
+            if score.difficulty_stars_modified {
+                "(M)"
+            } else {
+                ""
+            }
+        );
+        difficulty_desc.push_str(&stars);
+    } else {
+        difficulty_desc.push_str(shorten_difficulty_name(score.difficulty_name.as_str()).as_str());
+    }
+    let mut difficulty_text_segment =
+        TextSegment::new(&font, difficulty_desc, Rgba::white()).with_size(small_font_size);
+    let difficulty_text_layout = TextLayout::new()
+        .with_wrap(WrapStyle::None)
+        .with_segment(&difficulty_text_segment);
+    let difficulty_text_str_width = difficulty_text_layout.width();
+    let difficulty_badge_width = difficulty_text_str_width + PADDING * 2;
+    let mut difficulty = Image::new(
+        difficulty_badge_width,
+        small_font_size as u32 + PADDING * 3,
+        Rgba::transparent(),
+    );
+    draw_rounded_rectangle(
+        &mut difficulty,
+        difficulty_color(&score.difficulty_name),
+        difficulty_badge_width,
+        small_font_size as u32 + PADDING * 3,
+        BORDER_RADIUS,
+        &[Corner::TopRight, Corner::BottomLeft],
+    );
+    draw_text(
+        &mut difficulty,
+        &mut difficulty_text_segment,
+        0,
+        ((smaller_font_size - small_font_size) / 2.0) as u32 + PADDING,
+        difficulty_badge_width,
+        0,
+        difficulty_badge_width,
+    );
+    image.paste(
+        WIDTH - BORDER_SIZE / 2 - difficulty_badge_width,
+        BORDER_SIZE / 2,
+        &difficulty,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!("{} {}", score.song_name, score.song_sub_name),
+            Rgba::white(),
+        )
+        .with_size(smaller_font_size),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        BORDER_SIZE / 2 + BORDER_RADIUS / 4,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS - difficulty_badge_width,
+        0,
+        0,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, player.name.clone(), Rgba::white()).with_size(FONT_SIZE),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        HEIGHT - BORDER_SIZE / 2 - BORDER_SIZE / 4 - BORDER_RADIUS / 4 - FONT_SIZE as u32,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
+        avatar_pos_x,
+        AVATAR_SIZE,
+    );
+
+    let stats_width =
+        WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 2;
+    let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 2;
+    let acc_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.25) as u32;
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, format!("{:.2}%", score.accuracy), Rgba::white())
+            .with_size(big_font_size),
+        stats_pos_x,
+        acc_pos_y,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!(
+                "{}{:.2} / {:.2}",
+                if score.mistakes > 0 {
+                    format!("{:.2}% FC • ", score.fc_accuracy)
+                } else {
+                    "".to_string()
+                },
+                score.acc_left,
+                score.acc_right
+            ),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
+        stats_pos_x,
+        acc_pos_y + big_font_size as u32 + PADDING,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!(
+                "{} {} • {}",
+                if !score.modifiers.is_empty() {
+                    format!("{} •", score.modifiers)
+                } else {
+                    "".to_string()
+                },
+                if score.mistakes > 0 {
+                    format!(
+                        "{} mistake{}",
+                        score.mistakes,
+                        if score.mistakes > 1 {
+                            "s".to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    )
+                } else {
+                    "FC".to_string()
+                },
+                if score.pauses > 0 {
+                    format!(
+                        "{} pause{}",
+                        score.pauses,
+                        if score.pauses > 1 {
+                            "s".to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    )
+                } else {
+                    "No pauses".to_string()
+                }
+            ),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
+        stats_pos_x,
+        acc_pos_y + big_font_size as u32 + PADDING + small_font_size as u32 + PADDING / 2,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!(
+                "#{}{}",
+                score.rank,
+                if score.difficulty_status == DifficultyStatus::Ranked
+                    || score.difficulty_status == DifficultyStatus::Qualified
+                {
+                    format!(" • {:.2}pp", score.pp)
+                } else {
+                    "".to_string()
+                }
+            ),
+            Rgba::white(),
+        )
+        .with_size(FONT_SIZE),
+        stats_pos_x,
+        avatar_pos_y + AVATAR_SIZE - FONT_SIZE as u32 - PADDING,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    let mut buffer = Vec::<u8>::with_capacity(200_000);
+    if image
+        .encode(ril::prelude::ImageFormat::Png, &mut buffer)
+        .is_ok()
+    {
+        return Some(buffer);
+    }
+
+    None
+}
+
+fn difficulty_color(name: &str) -> Rgba {
+    match name {
+        "Easy" => Rgba::new(60, 179, 113, 192),
+        "Normal" => Rgba::new(89, 176, 244, 192),
+        "Hard" => Rgba::new(255, 99, 71, 192),
+        "Expert" => Rgba::new(191, 42, 66, 192),
+        "ExpertPlus" => Rgba::new(143, 72, 219, 192),
+        _ => Rgba::new(128, 128, 128, 192),
+    }
+}
+
+fn shorten_difficulty_name(name: &str) -> String {
+    match name {
+        "ExpertPlus" => "Expert+".to_string(),
+        _ => name.to_string(),
+    }
+}
