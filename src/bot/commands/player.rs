@@ -385,12 +385,17 @@ fn add_replay_components<'a>(
                 .options(|o| {
                     player_scores.scores.iter().fold(o, |acc, s| {
                         acc.create_option(|o| {
-                            o.label(format!(
+                            let label = format!(
                                 "{} {} ({})",
                                 s.song_name.clone(),
                                 s.song_sub_name.clone(),
                                 s.difficulty_name.clone(),
-                            ))
+                            );
+                            o.label(if label.len() > 100 {
+                                &label[..100]
+                            } else {
+                                label.as_str()
+                            })
                             .value(s.id.to_string())
                             .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
                             .default_selection(selected_ids.contains(&s.id.to_string()))
