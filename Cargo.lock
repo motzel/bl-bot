@@ -243,7 +243,7 @@ checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
 name = "bl-bot"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "bytes",
  "chrono",
@@ -255,6 +255,7 @@ dependencies = [
  "peak_alloc",
  "poise",
  "regex",
+ "relativetime",
  "reqwest",
  "ril",
  "serde",
@@ -1922,6 +1923,16 @@ name = "regex-syntax"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
+
+[[package]]
+name = "relativetime"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87b093e81f7b2ee8db5253e1343a98c8334bd5e7214e507e188d2450084e1c8d"
+dependencies = [
+ "chrono",
+ "humantime",
+]
 
 [[package]]
 name = "reqwest"

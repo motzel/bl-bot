@@ -3,6 +3,7 @@ use crate::bot::beatleader::{Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
 use crate::embed::utils::{draw_rounded_rectangle, draw_text, Corner};
+use relativetime::RelativeTime;
 use ril::prelude::*;
 
 mod blur;
@@ -322,6 +323,309 @@ pub async fn embed_score(
         stats_pos_x,
         stats_width,
     );
+
+    let mut buffer = Vec::<u8>::with_capacity(200_000);
+    if image
+        .encode(ril::prelude::ImageFormat::Png, &mut buffer)
+        .is_ok()
+    {
+        return Some(buffer);
+    }
+
+    None
+}
+
+#[allow(unused_assignments)]
+pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Option<Vec<u8>> {
+    const FONT_SIZE: f32 = 32.0;
+    const WIDTH: u32 = 512;
+    const HEIGHT: u32 = 296;
+    const AVATAR_SIZE: u32 = 128;
+    const BORDER_SIZE: u32 = 28;
+    const BORDER_RADIUS: u32 = 32;
+    const BLUR_RADIUS_BORDER: f32 = 25.0;
+    const BLUR_RADIUS: f32 = 15.0;
+    const PADDING: u32 = 8;
+
+    let small_font_size = FONT_SIZE * 0.5;
+    let smaller_font_size = FONT_SIZE * 0.75;
+    let big_font_size = FONT_SIZE * 1.5;
+
+    // load font
+    let Ok(font) = Font::from_bytes(TTF_FONT, FONT_SIZE) else {
+        return None;
+    };
+
+    // load background
+    let Ok( mut bg) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+        return None;
+    };
+
+    // resize background to WIDTH x WIDTH and crop WIDTH x HEIGHT from the center
+    bg.resize(WIDTH, WIDTH, ResizeAlgorithm::Lanczos3);
+    let bg_y = (WIDTH - HEIGHT) / 2;
+    bg.crop(0, bg_y, WIDTH, bg_y + HEIGHT);
+
+    // blur the background
+    let mut bg_border = bg.clone();
+    gaussian_blur(
+        &mut bg_border.data,
+        WIDTH as usize,
+        HEIGHT as usize,
+        BLUR_RADIUS_BORDER,
+    );
+    gaussian_blur(&mut bg.data, WIDTH as usize, HEIGHT as usize, BLUR_RADIUS);
+
+    // load avatar
+    let Ok(mut avatar) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+        return None;
+    };
+    avatar.resize(AVATAR_SIZE, AVATAR_SIZE, ResizeAlgorithm::Lanczos3);
+
+    // create image
+    let mut image = Image::<Rgba>::new(WIDTH, HEIGHT, Rgba::new(66, 66, 66, 1))
+        .with_overlay_mode(OverlayMode::Merge);
+
+    // add rounded corners mask & paste background blurred with BLUR_RADIUS_BORDER
+    let mut bg_mask = Image::new(WIDTH, HEIGHT, L::new(0));
+    draw_rounded_rectangle(
+        &mut bg_mask,
+        L::new(255),
+        WIDTH,
+        HEIGHT,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    bg_border.mask_alpha(&bg_mask);
+    image.paste(0, 0, &bg_border);
+
+    // add rounder corners inner mask & paste background blurred with BLUR_RADIUS
+    let mut bg_mask = Image::new(WIDTH, HEIGHT, L::new(0));
+    draw_rounded_rectangle(
+        &mut bg_mask,
+        L::new(255),
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    bg.mask_alpha(&bg_mask);
+    image.paste(BORDER_SIZE / 2, BORDER_SIZE / 2, &bg);
+
+    let mut overlay = Image::new(
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        Rgba::transparent(),
+    );
+    draw_rounded_rectangle(
+        &mut overlay,
+        Rgba::new(1, 1, 1, 64),
+        WIDTH - BORDER_SIZE,
+        HEIGHT - BORDER_SIZE,
+        BORDER_RADIUS,
+        &[
+            Corner::TopLeft,
+            Corner::TopRight,
+            Corner::BottomLeft,
+            Corner::BottomRight,
+        ],
+    );
+    image.paste(BORDER_SIZE / 2, BORDER_SIZE / 2, &overlay);
+
+    // paste masked avatar
+    let mut mask = Image::new(AVATAR_SIZE, AVATAR_SIZE, BitPixel::off());
+    mask.draw(
+        &Ellipse::from_bounding_box(0, 0, AVATAR_SIZE, AVATAR_SIZE).with_fill(BitPixel::on()),
+    );
+    let avatar_pos_x = BORDER_SIZE / 2 + AVATAR_SIZE / 4;
+    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 4 - FONT_SIZE as u32 - AVATAR_SIZE;
+    image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
+
+    if !player.is_verified {
+        let mut not_verified_text_segment =
+            TextSegment::new(&font, "Not verified", Rgba::white()).with_size(small_font_size);
+        let not_verified_text_layout = TextLayout::new()
+            .with_wrap(WrapStyle::None)
+            .with_segment(&not_verified_text_segment);
+        let not_verified_text_str_width = not_verified_text_layout.width();
+        let not_verified_badge_width = not_verified_text_str_width + PADDING * 2;
+        let mut not_verified = Image::new(
+            not_verified_badge_width,
+            small_font_size as u32 + PADDING * 3,
+            Rgba::transparent(),
+        );
+        draw_rounded_rectangle(
+            &mut not_verified,
+            Rgba::new(191, 42, 66, 192),
+            not_verified_badge_width,
+            small_font_size as u32 + PADDING * 3,
+            BORDER_RADIUS,
+            &[Corner::TopRight, Corner::BottomLeft],
+        );
+        draw_text(
+            &mut not_verified,
+            &mut not_verified_text_segment,
+            0,
+            ((smaller_font_size - small_font_size) / 2.0) as u32 + PADDING,
+            not_verified_badge_width,
+            0,
+            not_verified_badge_width,
+        );
+        image.paste(
+            WIDTH - BORDER_SIZE / 2 - not_verified_badge_width,
+            BORDER_SIZE / 2,
+            &not_verified,
+        );
+    }
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, format!("#{}", player.rank), Rgba::white())
+            .with_size(FONT_SIZE),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        HEIGHT
+            - BORDER_SIZE
+            - BORDER_RADIUS / 4
+            - FONT_SIZE as u32
+            - AVATAR_SIZE
+            - FONT_SIZE as u32
+            - PADDING * 2,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
+        avatar_pos_x,
+        AVATAR_SIZE,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, &player.name, Rgba::white()).with_size(FONT_SIZE),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        HEIGHT - BORDER_SIZE / 2 - BORDER_SIZE / 4 - BORDER_RADIUS / 4 - FONT_SIZE as u32,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
+        avatar_pos_x - AVATAR_SIZE / 4,
+        AVATAR_SIZE + AVATAR_SIZE / 2,
+    );
+
+    let stats_width =
+        WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 2;
+    let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 2;
+    let stats_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.25) as u32;
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, format!("{:.2}pp", player.pp), Rgba::white())
+            .with_size(big_font_size),
+        stats_pos_x,
+        stats_pos_y,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!(
+                "{:.2} top pp{}",
+                player.top_pp,
+                if player.last_scores_fetch.is_some() {
+                    format!(" • {:.2} +1pp", player.plus_1pp)
+                } else {
+                    "".to_owned()
+                }
+            ),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
+        stats_pos_x,
+        stats_pos_y + (big_font_size * 1.2) as u32 + PADDING,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(
+            &font,
+            format!(
+                "{}{:.2}% top acc",
+                if player.last_scores_fetch.is_some() {
+                    format!("{:.2}* top stars • ", player.top_stars)
+                } else {
+                    "".to_owned()
+                },
+                player.top_accuracy
+            ),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
+        stats_pos_x,
+        stats_pos_y + (big_font_size * 1.2) as u32 + PADDING + small_font_size as u32 + PADDING / 2,
+        stats_width,
+        stats_pos_x,
+        stats_width,
+    );
+
+    let mut y_offset = 0;
+    if player.last_scores_fetch.is_some() {
+        draw_text(
+            &mut image,
+            &mut TextSegment::new(
+                &font,
+                if player.last_ranked_paused_at.is_some() {
+                    let mut relative_time = player.last_ranked_paused_at.unwrap().to_relative();
+                    if relative_time == "1 months ago" {
+                        relative_time = "1 month ago".to_owned();
+                    }
+                    format!("Last paused {}", relative_time)
+                } else {
+                    "Never paused".to_owned()
+                },
+                Rgba::white(),
+            )
+            .with_size(small_font_size),
+            stats_pos_x,
+            stats_pos_y
+                + (big_font_size * 1.2) as u32
+                + PADDING
+                + (small_font_size as u32 + PADDING / 2) * 2
+                + y_offset,
+            stats_width,
+            stats_pos_x,
+            stats_width,
+        );
+
+        y_offset += small_font_size as u32 + PADDING / 2;
+    }
+
+    if !player.clans.is_empty() {
+        draw_text(
+            &mut image,
+            &mut TextSegment::new(&font, player.clans.join(" • "), Rgba::white())
+                .with_size(small_font_size),
+            stats_pos_x,
+            stats_pos_y
+                + (big_font_size * 1.2) as u32
+                + PADDING
+                + (small_font_size as u32 + PADDING / 2) * 2
+                + y_offset,
+            stats_width,
+            stats_pos_x,
+            stats_width,
+        );
+
+        y_offset += small_font_size as u32 + PADDING / 2;
+    }
 
     let mut buffer = Vec::<u8>::with_capacity(200_000);
     if image

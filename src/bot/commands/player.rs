@@ -1,8 +1,11 @@
+use std::borrow::Cow;
 use std::convert::From;
 use std::sync::Arc;
 
 use log::{info, trace};
-use poise::serenity_prelude::{CreateComponents, MessageComponentInteraction, User, UserId};
+use poise::serenity_prelude::{
+    AttachmentType, CreateComponents, MessageComponentInteraction, User, UserId,
+};
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 
 use bytes::Bytes;
@@ -11,7 +14,7 @@ use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::SortOrder;
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
 use crate::bot::get_binary_file;
-use crate::embed::embed_score;
+use crate::embed::{embed_profile, embed_score};
 use crate::storage::PersistError;
 use crate::{Context, Error};
 
@@ -117,8 +120,17 @@ pub(crate) async fn cmd_link(
         .await
     {
         Ok(player) => {
+            let embed_image = get_player_embed(&player).await;
+
             ctx.send(|m| {
-                add_profile_card(m, player);
+                if embed_image.is_none() {
+                    add_profile_card(m, player);
+                } else if let Some(embed_buffer) = embed_image {
+                    m.attachment(AttachmentType::Bytes {
+                        data: Cow::<[u8]>::from(embed_buffer),
+                        filename: "embed.png".to_string(),
+                    });
+                }
 
                 m.content(format!(
                     "<@{}> has been linked to the BL profile",
@@ -247,8 +259,17 @@ pub(crate) async fn cmd_profile(
                 return Ok(());
             }
 
+            let embed_image = get_player_embed(&player).await;
+
             ctx.send(|m| {
-                add_profile_card(m, player);
+                if embed_image.is_none() {
+                    add_profile_card(m, player);
+                } else if let Some(embed_buffer) = embed_image {
+                    m.attachment(AttachmentType::Bytes {
+                        data: Cow::<[u8]>::from(embed_buffer),
+                        filename: "embed.png".to_string(),
+                    });
+                }
 
                 m.allowed_mentions(|am| am.empty_parse()).ephemeral(false)
             })
@@ -582,4 +603,16 @@ async fn say_without_ping(ctx: Context<'_>, message: &str, ephemeral: bool) -> R
     .await?;
 
     Ok(())
+}
+
+async fn get_player_embed(player: &Player) -> Option<Vec<u8>> {
+    let player_avatar = get_binary_file(&player.avatar)
+        .await
+        .unwrap_or(Bytes::new());
+
+    if !player_avatar.is_empty() {
+        embed_profile(player, player_avatar.as_ref()).await
+    } else {
+        None
+    }
 }
