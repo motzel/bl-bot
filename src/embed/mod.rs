@@ -207,8 +207,8 @@ pub async fn embed_score(
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         HEIGHT - BORDER_SIZE / 2 - BORDER_SIZE / 4 - BORDER_RADIUS / 4 - FONT_SIZE as u32,
         WIDTH - BORDER_SIZE - BORDER_RADIUS,
-        avatar_pos_x,
-        AVATAR_SIZE,
+        avatar_pos_x - AVATAR_SIZE / 4,
+        AVATAR_SIZE + AVATAR_SIZE / 2,
     );
 
     let stats_width =
