@@ -7,7 +7,7 @@
 A simple Discord bot providing the following commands:
 
 - ``/bl-link`` / ``/bl-unlink``, allowing to link user account to Beat Leader profile  
-- ``/bl-replay``, allowing to post replay according to set criteria ![](assets/bl-replay.gif)
+- ``/bl-replay``, allowing to post replay according to set criteria along with links to BL replay and ArcViewer ![](assets/bl-replay.gif)
 - ``/bl-profile``, allowing to post user profile ![](assets/bl-profile.gif)
 - ``/bl-add-auto-role`` / ``/bl-remove-auto-role``, allowing a user (role management permission required) to configure the automatic setting of selected roles to server users based on their BL profile. The roles to be set up are grouped, and each role can be assigned a set of multiple conditions that must be met for it to be given. ![](assets/bl-role.gif)
 - ``/bl-set-log-channel``, allowing to set the channel on which all role changes will be posted ![](assets/bl-log.gif)
