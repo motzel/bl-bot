@@ -499,10 +499,29 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
             - FONT_SIZE as u32
             - AVATAR_SIZE
             - FONT_SIZE as u32
-            - PADDING * 2,
+            - (PADDING as f32 * 3.5) as u32,
         WIDTH - BORDER_SIZE - BORDER_RADIUS,
         avatar_pos_x,
         AVATAR_SIZE,
+    );
+
+    draw_text(
+        &mut image,
+        &mut TextSegment::new(&font, format!("#{} peak", player.peak_rank), Rgba::white())
+            .with_size(small_font_size),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        HEIGHT
+            - BORDER_SIZE
+            - BORDER_RADIUS / 4
+            - FONT_SIZE as u32
+            - AVATAR_SIZE
+            - FONT_SIZE as u32
+            - (PADDING as f32 * 3.5) as u32
+            + FONT_SIZE as u32
+            + PADDING / 2,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
+        avatar_pos_x - AVATAR_SIZE / 4,
+        AVATAR_SIZE + AVATAR_SIZE / 2,
     );
 
     draw_text(
