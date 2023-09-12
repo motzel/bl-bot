@@ -558,13 +558,13 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         &mut TextSegment::new(
             &font,
             format!(
-                "{}{:.2}% top acc",
+                "{}{:.2}% avg acc",
                 if player.last_scores_fetch.is_some() {
                     format!("{:.2}* top stars • ", player.top_stars)
                 } else {
                     "".to_owned()
                 },
-                player.top_accuracy
+                player.avg_ranked_accuracy
             ),
             Rgba::white(),
         )
