@@ -43,7 +43,7 @@ pub async fn embed_score(
         return None;
     }
 
-    let Ok( mut bg) = Image::<Rgba>::from_bytes_inferred(bg_bytes.as_ref()) else {
+    let Ok(mut bg) = Image::<Rgba>::from_bytes_inferred(bg_bytes.as_ref()) else {
         return None;
     };
 
@@ -357,7 +357,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
     };
 
     // load background
-    let Ok( mut bg) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+    let Ok(mut bg) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
         return None;
     };
 

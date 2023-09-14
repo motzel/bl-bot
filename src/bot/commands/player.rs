@@ -466,7 +466,11 @@ async fn post_replays(
         .await?;
 
     for score_id in score_ids {
-        let Some(score) = player_scores.scores.iter().find(|s| &s.id.to_string() == score_id) else {
+        let Some(score) = player_scores
+            .scores
+            .iter()
+            .find(|s| &s.id.to_string() == score_id)
+        else {
             continue;
         };
 
