@@ -1506,8 +1506,11 @@ pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
                 Ok(b) => Ok(b),
                 Err(_err) => Err(BlError::Unknown),
             },
+            401 | 403 => Err(BlError::Unauthorized),
             404 => Err(BlError::NotFound),
-            400..=499 => Err(BlError::Client),
+            400..=499 => Err(BlError::Client(
+                response.text_with_charset("utf-8").await.ok(),
+            )),
             500..=599 => Err(BlError::Server),
             _ => Err(BlError::Unknown),
         },

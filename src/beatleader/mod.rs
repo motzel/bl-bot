@@ -1,21 +1,23 @@
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
 use log::{error, info, trace};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
+use serde::{Deserialize, Serialize};
 
 use player::PlayerRequest;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::error::Error::{
-    Client as ClientError, Network, NotFound, Request as RequestError, Server, Unknown,
-};
+use crate::beatleader::oauth::OauthRequest;
 
 pub mod error;
+mod oauth;
 pub mod player;
 pub mod pp;
 
@@ -58,13 +60,18 @@ impl Client {
         }
     }
 
+    pub fn with_oauth(&self, oauth_credentials: OAuthCredentials) -> ClientWithOAuth {
+        ClientWithOAuth {
+            client: self,
+            oauth_credentials,
+        }
+    }
+
     pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<Response> {
-        let request = self
-            .request_builder(Method::GET, endpoint, self.timeout)
-            .build();
+        let request = self.request_builder(Method::GET, endpoint).build();
 
         if let Err(err) = request {
-            return Err(RequestError(err));
+            return Err(Error::Request(err));
         }
 
         self.send_request(request.unwrap()).await
@@ -92,7 +99,7 @@ impl Client {
             Err(err) => {
                 error!("Response error: {:#?}", err);
 
-                Err(Network(err))
+                Err(Error::Network(err))
             }
             Ok(response) => {
                 let base = Url::parse(self.base_url.as_str()).unwrap();
@@ -105,10 +112,13 @@ impl Client {
 
                 match response.status().as_u16() {
                     200..=299 => Ok(response),
-                    404 => Err(NotFound),
-                    400..=499 => Err(ClientError),
-                    500..=599 => Err(Server),
-                    _ => Err(Unknown),
+                    401 | 403 => Err(Error::Unauthorized),
+                    404 => Err(Error::NotFound),
+                    400..=499 => Err(Error::Client(
+                        response.text_with_charset("utf-8").await.ok(),
+                    )),
+                    500..=599 => Err(Error::Server),
+                    _ => Err(Error::Unknown),
                 }
             }
         }
@@ -122,13 +132,12 @@ impl Client {
         &self,
         method: Method,
         endpoint: U,
-        timeout: u64,
     ) -> RequestBuilder {
         let full_url = self.base_url.to_owned() + endpoint.as_str();
 
         self.http_client
             .request(method, full_url)
-            .timeout(Duration::from_secs(timeout))
+            .timeout(Duration::from_secs(self.timeout))
     }
 }
 
@@ -156,4 +165,164 @@ impl ToString for SortOrder {
 
 pub trait QueryParam {
     fn as_query_param(&self) -> (String, String);
+}
+
+#[derive(Debug, Clone)]
+pub struct OAuthCredentials {
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_uri: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum OAuthScope {
+    Profile,
+    OfflineAccess,
+    Clan,
+}
+
+impl TryFrom<&str> for OAuthScope {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        match value {
+            "profile" => Ok(OAuthScope::Profile),
+            "offline_access" => Ok(OAuthScope::OfflineAccess),
+            "clan" => Ok(OAuthScope::Clan),
+            _ => Err("invalid scope"),
+        }
+    }
+}
+
+impl From<&OAuthScope> for String {
+    fn from(value: &OAuthScope) -> Self {
+        match value {
+            OAuthScope::Profile => "profile".to_owned(),
+            OAuthScope::OfflineAccess => "offline_access".to_owned(),
+            OAuthScope::Clan => "clan".to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OAuthTokenResponse {
+    access_token: String,
+    token_type: String,
+    expires_in: u32,
+    scope: String,
+    refresh_token: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OAuthErrorResponse {
+    error: String,
+    error_description: String,
+    error_uri: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OAuthToken {
+    access_token: String,
+    token_type: String,
+    expiration_date: DateTime<Utc>,
+    scopes: Vec<OAuthScope>,
+    refresh_token: Option<String>,
+}
+
+impl From<OAuthTokenResponse> for OAuthToken {
+    fn from(value: OAuthTokenResponse) -> Self {
+        OAuthToken {
+            access_token: value.access_token,
+            token_type: value.token_type,
+            expiration_date: Utc::now()
+                .checked_add_signed(chrono::Duration::seconds(value.expires_in.into()))
+                .unwrap(),
+            scopes: value
+                .scope
+                .split(' ')
+                .filter_map(|v| OAuthScope::try_from(v).ok())
+                .collect(),
+            refresh_token: value.refresh_token,
+        }
+    }
+}
+
+pub enum OAuthGrant {
+    Authorize(Vec<OAuthScope>),
+    AuthorizationCode(String),
+    RefreshToken(String),
+}
+
+impl OAuthGrant {
+    pub fn get_request_builder(&self, client: &ClientWithOAuth) -> RequestBuilder {
+        let mut params = HashMap::from([
+            ("client_id", client.oauth_credentials.client_id.clone()),
+            (
+                "redirect_uri",
+                client.oauth_credentials.redirect_uri.clone(),
+            ),
+        ]);
+
+        match self {
+            OAuthGrant::Authorize(scopes) => {
+                params.extend(HashMap::from([
+                    ("response_type", "code".to_owned()),
+                    (
+                        "scope",
+                        scopes
+                            .iter()
+                            .map(String::from)
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
+                ]));
+
+                client
+                    .client
+                    .request_builder(Method::GET, "/oauth2/authorize")
+                    .query(&params)
+            }
+            OAuthGrant::AuthorizationCode(auth_code) => {
+                params.extend(HashMap::from([
+                    ("code", auth_code.clone()),
+                    ("grant_type", "authorization_code".to_owned()),
+                    (
+                        "client_secret",
+                        client.oauth_credentials.client_secret.clone(),
+                    ),
+                ]));
+
+                client
+                    .client
+                    .request_builder(Method::POST, "/oauth2/token")
+                    .form(&params)
+            }
+            OAuthGrant::RefreshToken(refresh_token) => {
+                params.extend(HashMap::from([
+                    ("refresh_token", refresh_token.clone()),
+                    ("grant_type", "refresh_token".to_owned()),
+                    (
+                        "client_secret",
+                        client.oauth_credentials.client_secret.clone(),
+                    ),
+                ]));
+
+                client
+                    .client
+                    .request_builder(Method::POST, "/oauth2/token")
+                    .form(&params)
+            }
+        }
+    }
+}
+
+pub struct ClientWithOAuth<'a> {
+    client: &'a Client,
+    oauth_credentials: OAuthCredentials,
+}
+
+impl ClientWithOAuth<'_> {
+    pub fn oauth(&self) -> OauthRequest {
+        OauthRequest::new(self)
+    }
 }

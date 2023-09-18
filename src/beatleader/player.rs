@@ -39,11 +39,7 @@ impl<'a> PlayerRequest<'a> {
     ) -> beatleader::Result<Scores> {
         let request = self
             .client
-            .request_builder(
-                Method::GET,
-                format!("/player/{}/scores", id),
-                self.client.timeout,
-            )
+            .request_builder(Method::GET, format!("/player/{}/scores", id))
             .query(
                 &(params
                     .iter()
