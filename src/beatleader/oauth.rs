@@ -4,11 +4,11 @@ use crate::beatleader::{
     ClientWithOAuth, OAuthErrorResponse, OAuthGrant, OAuthScope, OAuthToken, OAuthTokenResponse,
 };
 
-pub struct OauthRequest<'a> {
+pub struct OauthResource<'a> {
     client: &'a ClientWithOAuth<'a>,
 }
 
-impl<'a> OauthRequest<'a> {
+impl<'a> OauthResource<'a> {
     pub fn new(client: &'a ClientWithOAuth) -> Self {
         Self { client }
     }

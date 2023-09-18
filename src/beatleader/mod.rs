@@ -11,10 +11,10 @@ use log::{error, info, trace};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
 use serde::{Deserialize, Serialize};
 
-use player::PlayerRequest;
+use player::PlayerResource;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::oauth::OauthRequest;
+use crate::beatleader::oauth::OauthResource;
 
 pub mod error;
 mod oauth;
@@ -124,8 +124,8 @@ impl Client {
         }
     }
 
-    pub fn player(&self) -> PlayerRequest {
-        PlayerRequest::new(self)
+    pub fn player(&self) -> PlayerResource {
+        PlayerResource::new(self)
     }
 
     pub(crate) fn request_builder<U: IntoUrl>(
@@ -322,7 +322,7 @@ pub struct ClientWithOAuth<'a> {
 }
 
 impl ClientWithOAuth<'_> {
-    pub fn oauth(&self) -> OauthRequest {
-        OauthRequest::new(self)
+    pub fn oauth(&self) -> OauthResource {
+        OauthResource::new(self)
     }
 }

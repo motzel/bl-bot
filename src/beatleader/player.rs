@@ -10,11 +10,11 @@ use crate::beatleader;
 use crate::beatleader::error::Error;
 use crate::beatleader::{Client, QueryParam, SortOrder};
 
-pub struct PlayerRequest<'a> {
+pub struct PlayerResource<'a> {
     client: &'a Client,
 }
 
-impl<'a> PlayerRequest<'a> {
+impl<'a> PlayerResource<'a> {
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
