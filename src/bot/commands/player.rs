@@ -11,8 +11,8 @@ use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use bytes::Bytes;
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
-use crate::beatleader::SortOrder;
-use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Scores};
+use crate::beatleader::{BlApiListResponse, SortOrder};
+use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
 use crate::storage::PersistError;
@@ -396,7 +396,7 @@ pub(crate) async fn cmd_replay(
 
 fn add_replay_components<'a>(
     c: &'a mut CreateComponents,
-    player_scores: &Scores,
+    player_scores: &BlApiListResponse<Score>,
     selected_ids: &Vec<String>,
 ) -> &'a mut CreateComponents {
     c.create_action_row(|r| {
@@ -404,7 +404,7 @@ fn add_replay_components<'a>(
             m.custom_id("score_id")
                 .placeholder("Select replay(s) to post")
                 .options(|o| {
-                    player_scores.scores.iter().fold(o, |acc, s| {
+                    player_scores.data.iter().fold(o, |acc, s| {
                         acc.create_option(|o| {
                             let label = format!(
                                 "{} {} ({})",
@@ -440,7 +440,7 @@ fn add_replay_components<'a>(
 async fn post_replays(
     ctx: Context<'_>,
     score_ids: &Vec<String>,
-    player_scores: &Scores,
+    player_scores: &BlApiListResponse<Score>,
     player: &Player,
     msg: &ReplyHandle<'_>,
 ) -> Result<(), Error> {
@@ -467,7 +467,7 @@ async fn post_replays(
 
     for score_id in score_ids {
         let Some(score) = player_scores
-            .scores
+            .data
             .iter()
             .find(|s| &s.id.to_string() == score_id)
         else {

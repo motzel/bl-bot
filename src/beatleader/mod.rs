@@ -87,7 +87,7 @@ impl Client {
     }
 
     async fn get_json<
-        In: ApiResponseObject + Sized + DeserializeOwned,
+        In: BlApiResponse + Sized + DeserializeOwned,
         Out: From<In> + Sized,
         Param: QueryParam,
     >(
@@ -113,35 +113,6 @@ impl Client {
         match self.send_request(request.unwrap()).await {
             Ok(response) => match response.json::<In>().await {
                 Ok(clans) => Ok(clans.into()),
-                Err(e) => Err(Error::JsonDecode(e)),
-            },
-            Err(e) => Err(e),
-        }
-    }
-
-    async fn get_json_response<T: DeserializeOwned, P: QueryParam>(
-        &self,
-        method: Method,
-        endpoint: &str,
-        params: &[P],
-    ) -> Result<T> {
-        let request = self
-            .request_builder(method, endpoint)
-            .query(
-                &(params
-                    .iter()
-                    .map(|param| param.as_query_param())
-                    .collect::<Vec<(String, String)>>()),
-            )
-            .build();
-
-        if let Err(err) = request {
-            return Err(Error::Request(err));
-        }
-
-        match self.send_request(request.unwrap()).await {
-            Ok(response) => match response.json::<T>().await {
-                Ok(clans) => Ok(clans),
                 Err(e) => Err(Error::JsonDecode(e)),
             },
             Err(e) => Err(e),
@@ -214,7 +185,7 @@ impl Default for Client {
     }
 }
 
-pub trait ApiResponseObject: Sized {}
+pub trait BlApiResponse: Sized {}
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -246,12 +217,12 @@ pub struct MetaData {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ListApiResponse<T> {
+pub struct BlApiListResponse<T> {
     pub data: Vec<T>,
     pub metadata: MetaData,
 }
 
-impl<T> ListApiResponse<T> {
+impl<T> BlApiListResponse<T> {
     pub fn get_data(&self) -> &Vec<T> {
         &self.data
     }
@@ -261,4 +232,4 @@ impl<T> ListApiResponse<T> {
     }
 }
 
-impl<T> ApiResponseObject for ListApiResponse<T> {}
+impl<T> BlApiResponse for BlApiListResponse<T> {}

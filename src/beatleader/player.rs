@@ -7,8 +7,9 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 
 use crate::beatleader;
-use crate::beatleader::error::Error;
-use crate::beatleader::{Client, MetaData, QueryParam, SortOrder};
+use crate::beatleader::{
+    BlApiListResponse, BlApiResponse, Client, MetaData, QueryParam, SortOrder,
+};
 
 pub struct PlayerResource<'a> {
     client: &'a Client,
@@ -20,48 +21,27 @@ impl<'a> PlayerResource<'a> {
     }
 
     pub async fn get(&self, id: &PlayerId) -> beatleader::Result<Player> {
-        match self
-            .client
-            .get(&(format!("/player/{}", id)))
-            .await?
-            .json::<Player>()
+        self.client
+            .get_json::<Player, Player, PlayerScoreParam>(
+                Method::GET,
+                &format!("/player/{}", id),
+                &[],
+            )
             .await
-        {
-            Ok(player) => Ok(player),
-            Err(e) => Err(Error::JsonDecode(e)),
-        }
     }
 
     pub async fn scores(
         &self,
         id: &PlayerId,
         params: &[PlayerScoreParam],
-    ) -> beatleader::Result<Scores> {
-        let request = self
-            .client
-            .request_builder(Method::GET, format!("/player/{}/scores", id))
-            .query(
-                &(params
-                    .iter()
-                    .map(|param| param.as_query_param())
-                    .collect::<Vec<(String, String)>>()),
+    ) -> beatleader::Result<BlApiListResponse<Score>> {
+        self.client
+            .get_json::<BlApiListResponse<Score>, BlApiListResponse<Score>, PlayerScoreParam>(
+                Method::GET,
+                &format!("/player/{}/scores", id),
+                params,
             )
-            .build();
-
-        if let Err(err) = request {
-            return Err(Error::Request(err));
-        }
-
-        match self
-            .client
-            .send_request(request.unwrap())
-            .await?
-            .json::<Scores>()
             .await
-        {
-            Ok(player_scores) => Ok(player_scores),
-            Err(e) => Err(Error::JsonDecode(e)),
-        }
     }
 }
 
@@ -158,15 +138,18 @@ pub struct Player {
     pub banned: bool,
     pub bot: bool,
     pub inactive: bool,
-    pub clans: Vec<Clan>,
+    pub clans: Vec<PlayerClan>,
     pub socials: Vec<Social>,
 }
 
+impl BlApiResponse for Player {}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Clan {
+pub struct PlayerClan {
     pub id: u32,
     pub tag: String,
+    pub color: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -385,7 +368,8 @@ pub struct ModifiersRatings {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Scores {
-    #[serde(rename = "data")]
-    pub scores: Vec<Score>,
+    pub data: Vec<Score>,
     pub metadata: MetaData,
 }
+
+impl BlApiResponse for Scores {}

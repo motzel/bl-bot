@@ -1,9 +1,9 @@
 use crate::beatleader::player::{DifficultyStatus, MapType, PlayerId};
 use crate::beatleader::player::{
-    Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
+    Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, MetaData, SortOrder};
+use crate::beatleader::{error::Error as BlError, BlApiListResponse, MetaData, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
@@ -288,6 +288,15 @@ impl From<BlScore> for Score {
     }
 }
 
+impl From<BlApiListResponse<BlScore>> for BlApiListResponse<Score> {
+    fn from(value: BlApiListResponse<BlScore>) -> Self {
+        Self {
+            data: value.data.into_iter().map(|v| v.into()).collect(),
+            metadata: value.metadata,
+        }
+    }
+}
+
 impl Score {
     pub(crate) fn add_embed(
         &self,
@@ -392,10 +401,10 @@ pub struct Scores {
     pub scores: Vec<Score>,
     pub metadata: MetaData,
 }
-impl From<BlScores> for Scores {
-    fn from(bl_scores: BlScores) -> Self {
+impl From<BlApiListResponse<BlScore>> for Scores {
+    fn from(bl_scores: BlApiListResponse<BlScore>) -> Self {
         Self {
-            scores: bl_scores.scores.into_iter().map(Score::from).collect(),
+            scores: bl_scores.data.into_iter().map(Score::from).collect(),
             metadata: bl_scores.metadata,
         }
     }
@@ -404,10 +413,8 @@ impl From<BlScores> for Scores {
 pub(crate) async fn fetch_scores(
     player_id: &PlayerId,
     params: &[PlayerScoreParam],
-) -> Result<Scores, BlError> {
-    Ok(Scores::from(
-        BL_CLIENT.player().scores(player_id, params).await?,
-    ))
+) -> Result<BlApiListResponse<Score>, BlError> {
+    Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
 }
 
 #[derive(Debug, Default)]
@@ -474,14 +481,14 @@ pub(crate) async fn fetch_ranked_scores_stats(
             Ok(scores_page) => {
                 trace!("Scores page #{} fetched.", page);
 
-                if scores_page.scores.is_empty() {
+                if scores_page.data.is_empty() {
                     break 'outer;
                 }
 
                 page_count = scores_page.metadata.total / ITEMS_PER_PAGE
                     + u32::from(scores_page.metadata.total % ITEMS_PER_PAGE != 0);
 
-                for score in scores_page.scores {
+                for score in scores_page.data {
                     player_scores.push(score.pp);
 
                     if score.modifiers.contains("NF")

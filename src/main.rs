@@ -120,6 +120,25 @@ async fn poise(
             .await
     );
 
+    // println!(
+    //     "{:?}",
+    //     BL_CLIENT
+    //         .player()
+    //         .get(&"76561198035381239".to_string())
+    //         .await
+    // );
+
+    // println!(
+    //     "{:?}",
+    //     BL_CLIENT
+    //         .player()
+    //         .scores(
+    //             &"76561198035381239".to_string(),
+    //             &[PlayerScoreParam::Count(2)]
+    //         )
+    //         .await
+    // );
+
     secret_store.get("INVALID").expect("TEST ERROR");
 
     let options = poise::FrameworkOptions {
