@@ -19,7 +19,7 @@ impl<'a> PlayerResource<'a> {
         Self { client }
     }
 
-    pub async fn get_by_id(&self, id: &PlayerId) -> beatleader::Result<Player> {
+    pub async fn get(&self, id: &PlayerId) -> beatleader::Result<Player> {
         match self
             .client
             .get(&(format!("/player/{}", id)))
@@ -32,7 +32,7 @@ impl<'a> PlayerResource<'a> {
         }
     }
 
-    pub async fn get_scores(
+    pub async fn scores(
         &self,
         id: &PlayerId,
         params: &[PlayerScoreParam],

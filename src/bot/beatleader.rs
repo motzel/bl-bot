@@ -406,7 +406,7 @@ pub(crate) async fn fetch_scores(
     params: &[PlayerScoreParam],
 ) -> Result<Scores, BlError> {
     Ok(Scores::from(
-        BL_CLIENT.player().get_scores(player_id, params).await?,
+        BL_CLIENT.player().scores(player_id, params).await?,
     ))
 }
 
