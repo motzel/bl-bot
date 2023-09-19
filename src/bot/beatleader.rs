@@ -1,28 +1,20 @@
-use crate::Context;
-use bytes::Bytes;
-use chrono::serde::{ts_seconds, ts_seconds_option};
-use chrono::{DateTime, Utc};
-use log::{info, trace};
-use poise::serenity_prelude::{AttachmentType, CacheHttp, ChannelId, GuildId, Message, UserId};
-use poise::CreateReply;
-use reqwest::Method;
-use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
-use std::borrow::Cow;
-use std::fmt::format;
-use std::time::Duration;
-
-use crate::beatleader::error::Error;
-use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
+use crate::beatleader::player::{DifficultyStatus, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, SortOrder, APP_USER_AGENT};
+use crate::beatleader::{error::Error as BlError, MetaData, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
-use crate::embed::embed_score;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
+use chrono::serde::{ts_seconds, ts_seconds_option};
+use chrono::{DateTime, Utc};
+use log::{info, trace};
+use poise::serenity_prelude::{AttachmentType, GuildId, UserId};
+use poise::CreateReply;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
+use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

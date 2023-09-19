@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 
 use crate::beatleader;
 use crate::beatleader::error::Error;
-use crate::beatleader::{Client, QueryParam, SortOrder};
+use crate::beatleader::{Client, MetaData, QueryParam, SortOrder};
 
 pub struct PlayerResource<'a> {
     client: &'a Client,
@@ -220,14 +220,6 @@ pub struct PlayerScoreStats {
     pub watched_replays: u32,
     pub peak_rank: u32,
     pub top1_count: u32,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct MetaData {
-    pub items_per_page: u32,
-    pub page: u32,
-    pub total: u32,
 }
 
 #[serde_as]

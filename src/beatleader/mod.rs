@@ -6,10 +6,15 @@ use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
 use log::{error, info, trace};
-use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
+use reqwest::{
+    Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response as ReqwestResponse,
+    Url,
+};
+use serde::de::DeserializeOwned;
 
 use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;
+use serde::Deserialize;
 
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthCredentials};
@@ -71,7 +76,7 @@ impl Client {
         ClientWithOAuth::new(self, oauth_credentials)
     }
 
-    pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<Response> {
+    pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<ReqwestResponse> {
         let request = self.request_builder(Method::GET, endpoint).build();
 
         if let Err(err) = request {
@@ -81,7 +86,69 @@ impl Client {
         self.send_request(request.unwrap()).await
     }
 
-    pub async fn send_request(&self, request: Request) -> Result<Response> {
+    async fn get_json<
+        In: ApiResponseObject + Sized + DeserializeOwned,
+        Out: From<In> + Sized,
+        Param: QueryParam,
+    >(
+        &self,
+        method: Method,
+        endpoint: &str,
+        params: &[Param],
+    ) -> Result<Out> {
+        let request = self
+            .request_builder(method, endpoint)
+            .query(
+                &(params
+                    .iter()
+                    .map(|param| param.as_query_param())
+                    .collect::<Vec<(String, String)>>()),
+            )
+            .build();
+
+        if let Err(err) = request {
+            return Err(Error::Request(err));
+        }
+
+        match self.send_request(request.unwrap()).await {
+            Ok(response) => match response.json::<In>().await {
+                Ok(clans) => Ok(clans.into()),
+                Err(e) => Err(Error::JsonDecode(e)),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn get_json_response<T: DeserializeOwned, P: QueryParam>(
+        &self,
+        method: Method,
+        endpoint: &str,
+        params: &[P],
+    ) -> Result<T> {
+        let request = self
+            .request_builder(method, endpoint)
+            .query(
+                &(params
+                    .iter()
+                    .map(|param| param.as_query_param())
+                    .collect::<Vec<(String, String)>>()),
+            )
+            .build();
+
+        if let Err(err) = request {
+            return Err(Error::Request(err));
+        }
+
+        match self.send_request(request.unwrap()).await {
+            Ok(response) => match response.json::<T>().await {
+                Ok(clans) => Ok(clans),
+                Err(e) => Err(Error::JsonDecode(e)),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn send_request(&self, request: Request) -> Result<ReqwestResponse> {
         trace!("Waiting for rate limiter...");
 
         self.rate_limiter
@@ -147,6 +214,8 @@ impl Default for Client {
     }
 }
 
+pub trait ApiResponseObject: Sized {}
+
 #[allow(dead_code)]
 #[derive(Clone)]
 pub enum SortOrder {
@@ -166,3 +235,30 @@ impl ToString for SortOrder {
 pub trait QueryParam {
     fn as_query_param(&self) -> (String, String);
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaData {
+    pub items_per_page: u32,
+    pub page: u32,
+    pub total: u32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ListApiResponse<T> {
+    pub data: Vec<T>,
+    pub metadata: MetaData,
+}
+
+impl<T> ListApiResponse<T> {
+    pub fn get_data(&self) -> &Vec<T> {
+        &self.data
+    }
+
+    pub fn get_metadata(&self) -> &MetaData {
+        &self.metadata
+    }
+}
+
+impl<T> ApiResponseObject for ListApiResponse<T> {}

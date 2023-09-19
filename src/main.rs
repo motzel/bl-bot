@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::beatleader::clan::ClanParam;
 use lazy_static::lazy_static;
 use log::{error, info, trace};
 use peak_alloc::PeakAlloc;
@@ -12,6 +13,7 @@ use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
+use crate::beatleader::oauth::OAuthCredentials;
 use crate::beatleader::Client;
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_export, cmd_import, cmd_link, cmd_profile, cmd_register,
@@ -37,6 +39,7 @@ lazy_static! {
 pub(crate) struct Data {
     guild_settings_repository: Arc<GuildSettingsRepository>,
     players_repository: Arc<PlayerRepository>,
+    oauth_credentials: Option<OAuthCredentials>,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) type Context<'a> = poise::Context<'a, Data, Error>;
@@ -75,6 +78,49 @@ async fn poise(
     if refresh_interval < 30 {
         panic!("REFRESH_INTERVAL should be greater than 30 seconds");
     }
+
+    let oauth_client_id = secret_store.get("OAUTH_CLIENT_ID");
+    let oauth_client_secret = secret_store.get("OAUTH_CLIENT_SECRET");
+    let oauth_redirect_uri = secret_store.get("OAUTH_REDIRECT_URI");
+
+    let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
+        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthCredentials {
+            client_id,
+            client_secret,
+            redirect_uri,
+        }),
+        _ => None,
+    };
+
+    /*
+    if let Some(ref oauth_credentials) = oauth_credentials {
+        let oauth_client = BL_CLIENT.with_oauth(oauth_credentials.clone());
+
+        println!(
+            "{:?}\n",
+            oauth_client.oauth().authorize_url(vec![
+                OAuthScope::Profile,
+                OAuthScope::OfflineAccess,
+                OAuthScope::Clan
+            ])
+        );
+
+        println!("{:?}\n", oauth_client.oauth().access_token("123").await);
+
+        println!("{:?}\n", oauth_client.oauth().refresh_token("123").await);
+    }
+    secret_store.get("INVALID").expect("TEST ERROR");
+     */
+
+    println!(
+        "{:?}",
+        BL_CLIENT
+            .clan()
+            .search(&[ClanParam::Count(2), ClanParam::Search("TEST".to_string())])
+            .await
+    );
+
+    secret_store.get("INVALID").expect("TEST ERROR");
 
     let options = poise::FrameworkOptions {
         commands: vec![
