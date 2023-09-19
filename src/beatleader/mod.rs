@@ -1,23 +1,22 @@
-use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
 use log::{error, info, trace};
 use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
-use serde::{Deserialize, Serialize};
 
+use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::oauth::OauthResource;
+use crate::beatleader::oauth::{ClientWithOAuth, OAuthCredentials};
 
+pub mod clan;
 pub mod error;
-mod oauth;
+pub mod oauth;
 pub mod player;
 pub mod pp;
 
@@ -60,11 +59,16 @@ impl Client {
         }
     }
 
+    pub fn player(&self) -> PlayerResource {
+        PlayerResource::new(self)
+    }
+
+    pub fn clan(&self) -> ClanResource {
+        ClanResource::new(self)
+    }
+
     pub fn with_oauth(&self, oauth_credentials: OAuthCredentials) -> ClientWithOAuth {
-        ClientWithOAuth {
-            client: self,
-            oauth_credentials,
-        }
+        ClientWithOAuth::new(self, oauth_credentials)
     }
 
     pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<Response> {
@@ -124,10 +128,6 @@ impl Client {
         }
     }
 
-    pub fn player(&self) -> PlayerResource {
-        PlayerResource::new(self)
-    }
-
     pub(crate) fn request_builder<U: IntoUrl>(
         &self,
         method: Method,
@@ -165,164 +165,4 @@ impl ToString for SortOrder {
 
 pub trait QueryParam {
     fn as_query_param(&self) -> (String, String);
-}
-
-#[derive(Debug, Clone)]
-pub struct OAuthCredentials {
-    pub client_id: String,
-    pub client_secret: String,
-    pub redirect_uri: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum OAuthScope {
-    Profile,
-    OfflineAccess,
-    Clan,
-}
-
-impl TryFrom<&str> for OAuthScope {
-    type Error = &'static str;
-
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        match value {
-            "profile" => Ok(OAuthScope::Profile),
-            "offline_access" => Ok(OAuthScope::OfflineAccess),
-            "clan" => Ok(OAuthScope::Clan),
-            _ => Err("invalid scope"),
-        }
-    }
-}
-
-impl From<&OAuthScope> for String {
-    fn from(value: &OAuthScope) -> Self {
-        match value {
-            OAuthScope::Profile => "profile".to_owned(),
-            OAuthScope::OfflineAccess => "offline_access".to_owned(),
-            OAuthScope::Clan => "clan".to_owned(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct OAuthTokenResponse {
-    access_token: String,
-    token_type: String,
-    expires_in: u32,
-    scope: String,
-    refresh_token: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct OAuthErrorResponse {
-    error: String,
-    error_description: String,
-    error_uri: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OAuthToken {
-    access_token: String,
-    token_type: String,
-    expiration_date: DateTime<Utc>,
-    scopes: Vec<OAuthScope>,
-    refresh_token: Option<String>,
-}
-
-impl From<OAuthTokenResponse> for OAuthToken {
-    fn from(value: OAuthTokenResponse) -> Self {
-        OAuthToken {
-            access_token: value.access_token,
-            token_type: value.token_type,
-            expiration_date: Utc::now()
-                .checked_add_signed(chrono::Duration::seconds(value.expires_in.into()))
-                .unwrap(),
-            scopes: value
-                .scope
-                .split(' ')
-                .filter_map(|v| OAuthScope::try_from(v).ok())
-                .collect(),
-            refresh_token: value.refresh_token,
-        }
-    }
-}
-
-pub enum OAuthGrant {
-    Authorize(Vec<OAuthScope>),
-    AuthorizationCode(String),
-    RefreshToken(String),
-}
-
-impl OAuthGrant {
-    pub fn get_request_builder(&self, client: &ClientWithOAuth) -> RequestBuilder {
-        let mut params = HashMap::from([
-            ("client_id", client.oauth_credentials.client_id.clone()),
-            (
-                "redirect_uri",
-                client.oauth_credentials.redirect_uri.clone(),
-            ),
-        ]);
-
-        match self {
-            OAuthGrant::Authorize(scopes) => {
-                params.extend(HashMap::from([
-                    ("response_type", "code".to_owned()),
-                    (
-                        "scope",
-                        scopes
-                            .iter()
-                            .map(String::from)
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    ),
-                ]));
-
-                client
-                    .client
-                    .request_builder(Method::GET, "/oauth2/authorize")
-                    .query(&params)
-            }
-            OAuthGrant::AuthorizationCode(auth_code) => {
-                params.extend(HashMap::from([
-                    ("code", auth_code.clone()),
-                    ("grant_type", "authorization_code".to_owned()),
-                    (
-                        "client_secret",
-                        client.oauth_credentials.client_secret.clone(),
-                    ),
-                ]));
-
-                client
-                    .client
-                    .request_builder(Method::POST, "/oauth2/token")
-                    .form(&params)
-            }
-            OAuthGrant::RefreshToken(refresh_token) => {
-                params.extend(HashMap::from([
-                    ("refresh_token", refresh_token.clone()),
-                    ("grant_type", "refresh_token".to_owned()),
-                    (
-                        "client_secret",
-                        client.oauth_credentials.client_secret.clone(),
-                    ),
-                ]));
-
-                client
-                    .client
-                    .request_builder(Method::POST, "/oauth2/token")
-                    .form(&params)
-            }
-        }
-    }
-}
-
-pub struct ClientWithOAuth<'a> {
-    client: &'a Client,
-    oauth_credentials: OAuthCredentials,
-}
-
-impl ClientWithOAuth<'_> {
-    pub fn oauth(&self) -> OauthResource {
-        OauthResource::new(self)
-    }
 }

@@ -1,4 +1,4 @@
-use crate::beatleader::OAuthErrorResponse;
+use crate::beatleader::oauth::OAuthErrorResponse;
 use std::{error, fmt};
 
 #[derive(Debug)]

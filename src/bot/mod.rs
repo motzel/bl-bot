@@ -24,6 +24,7 @@ use crate::beatleader::APP_USER_AGENT;
 use bytes::Bytes;
 
 use crate::beatleader::error::Error as BlError;
+use crate::beatleader::oauth::OAuthToken;
 use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::storage::{StorageKey, StorageValue};
