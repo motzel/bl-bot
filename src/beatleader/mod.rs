@@ -233,3 +233,27 @@ impl<T> BlApiListResponse<T> {
 }
 
 impl<T> BlApiResponse for BlApiListResponse<T> {}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct List<T> {
+    pub data: Vec<T>,
+    pub page: u32,
+    pub items_per_page: u32,
+    pub total: u32,
+}
+
+impl<In, Out> From<BlApiListResponse<In>> for List<Out>
+where
+    In: BlApiResponse + Sized + DeserializeOwned,
+    Out: From<In> + Sized,
+{
+    fn from(value: BlApiListResponse<In>) -> Self {
+        Self {
+            data: value.data.into_iter().map(|v| v.into()).collect(),
+            page: value.metadata.page,
+            items_per_page: value.metadata.items_per_page,
+            total: value.metadata.items_per_page,
+        }
+    }
+}

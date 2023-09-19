@@ -2,7 +2,9 @@ use reqwest::Method;
 use serde::Deserialize;
 
 use crate::beatleader::player::PlayerId;
-use crate::beatleader::{BlApiListResponse, BlApiResponse, Client, QueryParam, Result, SortOrder};
+use crate::beatleader::{
+    BlApiListResponse, BlApiResponse, Client, List, QueryParam, Result, SortOrder,
+};
 
 pub struct ClanResource<'a> {
     client: &'a Client,
@@ -13,9 +15,9 @@ impl<'a> ClanResource<'a> {
         Self { client }
     }
 
-    pub async fn search(&self, params: &[ClanParam]) -> Result<BlApiListResponse<Clan>> {
+    pub async fn search(&self, params: &[ClanParam]) -> Result<List<Clan>> {
         self.client
-            .get_json::<BlApiListResponse<BlApiClan>, BlApiListResponse<Clan>, ClanParam>(
+            .get_json::<BlApiListResponse<BlApiClan>, List<Clan>, ClanParam>(
                 Method::GET,
                 "/clans",
                 params,
@@ -73,15 +75,6 @@ impl From<BlApiClan> for Clan {
             average_accuracy: value.average_accuracy * 100.0,
             players_count: value.players_count,
             icon: value.icon,
-        }
-    }
-}
-
-impl From<BlApiListResponse<BlApiClan>> for BlApiListResponse<Clan> {
-    fn from(value: BlApiListResponse<BlApiClan>) -> Self {
-        Self {
-            data: value.data.into_iter().map(|v| v.into()).collect(),
-            metadata: value.metadata,
         }
     }
 }

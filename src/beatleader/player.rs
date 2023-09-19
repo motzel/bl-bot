@@ -7,9 +7,7 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 
 use crate::beatleader;
-use crate::beatleader::{
-    BlApiListResponse, BlApiResponse, Client, MetaData, QueryParam, SortOrder,
-};
+use crate::beatleader::{BlApiListResponse, BlApiResponse, Client, List, QueryParam, SortOrder};
 
 pub struct PlayerResource<'a> {
     client: &'a Client,
@@ -34,9 +32,9 @@ impl<'a> PlayerResource<'a> {
         &self,
         id: &PlayerId,
         params: &[PlayerScoreParam],
-    ) -> beatleader::Result<BlApiListResponse<Score>> {
+    ) -> beatleader::Result<List<Score>> {
         self.client
-            .get_json::<BlApiListResponse<Score>, BlApiListResponse<Score>, PlayerScoreParam>(
+            .get_json::<BlApiListResponse<Score>, List<Score>, PlayerScoreParam>(
                 Method::GET,
                 &format!("/player/{}/scores", id),
                 params,
@@ -252,6 +250,8 @@ pub struct Score {
     pub timepost: DateTime<Utc>,
 }
 
+impl BlApiResponse for Score {}
+
 #[serde_as]
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -364,12 +364,3 @@ pub struct ModifiersRatings {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub sf_stars: f64,
 }
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Scores {
-    pub data: Vec<Score>,
-    pub metadata: MetaData,
-}
-
-impl BlApiResponse for Scores {}

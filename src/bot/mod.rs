@@ -772,9 +772,7 @@ impl GuildSettings {
     pub fn new(guild_id: GuildId) -> Self {
         Self {
             guild_id,
-            bot_channel_id: None,
-            requires_verified_profile: false,
-            role_groups: HashMap::new(),
+            ..Default::default()
         }
     }
 

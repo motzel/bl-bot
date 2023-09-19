@@ -11,7 +11,7 @@ use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use bytes::Bytes;
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
-use crate::beatleader::{BlApiListResponse, SortOrder};
+use crate::beatleader::{List as BlList, SortOrder};
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
@@ -396,7 +396,7 @@ pub(crate) async fn cmd_replay(
 
 fn add_replay_components<'a>(
     c: &'a mut CreateComponents,
-    player_scores: &BlApiListResponse<Score>,
+    player_scores: &BlList<Score>,
     selected_ids: &Vec<String>,
 ) -> &'a mut CreateComponents {
     c.create_action_row(|r| {
@@ -440,7 +440,7 @@ fn add_replay_components<'a>(
 async fn post_replays(
     ctx: Context<'_>,
     score_ids: &Vec<String>,
-    player_scores: &BlApiListResponse<Score>,
+    player_scores: &BlList<Score>,
     player: &Player,
     msg: &ReplyHandle<'_>,
 ) -> Result<(), Error> {

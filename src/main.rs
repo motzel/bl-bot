@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::beatleader::clan::ClanParam;
 use lazy_static::lazy_static;
 use log::{error, info, trace};
 use peak_alloc::PeakAlloc;
@@ -112,13 +111,13 @@ async fn poise(
     secret_store.get("INVALID").expect("TEST ERROR");
      */
 
-    println!(
-        "{:?}",
-        BL_CLIENT
-            .clan()
-            .search(&[ClanParam::Count(2), ClanParam::Search("TEST".to_string())])
-            .await
-    );
+    // println!(
+    //     "{:?}",
+    //     BL_CLIENT
+    //         .clan()
+    //         .search(&[ClanParam::Count(2), ClanParam::Search("TEST".to_string())])
+    //         .await
+    // );
 
     // println!(
     //     "{:?}",
@@ -139,7 +138,7 @@ async fn poise(
     //         .await
     // );
 
-    secret_store.get("INVALID").expect("TEST ERROR");
+    // secret_store.get("INVALID").expect("TEST ERROR");
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -309,6 +308,7 @@ async fn poise(
                 Ok(Data {
                     guild_settings_repository,
                     players_repository,
+                    oauth_credentials,
                 })
             })
         })
