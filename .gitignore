@@ -1,4 +1,5 @@
 .idea/
+.shuttle-storage/*
 shuttle_persist/*
 /target
 Secrets.toml
