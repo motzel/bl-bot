@@ -1,9 +1,9 @@
 use reqwest::Method;
 use serde::Deserialize;
 
-use crate::beatleader::player::PlayerId;
+use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::beatleader::{
-    BlApiListResponse, BlApiResponse, Client, List, QueryParam, Result, SortOrder,
+    BlApiListResponse, BlApiResponse, Client, List, MetaData, QueryParam, Result, SortOrder,
 };
 
 pub struct ClanResource<'a> {
@@ -21,6 +21,16 @@ impl<'a> ClanResource<'a> {
                 Method::GET,
                 "/clans",
                 params,
+            )
+            .await
+    }
+
+    pub async fn by_tag(&self, tag: &str) -> Result<Clan> {
+        self.client
+            .get_json::<BlApiClanContainer, Clan, ClanParam>(
+                Method::GET,
+                format!("/clan/{}", tag).as_str(),
+                &[ClanParam::Count(0)],
             )
             .await
     }
@@ -45,6 +55,16 @@ pub struct BlApiClan {
 }
 
 impl BlApiResponse for BlApiClan {}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlApiClanContainer {
+    pub data: Vec<BlPlayer>,
+    pub metadata: MetaData,
+    pub container: BlApiClan,
+}
+
+impl BlApiResponse for BlApiClanContainer {}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -76,6 +96,12 @@ impl From<BlApiClan> for Clan {
             players_count: value.players_count,
             icon: value.icon,
         }
+    }
+}
+
+impl From<BlApiClanContainer> for Clan {
+    fn from(value: BlApiClanContainer) -> Self {
+        value.container.into()
     }
 }
 

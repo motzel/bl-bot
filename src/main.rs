@@ -111,6 +111,8 @@ async fn poise(
     secret_store.get("INVALID").expect("TEST ERROR");
      */
 
+    // println!("{:?}", BL_CLIENT.clan().by_tag("TEST").await);
+
     // println!(
     //     "{:?}",
     //     BL_CLIENT
