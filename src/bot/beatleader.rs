@@ -1,3 +1,4 @@
+use crate::beatleader::clan::Clan;
 use crate::beatleader::player::{DifficultyStatus, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
@@ -401,6 +402,10 @@ pub(crate) async fn fetch_scores(
     params: &[PlayerScoreParam],
 ) -> Result<BlList<Score>, BlError> {
     Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
+}
+
+pub(crate) async fn fetch_clan(tag: &str) -> Result<Clan, BlError> {
+    BL_CLIENT.clan().by_tag(tag).await
 }
 
 #[derive(Debug, Default)]

@@ -5,7 +5,9 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration as TimeDuration;
 
+use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use log::{error, info, trace};
 use poise::serenity_prelude as serenity;
@@ -18,14 +20,12 @@ use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-use std::time::Duration as TimeDuration;
 
-use crate::beatleader::APP_USER_AGENT;
-use bytes::Bytes;
-
+use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::OAuthToken;
 use crate::beatleader::player::PlayerId;
+use crate::beatleader::APP_USER_AGENT;
 use crate::bot::beatleader::{fetch_scores, Player};
 use crate::storage::{StorageKey, StorageValue};
 use crate::Context;

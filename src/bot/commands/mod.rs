@@ -7,6 +7,7 @@ pub(crate) use player::{cmd_link, cmd_profile, cmd_replay, cmd_unlink};
 pub(crate) use register::cmd_register;
 
 pub(crate) mod backup;
+pub(crate) mod clan;
 pub(crate) mod guild;
 pub(crate) mod player;
 pub(crate) mod register;

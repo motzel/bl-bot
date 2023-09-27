@@ -583,7 +583,10 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
     });
 }
 
-async fn say_profile_not_linked(ctx: Context<'_>, user_id: &UserId) -> Result<(), Error> {
+pub(crate) async fn say_profile_not_linked(
+    ctx: Context<'_>,
+    user_id: &UserId,
+) -> Result<(), Error> {
     say_without_ping(
         ctx,
         format!(
@@ -598,7 +601,11 @@ async fn say_profile_not_linked(ctx: Context<'_>, user_id: &UserId) -> Result<()
     Ok(())
 }
 
-async fn say_without_ping(ctx: Context<'_>, message: &str, ephemeral: bool) -> Result<(), Error> {
+pub(crate) async fn say_without_ping(
+    ctx: Context<'_>,
+    message: &str,
+    ephemeral: bool,
+) -> Result<(), Error> {
     ctx.send(|f| {
         f.content(message)
             .allowed_mentions(|am| am.empty_parse())

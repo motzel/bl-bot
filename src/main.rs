@@ -14,6 +14,7 @@ use shuttle_secrets::SecretStore;
 
 use crate::beatleader::oauth::OAuthCredentials;
 use crate::beatleader::Client;
+use crate::bot::commands::clan::cmd_set_clan_invite;
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_export, cmd_import, cmd_link, cmd_profile, cmd_register,
     cmd_remove_auto_role, cmd_replay, cmd_set_log_channel, cmd_set_profile_verification,
@@ -153,6 +154,7 @@ async fn poise(
             cmd_remove_auto_role(),
             cmd_set_log_channel(),
             cmd_set_profile_verification(),
+            cmd_set_clan_invite(),
             cmd_register(),
             cmd_export(),
             cmd_import(),
