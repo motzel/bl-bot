@@ -759,6 +759,7 @@ pub struct GuildSettings {
     bot_channel_id: Option<ChannelId>,
     requires_verified_profile: bool,
     role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
+    clan_settings: Option<ClanSettings>,
 }
 
 impl StorageKey for GuildId {}
@@ -786,6 +787,14 @@ impl GuildSettings {
 
     pub fn set_channel(&mut self, channel_id: Option<ChannelId>) {
         self.bot_channel_id = channel_id;
+    }
+
+    pub fn get_clan_settings(&self) -> Option<ClanSettings> {
+        self.clan_settings.clone()
+    }
+
+    pub fn set_clan_settings(&mut self, clan_settings: Option<ClanSettings>) {
+        self.clan_settings = clan_settings;
     }
 
     pub fn set_verified_profile_requirement(&mut self, requires_verified_profile: bool) {
@@ -925,12 +934,13 @@ impl std::fmt::Display for GuildSettings {
 
         write!(
             f,
-            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\n## Auto roles:\n{}",
+            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\nClan setting: {}\n## Auto roles:\n{}",
             self.bot_channel_id.map_or_else(
                 || "**None**".to_owned(),
                 |channel_id| format!("<#{}>", channel_id.to_owned())
             ),
             if self.requires_verified_profile {"Yes"} else {"No"},
+            if self.clan_settings.is_some() {self.clan_settings.clone().unwrap().to_string()} else {"None".to_owned()},
             {
                 let roles = rg_vec
                     .iter()
@@ -959,6 +969,45 @@ impl std::fmt::Display for GuildSettings {
                 }
             }
         )
+    }
+}
+
+#[derive(Serialize, Default, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct ClanSettings {
+    user_id: UserId,
+    owner_id: PlayerId,
+    clan: ClanTag,
+    self_invite: bool,
+    pub oauth_token: Option<OAuthToken>,
+}
+
+impl ClanSettings {
+    pub fn new(
+        user_id: UserId,
+        owner_id: PlayerId,
+        clan: ClanTag,
+        self_invite: bool,
+    ) -> ClanSettings {
+        ClanSettings {
+            user_id,
+            owner_id,
+            clan,
+            self_invite,
+            oauth_token: None,
+        }
+    }
+
+    pub fn set_oauth_token(&mut self, oauth_token: Option<OAuthToken>) {
+        self.oauth_token = oauth_token;
+    }
+}
+
+impl std::fmt::Display for ClanSettings {
+    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        todo!()
+        // write!(f, "TODO")
     }
 }
 
