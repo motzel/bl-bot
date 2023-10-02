@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::file_storage::PersistInstance;
 use log::trace;
 use poise::serenity_prelude::{GuildId, UserId};
-use shuttle_persist::PersistInstance;
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::bot::beatleader::{fetch_ranked_scores_stats, Player as BotPlayer};

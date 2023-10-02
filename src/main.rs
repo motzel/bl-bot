@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
@@ -8,9 +9,6 @@ use log::{error, info, trace, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
-use shuttle_persist::PersistInstance;
-use shuttle_poise::ShuttlePoise;
-use shuttle_secrets::SecretStore;
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
@@ -21,6 +19,7 @@ use crate::bot::commands::{
     cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
+use crate::file_storage::PersistInstance;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -28,6 +27,7 @@ use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 mod beatleader;
 mod bot;
 mod embed;
+mod file_storage;
 mod storage;
 
 #[global_allocator]
@@ -60,30 +60,27 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     }
 }
 
-#[shuttle_runtime::main]
-async fn poise(
-    #[shuttle_secrets::Secrets] secret_store: SecretStore,
-    #[shuttle_persist::Persist] persist: PersistInstance,
-) -> ShuttlePoise<Data, Error> {
+#[tokio::main]
+async fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("bl_bot=info"))
+        .target(env_logger::Target::Stdout)
+        .init();
+
     info!("Starting up...");
 
-    // Get config set in `Secrets.toml`
-    let discord_token = secret_store
-        .get("DISCORD_TOKEN")
-        .expect("'DISCORD_TOKEN' was not found");
-
-    let refresh_interval: u64 = secret_store
-        .get("REFRESH_INTERVAL")
-        .expect("'REFRESH_INTERVAL' was not found")
+    let storage_path = std::env::var("STORAGE_PATH").unwrap_or("./.storage".to_owned());
+    let discord_token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
+    let refresh_interval: u64 = std::env::var("REFRESH_INTERVAL")
+        .unwrap_or("600".to_owned())
         .parse()
         .expect("'REFRESH_INTERVAL' should be an integer");
     if refresh_interval < 30 {
         panic!("REFRESH_INTERVAL should be at least 30 seconds");
     }
 
-    let oauth_client_id = secret_store.get("OAUTH_CLIENT_ID");
-    let oauth_client_secret = secret_store.get("OAUTH_CLIENT_SECRET");
-    let oauth_redirect_uri = secret_store.get("OAUTH_REDIRECT_URI");
+    let oauth_client_id = std::env::var("OAUTH_CLIENT_ID").ok();
+    let oauth_client_secret = std::env::var("OAUTH_CLIENT_SECRET").ok();
+    let oauth_redirect_uri = std::env::var("OAUTH_REDIRECT_URI").ok();
 
     let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
         (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthAppCredentials {
@@ -93,6 +90,8 @@ async fn poise(
         }),
         _ => None,
     };
+
+    let persist = PersistInstance::new(PathBuf::from(storage_path)).unwrap();
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -329,10 +328,7 @@ async fn poise(
                     oauth_credentials,
                 })
             })
-        })
-        .build()
-        .await
-        .map_err(shuttle_runtime::CustomError::new)?;
+        });
 
-    Ok(framework.into())
+    framework.run().await.unwrap();
 }

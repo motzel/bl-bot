@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::file_storage::PersistInstance;
 use log::trace;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
-use shuttle_persist::PersistInstance;
 use tokio::sync::MutexGuard;
 
 use crate::bot::{

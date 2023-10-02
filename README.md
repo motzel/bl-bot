@@ -35,7 +35,7 @@ All of the following commands require a Rust environment installed on your compu
 ## Deploy
 
 ```bash
-cargo shuttle deploy
+cargo file_storage deploy
 ```
 
 After you launch and invite the bot to your server, it will be visible in the list of users, but inaccessible. The bot does not automatically register Discord commands globally, you have to do it manually. To do this, after logging into the account that owns the bot, issue the command ``@BL Bot register`` (use the name you gave it). The bot will respond by displaying 4 buttons that allow you to register or delete commands globally or only on this server.
@@ -46,5 +46,5 @@ Note: If you register commands globally remember that [global commands can take 
 
 ## Develop
 ```bash
-cargo shuttle run
+cargo file_storage run
 ```
