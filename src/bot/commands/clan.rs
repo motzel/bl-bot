@@ -1,9 +1,10 @@
 use crate::beatleader::clan::Clan;
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::OAuthScope;
-use crate::bot::beatleader::fetch_clan;
+use crate::bot::beatleader::{fetch_clan, Player};
 use crate::bot::commands::player::{say_profile_not_linked, say_without_ping};
 use crate::bot::ClanSettings;
+use crate::storage::player::PlayerRepository;
 use crate::{Context, Error, BL_CLIENT};
 use futures::Stream;
 use log::info;
@@ -47,7 +48,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let player = player.unwrap();
     if !player.is_verified {
-        say_without_ping(ctx, "The profile must be verified. Go to https://www.beatleader.xyz and link your discord account with your BL profile.", true).await?;
+        say_without_ping(ctx, "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.", true).await?;
         return Ok(());
     }
 
@@ -243,7 +244,93 @@ pub(crate) async fn cmd_set_clan_invitation_code(
 /// Send yourself an invitation to join the clan
 #[poise::command(slash_command, rename = "bl-clan-invitation", guild_only)]
 pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
-    todo!()
+    let Some(guild_id) = ctx.guild_id() else {
+        ctx.say("Can not get guild data".to_string()).await?;
+        return Ok(());
+    };
+
+    let Ok(guild) = ctx.data().guild_settings_repository.get(&guild_id).await else {
+        say_without_ping(ctx, "Error: can not get guild settings", true).await?;
+
+        return Ok(());
+    };
+
+    // TODO: check if guild has clan_settings
+
+    let user_id = ctx.author().id;
+
+    match ctx.data().players_repository.get(&user_id).await {
+        Some(player) => {
+            if !player.is_linked_to_guild(&guild_id) {
+                say_profile_not_linked(ctx, &user_id).await?;
+
+                return Ok(());
+            }
+
+            let bl_player = PlayerRepository::fetch_player_from_bl(&player.id).await;
+            if bl_player.is_err() {
+                say_without_ping(
+                    ctx,
+                    format!(
+                        "Error: can not fetch player data from BL: {}",
+                        bl_player.err().unwrap()
+                    )
+                    .as_str(),
+                    true,
+                )
+                .await?;
+
+                return Ok(());
+            }
+
+            let bl_player = bl_player.unwrap();
+
+            let clan_tag = guild.clan_settings.unwrap().clan;
+
+            if bl_player.clans.iter().any(|clan| clan.tag == clan_tag) {
+                say_without_ping(ctx, "You are already a clan member.", true).await?;
+
+                return Ok(());
+            }
+
+            if bl_player.clans.len() >= 3 {
+                say_without_ping(ctx, "You are already a member of 3 clans. You must leave some clan if you want to join another.", true).await?;
+
+                return Ok(());
+            }
+
+            if bl_player
+                .socials
+                .iter()
+                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
+            {
+                say_without_ping(
+                    ctx,
+                    "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.",
+                    true,
+                )
+                    .await?;
+
+                // TODO: send clan invitation
+
+                say_without_ping(
+                    ctx,
+                    "Invitation has been sent! Go to <https://www.beatleader.xyz/clans> and accept it.",
+                    false,
+                )
+                    .await?;
+
+                return Ok(());
+            }
+        }
+        None => {
+            say_profile_not_linked(ctx, &user_id).await?;
+
+            return Ok(());
+        }
+    }
+
+    Ok(())
 }
 
 /// Send the player an invitation to join the clan

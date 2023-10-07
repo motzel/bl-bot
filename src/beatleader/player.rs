@@ -7,6 +7,7 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 
 use crate::beatleader;
+use crate::beatleader::clan::ClanTag;
 use crate::beatleader::{BlApiListResponse, BlApiResponse, Client, List, QueryParam, SortOrder};
 
 pub struct PlayerResource<'a> {
@@ -146,7 +147,7 @@ impl BlApiResponse for Player {}
 #[serde(rename_all = "camelCase")]
 pub struct PlayerClan {
     pub id: u32,
-    pub tag: String,
+    pub tag: ClanTag,
     pub color: String,
 }
 
