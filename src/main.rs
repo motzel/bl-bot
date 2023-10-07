@@ -12,10 +12,10 @@ use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
-use crate::beatleader::oauth::OAuthCredentials;
+use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
 use crate::bot::commands::clan::{
-    cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
+    cmd_clan_invitation, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
 };
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_export, cmd_import, cmd_link, cmd_profile, cmd_register,
@@ -25,6 +25,7 @@ use crate::bot::commands::{
 use crate::bot::{GuildSettings, UserRoleChanges};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 mod beatleader;
 mod bot;
@@ -41,7 +42,8 @@ lazy_static! {
 pub(crate) struct Data {
     guild_settings_repository: Arc<GuildSettingsRepository>,
     players_repository: Arc<PlayerRepository>,
-    oauth_credentials: Option<OAuthCredentials>,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    oauth_credentials: Option<OAuthAppCredentials>,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) type Context<'a> = poise::Context<'a, Data, Error>;
@@ -86,64 +88,13 @@ async fn poise(
     let oauth_redirect_uri = secret_store.get("OAUTH_REDIRECT_URI");
 
     let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
-        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthCredentials {
+        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthAppCredentials {
             client_id,
             client_secret,
             redirect_uri,
         }),
         _ => None,
     };
-
-    /*
-    if let Some(ref oauth_credentials) = oauth_credentials {
-        let oauth_client = BL_CLIENT.with_oauth(oauth_credentials.clone());
-
-        println!(
-            "{:?}\n",
-            oauth_client.oauth().authorize_url(vec![
-                OAuthScope::Profile,
-                OAuthScope::OfflineAccess,
-                OAuthScope::Clan
-            ])
-        );
-
-        println!("{:?}\n", oauth_client.oauth().access_token("123").await);
-
-        println!("{:?}\n", oauth_client.oauth().refresh_token("123").await);
-    }
-    secret_store.get("INVALID").expect("TEST ERROR");
-     */
-
-    // println!("{:?}", BL_CLIENT.clan().by_tag("TEST").await);
-
-    // println!(
-    //     "{:?}",
-    //     BL_CLIENT
-    //         .clan()
-    //         .search(&[ClanParam::Count(2), ClanParam::Search("TEST".to_string())])
-    //         .await
-    // );
-
-    // println!(
-    //     "{:?}",
-    //     BL_CLIENT
-    //         .player()
-    //         .get(&"76561198035381239".to_string())
-    //         .await
-    // );
-
-    // println!(
-    //     "{:?}",
-    //     BL_CLIENT
-    //         .player()
-    //         .scores(
-    //             &"76561198035381239".to_string(),
-    //             &[PlayerScoreParam::Count(2)]
-    //         )
-    //         .await
-    // );
-
-    // secret_store.get("INVALID").expect("TEST ERROR");
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -159,7 +110,7 @@ async fn poise(
             cmd_set_clan_invitation(),
             cmd_set_clan_invitation_code(),
             cmd_clan_invitation(),
-            cmd_invite_player(),
+            // cmd_invite_player(),
             cmd_register(),
             cmd_export(),
             cmd_import(),
@@ -189,10 +140,19 @@ async fn poise(
 
                 let persist_arc = Arc::new(persist);
                 let persist_arc2 = Arc::clone(&persist_arc);
+                let persist_arc3 = Arc::clone(&persist_arc);
+
+                info!("Initializing player OAuth tokens repository...");
+                let player_oauth_token_repository =
+                    Arc::new(PlayerOAuthTokenRepository::new(persist_arc).await.unwrap());
+                info!(
+                    "Player OAuth tokens repository initialized, length: {}.",
+                    player_oauth_token_repository.len().await
+                );
 
                 info!("Initializing guild settings repository...");
                 let guild_settings_repository =
-                    Arc::new(GuildSettingsRepository::new(persist_arc).await.unwrap());
+                    Arc::new(GuildSettingsRepository::new(persist_arc2).await.unwrap());
                 info!(
                     "Guild settings repository initialized, length: {}.",
                     guild_settings_repository.len().await
@@ -200,7 +160,7 @@ async fn poise(
 
                 info!("Initializing players repository...");
                 let players_repository =
-                    Arc::new(PlayerRepository::new(persist_arc2).await.unwrap());
+                    Arc::new(PlayerRepository::new(persist_arc3).await.unwrap());
                 info!(
                     "Players repository initialized, length: {}.",
                     players_repository.len().await
@@ -317,6 +277,7 @@ async fn poise(
                 Ok(Data {
                     guild_settings_repository,
                     players_repository,
+                    player_oauth_token_repository,
                     oauth_credentials,
                 })
             })

@@ -8,7 +8,7 @@ use std::{error, fmt};
 use log::{error, trace, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use super::Result;
 
@@ -169,6 +169,10 @@ where
         read_lock.contains_key(key)
     }
 
+    pub(super) async fn write_lock(&self) -> RwLockWriteGuard<HashMap<K, Mutex<V>>> {
+        self.state.write().await
+    }
+
     pub(super) async fn get_and_modify_or_insert<ModifyFunc, InsertFunc>(
         &self,
         key: &K,
@@ -306,7 +310,11 @@ where
         Ok(previous.is_some())
     }
 
-    async fn update_index(&self) -> Result<()> {
+    pub(super) async fn save(&self, key: K, value: V) -> Result<V> {
+        self.storage.save(key, value).await
+    }
+
+    pub(super) async fn update_index(&self) -> Result<()> {
         let storage_name = self.storage.get_name();
 
         trace!("Updating {} storage index...", storage_name);

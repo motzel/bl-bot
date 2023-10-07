@@ -17,7 +17,7 @@ use player::PlayerResource;
 use serde::Deserialize;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::oauth::{ClientWithOAuth, OAuthCredentials};
+use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
 
 pub mod clan;
 pub mod error;
@@ -72,8 +72,12 @@ impl Client {
         ClanResource::new(self)
     }
 
-    pub fn with_oauth(&self, oauth_credentials: OAuthCredentials) -> ClientWithOAuth {
-        ClientWithOAuth::new(self, oauth_credentials)
+    pub fn with_oauth<T: OAuthTokenRepository>(
+        &self,
+        oauth_credentials: OAuthAppCredentials,
+        oauth_token_repository: T,
+    ) -> ClientWithOAuth<T> {
+        ClientWithOAuth::new(self, oauth_credentials, oauth_token_repository)
     }
 
     pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<ReqwestResponse> {
@@ -119,6 +123,13 @@ impl Client {
         }
     }
 
+    async fn build_and_send_request(&self, builder: RequestBuilder) -> Result<ReqwestResponse> {
+        match builder.build() {
+            Ok(request) => self.send_request(request).await,
+            Err(err) => Err(Error::Request(err)),
+        }
+    }
+
     pub async fn send_request(&self, request: Request) -> Result<ReqwestResponse> {
         trace!("Waiting for rate limiter...");
 
@@ -144,8 +155,6 @@ impl Client {
                 Err(Error::Network(err))
             }
             Ok(response) => {
-                let base = Url::parse(self.base_url.as_str()).unwrap();
-
                 trace!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),
@@ -176,6 +185,10 @@ impl Client {
         self.http_client
             .request(method, full_url)
             .timeout(Duration::from_secs(self.timeout))
+    }
+
+    pub(crate) fn get_timeout(&self) -> u64 {
+        self.timeout
     }
 }
 

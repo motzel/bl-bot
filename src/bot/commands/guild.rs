@@ -1,8 +1,9 @@
 use futures::Stream;
 use poise::serenity_prelude;
-use poise::serenity_prelude::ChannelId;
+use poise::serenity_prelude::{ChannelId, GuildId};
 
-use crate::bot::{Condition, Metric, RequirementMetricValue};
+use crate::bot::commands::player::say_without_ping;
+use crate::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
 use crate::{Context, Error};
 
 /// Display current bot settings
@@ -16,27 +17,11 @@ use crate::{Context, Error};
     guild_only
 )]
 pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_settings = get_guild_settings(ctx, true).await?;
 
-    match ctx.data().guild_settings_repository.get(&guild_id).await {
-        Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+    ctx.say(format!("{}", guild_settings)).await?;
 
-            Ok(())
-        }
-        Err(e) => {
-            ctx.send(|f| {
-                f.content(format!("An error occurred: {}", e))
-                    .ephemeral(true)
-            })
-            .await?;
-
-            Ok(())
-        }
-    }
+    Ok(())
 }
 
 /// Set or unset bot log channel
@@ -54,10 +39,7 @@ pub(crate) async fn cmd_set_log_channel(
     #[description = "The channel where the bot logs will be posted. Leave empty to disable logging."]
     channel: Option<ChannelId>,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     match ctx
         .data()
@@ -93,10 +75,7 @@ pub(crate) async fn cmd_set_profile_verification(
     #[description = "Does the bl-link command require a verified profile or not."]
     requires_verified_profile: bool,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     match ctx
         .data()
@@ -142,10 +121,7 @@ pub(crate) async fn cmd_add_auto_role(
     #[min = 1]
     weight: u32,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     let metric_and_value = match RequirementMetricValue::new(metric, value.as_str()) {
         Ok(v) => v,
@@ -199,10 +175,7 @@ pub(crate) async fn cmd_remove_auto_role(
     group: String,
     #[description = "Role to remove."] role: serenity_prelude::Role,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     match ctx
         .data()
@@ -241,4 +214,32 @@ async fn autocomplete_role_group<'a>(
             ),
         },
     }
+}
+
+pub(crate) async fn get_guild_id(ctx: Context<'_>, ephemeral: bool) -> Result<GuildId, Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        say_without_ping(ctx, "Error: can not get guild data", ephemeral).await?;
+        return Err(Box::<dyn std::error::Error + Send + Sync>::from(
+            "Error: can not get guild data",
+        ));
+    };
+
+    Ok(guild_id)
+}
+
+pub(crate) async fn get_guild_settings(
+    ctx: Context<'_>,
+    ephemeral: bool,
+) -> Result<GuildSettings, Error> {
+    let guild_id = get_guild_id(ctx, ephemeral).await?;
+
+    let Ok(guild) = ctx.data().guild_settings_repository.get(&guild_id).await else {
+        say_without_ping(ctx, "Error: can not get guild settings", ephemeral).await?;
+
+        return Err(Box::<dyn std::error::Error + Send + Sync>::from(
+            "Error: can not get guild settings",
+        ));
+    };
+
+    Ok(guild)
 }

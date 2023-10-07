@@ -1,4 +1,5 @@
 use crate::beatleader::oauth::OAuthErrorResponse;
+use chrono::{DateTime, Utc};
 use std::{error, fmt};
 
 #[derive(Debug)]
@@ -9,6 +10,8 @@ pub enum Error {
     Unauthorized,
     Client(Option<String>),
     OAuth(Option<OAuthErrorResponse>),
+    OAuthExpired(DateTime<Utc>),
+    OAuthStorage,
     Server,
     JsonDecode(reqwest::Error),
     DbError(String),
@@ -36,6 +39,8 @@ impl fmt::Display for Error {
                     "unknown response"
                 }
             ),
+            Error::OAuthStorage => write!(f, "OAuth storage error"),
+            Error::OAuthExpired(date) => write!(f, "OAuth token has expired on {}", date),
         }
     }
 }
@@ -51,6 +56,8 @@ impl error::Error for Error {
             | Error::Server
             | Error::DbError(_)
             | Error::OAuth(_)
+            | Error::OAuthStorage
+            | Error::OAuthExpired(_)
             | Error::Unknown => None,
         }
     }
