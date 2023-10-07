@@ -940,7 +940,7 @@ impl std::fmt::Display for GuildSettings {
                 |channel_id| format!("<#{}>", channel_id.to_owned())
             ),
             if self.requires_verified_profile {"Yes"} else {"No"},
-            if self.clan_settings.is_some() {self.clan_settings.clone().unwrap().to_string()} else {"None".to_owned()},
+            if self.clan_settings.is_some() {self.clan_settings.clone().unwrap().to_string()} else {"Not set up".to_owned()},
             {
                 let roles = rg_vec
                     .iter()
@@ -1005,9 +1005,16 @@ impl ClanSettings {
 }
 
 impl std::fmt::Display for ClanSettings {
-    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        todo!()
-        // write!(f, "TODO")
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.oauth_token {
+            None => write!(f, "Unfinished setup for clan {}!", self.clan),
+            Some(_) => write!(
+                f,
+                "Set up for the clan {}. Users can{} send themselves invitations.",
+                self.clan,
+                if !self.self_invite { " NOT" } else { "" }
+            ),
+        }
     }
 }
 
