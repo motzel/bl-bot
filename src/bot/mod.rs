@@ -797,6 +797,12 @@ impl GuildSettings {
         self.clan_settings = clan_settings;
     }
 
+    pub fn set_oauth_token(&mut self, oauth_token: Option<OAuthToken>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_oauth_token(oauth_token);
+        }
+    }
+
     pub fn set_verified_profile_requirement(&mut self, requires_verified_profile: bool) {
         self.requires_verified_profile = requires_verified_profile;
     }
@@ -980,7 +986,7 @@ pub struct ClanSettings {
     owner_id: PlayerId,
     clan: ClanTag,
     self_invite: bool,
-    pub oauth_token: Option<OAuthToken>,
+    oauth_token: Option<OAuthToken>,
 }
 
 impl ClanSettings {
@@ -999,6 +1005,18 @@ impl ClanSettings {
         }
     }
 
+    pub fn get_clan(&self) -> ClanTag {
+        self.clan.clone()
+    }
+
+    pub fn supports_self_invitation(&self) -> bool {
+        self.self_invite
+    }
+
+    pub fn get_oauth_token(&self) -> Option<OAuthToken> {
+        self.oauth_token.clone()
+    }
+
     pub fn set_oauth_token(&mut self, oauth_token: Option<OAuthToken>) {
         self.oauth_token = oauth_token;
     }
@@ -1007,12 +1025,16 @@ impl ClanSettings {
 impl std::fmt::Display for ClanSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.oauth_token {
-            None => write!(f, "Unfinished setup for clan {}!", self.clan),
+            None => write!(f, "Unfinished setup for clan {}!", self.get_clan()),
             Some(_) => write!(
                 f,
                 "Set up for the clan {}. Users can{} send themselves invitations.",
                 self.clan,
-                if !self.self_invite { " NOT" } else { "" }
+                if !self.supports_self_invitation() {
+                    " NOT"
+                } else {
+                    ""
+                }
             ),
         }
     }

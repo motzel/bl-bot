@@ -1,6 +1,8 @@
 use reqwest::Method;
 use serde::Deserialize;
+use std::collections::HashMap;
 
+use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, Client, List, MetaData, QueryParam, Result, SortOrder,
@@ -33,6 +35,27 @@ impl<'a> ClanResource<'a> {
                 &[ClanParam::Count(0)],
             )
             .await
+    }
+}
+
+pub struct ClanAuthResource<'a, T: OAuthTokenRepository> {
+    client: &'a ClientWithOAuth<'a, T>,
+}
+
+impl<'a, T: OAuthTokenRepository> ClanAuthResource<'a, T> {
+    pub fn new(client: &'a ClientWithOAuth<T>) -> Self {
+        Self { client }
+    }
+
+    pub async fn invite(&self, player_id: PlayerId) -> Result<()> {
+        let builder = self
+            .client
+            .request_builder(Method::POST, "/clan/invite")
+            .form(&HashMap::from([("player", player_id)]));
+
+        let _ = self.client.send_request(builder).await?;
+
+        Ok(())
     }
 }
 

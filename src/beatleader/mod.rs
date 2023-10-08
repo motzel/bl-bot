@@ -17,7 +17,7 @@ use player::PlayerResource;
 use serde::Deserialize;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::oauth::{ClientWithOAuth, OAuthCredentials};
+use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
 
 pub mod clan;
 pub mod error;
@@ -72,8 +72,12 @@ impl Client {
         ClanResource::new(self)
     }
 
-    pub fn with_oauth(&self, oauth_credentials: OAuthCredentials) -> ClientWithOAuth {
-        ClientWithOAuth::new(self, oauth_credentials)
+    pub fn with_oauth<T: OAuthTokenRepository>(
+        &self,
+        oauth_credentials: OAuthAppCredentials,
+        oauth_token_repository: T,
+    ) -> ClientWithOAuth<T> {
+        ClientWithOAuth::new(self, oauth_credentials, oauth_token_repository)
     }
 
     pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<ReqwestResponse> {
@@ -176,6 +180,10 @@ impl Client {
         self.http_client
             .request(method, full_url)
             .timeout(Duration::from_secs(self.timeout))
+    }
+
+    pub(crate) fn get_timeout(&self) -> u64 {
+        self.timeout
     }
 }
 

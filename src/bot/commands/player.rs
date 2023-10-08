@@ -13,6 +13,7 @@ use bytes::Bytes;
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{List as BlList, SortOrder};
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
+use crate::bot::commands::guild::get_guild_id;
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
 use crate::storage::PersistError;
@@ -56,10 +57,7 @@ pub(crate) async fn cmd_link(
     #[description = "Beat Leader PlayerID or profile URL"] bl_player_id: String,
     #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     let (selected_user_id, requires_verification) = match user {
         Some(user) => {
@@ -158,10 +156,7 @@ pub(crate) async fn cmd_unlink(
     ctx: Context<'_>,
     #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     let selected_user_id = match user {
         Some(user) => {
@@ -244,10 +239,7 @@ pub(crate) async fn cmd_profile(
     ctx: Context<'_>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     let selected_user = user.as_ref().unwrap_or_else(|| ctx.author());
 
@@ -294,10 +286,7 @@ pub(crate) async fn cmd_replay(
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
-    let Some(guild_id) = ctx.guild_id() else {
-        ctx.say("Can not get guild data".to_string()).await?;
-        return Ok(());
-    };
+    let guild_id = get_guild_id(ctx, true).await?;
 
     let current_user = ctx.author();
     let selected_user = user.as_ref().unwrap_or(current_user);

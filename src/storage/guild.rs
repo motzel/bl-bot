@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use crate::beatleader::oauth::OAuthToken;
 use log::trace;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
+use tokio::sync::MutexGuard;
 
 use crate::bot::{
     ClanSettings, Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings,
@@ -140,6 +142,38 @@ impl<'a> GuildSettingsRepository {
             .await?
         {
             trace!("Clan settings for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn set_oauth_token<ModifyFunc>(
+        &self,
+        guild_id: &GuildId,
+        modify_func: ModifyFunc,
+        oauth_token: Option<OAuthToken>,
+    ) -> Result<GuildSettings>
+    where
+        ModifyFunc: FnOnce(&mut MutexGuard<GuildSettings>),
+    {
+        trace!("Setting OAuth token for guild {}...", guild_id);
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(guild_id, modify_func, || {
+                let mut guild_settings = GuildSettings::new(*guild_id);
+
+                guild_settings.set_oauth_token(oauth_token);
+
+                Some(guild_settings)
+            })
+            .await?
+        {
+            trace!("OAuth token for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {

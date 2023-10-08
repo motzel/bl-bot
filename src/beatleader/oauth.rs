@@ -1,19 +1,22 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
-use reqwest::{Method, RequestBuilder};
+use chrono::{DateTime, Duration, Utc};
+use poise::async_trait;
+use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::beatleader;
+use crate::beatleader::clan::{ClanAuthResource, ClanResource};
 use crate::beatleader::error::Error;
+use crate::beatleader::player::PlayerResource;
 use crate::beatleader::Client;
 
-pub struct OauthResource<'a> {
-    client: &'a ClientWithOAuth<'a>,
+pub struct OauthResource<'a, T: OAuthTokenRepository> {
+    client: &'a ClientWithOAuth<'a, T>,
 }
 
-impl<'a> OauthResource<'a> {
-    pub fn new(client: &'a ClientWithOAuth) -> Self {
+impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
+    pub fn new(client: &'a ClientWithOAuth<T>) -> Self {
         Self { client }
     }
 
@@ -27,13 +30,23 @@ impl<'a> OauthResource<'a> {
     }
 
     pub async fn access_token(&self, code: &str) -> beatleader::Result<OAuthToken> {
-        self.send_oauth_request(&OAuthGrant::AuthorizationCode(code.to_owned()))
-            .await
+        let access_token = self
+            .send_oauth_request(&OAuthGrant::AuthorizationCode(code.to_owned()))
+            .await?;
+
+        self.client.store_token(access_token.clone()).await?;
+
+        Ok(access_token)
     }
 
     pub async fn refresh_token(&self, refresh_token: &str) -> beatleader::Result<OAuthToken> {
-        self.send_oauth_request(&OAuthGrant::RefreshToken(refresh_token.to_owned()))
-            .await
+        let access_token = self
+            .send_oauth_request(&OAuthGrant::RefreshToken(refresh_token.to_owned()))
+            .await?;
+
+        self.client.store_token(access_token.clone()).await?;
+
+        Ok(access_token)
     }
 
     async fn send_oauth_request(&self, oauth_grant: &OAuthGrant) -> beatleader::Result<OAuthToken> {
@@ -62,7 +75,7 @@ impl<'a> OauthResource<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct OAuthCredentials {
+pub struct OAuthAppCredentials {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
@@ -123,6 +136,12 @@ pub struct OAuthToken {
     refresh_token: Option<String>,
 }
 
+impl OAuthToken {
+    pub fn is_valid_for(&self, duration: Duration) -> bool {
+        self.expiration_date.ge(&(Utc::now() + duration))
+    }
+}
+
 impl From<OAuthTokenResponse> for OAuthToken {
     fn from(value: OAuthTokenResponse) -> Self {
         OAuthToken {
@@ -148,7 +167,10 @@ pub enum OAuthGrant {
 }
 
 impl OAuthGrant {
-    pub fn get_request_builder(&self, client: &ClientWithOAuth) -> RequestBuilder {
+    pub fn get_request_builder<T: OAuthTokenRepository>(
+        &self,
+        client: &ClientWithOAuth<T>,
+    ) -> RequestBuilder {
         let mut params = HashMap::from([
             ("client_id", client.oauth_credentials.client_id.clone()),
             (
@@ -210,19 +232,101 @@ impl OAuthGrant {
     }
 }
 
-pub struct ClientWithOAuth<'a> {
-    client: &'a Client,
-    oauth_credentials: OAuthCredentials,
+#[async_trait]
+pub trait OAuthTokenRepository {
+    async fn get(&self) -> Result<Option<OAuthToken>, Error>;
+    async fn store(&self, oauth_token: OAuthToken) -> Result<(), Error>;
 }
 
-impl ClientWithOAuth<'_> {
-    pub fn new(client: &Client, oauth_credentials: OAuthCredentials) -> ClientWithOAuth<'_> {
+pub struct ClientWithOAuth<'a, T>
+where
+    T: OAuthTokenRepository,
+{
+    client: &'a Client,
+    oauth_credentials: OAuthAppCredentials,
+    oauth_token_repository: T,
+}
+
+impl<'a, T> ClientWithOAuth<'a, T>
+where
+    T: OAuthTokenRepository,
+{
+    pub fn new(
+        client: &Client,
+        oauth_credentials: OAuthAppCredentials,
+        oauth_token_repository: T,
+    ) -> ClientWithOAuth<'_, T> {
         ClientWithOAuth {
             client,
             oauth_credentials,
+            oauth_token_repository,
         }
     }
-    pub fn oauth(&self) -> OauthResource {
+    pub fn oauth(&self) -> OauthResource<T> {
         OauthResource::new(self)
+    }
+
+    pub fn player(&self) -> PlayerResource {
+        PlayerResource::new(self.client)
+    }
+
+    pub fn clan(&self) -> ClanResource {
+        ClanResource::new(self.client)
+    }
+
+    pub fn clan_auth(&self) -> ClanAuthResource<T> {
+        ClanAuthResource::new(self)
+    }
+
+    pub(crate) fn request_builder<U: IntoUrl>(
+        &self,
+        method: Method,
+        endpoint: U,
+    ) -> RequestBuilder {
+        self.client.request_builder(method, endpoint)
+    }
+
+    pub async fn send_request(&self, builder: RequestBuilder) -> super::Result<ReqwestResponse> {
+        let Some(oauth_token) = self.get_token().await? else {
+            return Err(Error::OAuthStorage);
+        };
+
+        if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30)) {
+            return self.build_and_send_request(builder).await;
+        }
+
+        if oauth_token.refresh_token.is_none() {
+            return Err(Error::OAuthStorage);
+        }
+
+        // TODO:
+        // 3. lock token repository for writing
+        // 4. get the token
+        // 5. check if expired
+        // 5a. if not just send a request with this token; return;
+        // 6. refresh token and store it
+        // 7. send a request
+
+        // let builder = builder.header("Authorization", format!("Bearer {}", token.access_token));
+
+        self.build_and_send_request(builder).await
+    }
+
+    async fn build_and_send_request(
+        &self,
+        builder: RequestBuilder,
+    ) -> super::Result<ReqwestResponse> {
+        match builder.build() {
+            Ok(request) => self.client.send_request(request).await,
+            Err(err) => Err(Error::Request(err)),
+        }
+    }
+
+    pub async fn get_token(&self) -> Result<Option<OAuthToken>, Error> {
+        self.oauth_token_repository.get().await
+    }
+
+    pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<(), Error> {
+        self.oauth_token_repository.store(oauth_token).await
     }
 }
