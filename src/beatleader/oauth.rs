@@ -127,7 +127,7 @@ pub struct OAuthErrorResponse {
     pub error_uri: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct OAuthToken {
     access_token: String,
     token_type: String,
@@ -291,12 +291,10 @@ where
             return Err(Error::OAuthStorage);
         };
 
-        if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30)) {
+        if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30))
+            || oauth_token.refresh_token.is_none()
+        {
             return self.build_and_send_request(builder).await;
-        }
-
-        if oauth_token.refresh_token.is_none() {
-            return Err(Error::OAuthStorage);
         }
 
         // TODO:

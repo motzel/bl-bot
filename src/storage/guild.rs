@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::beatleader::oauth::OAuthToken;
 use log::trace;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
@@ -155,7 +154,7 @@ impl<'a> GuildSettingsRepository {
         &self,
         guild_id: &GuildId,
         modify_func: ModifyFunc,
-        oauth_token: Option<OAuthToken>,
+        oauth_token: bool,
     ) -> Result<GuildSettings>
     where
         ModifyFunc: FnOnce(&mut MutexGuard<GuildSettings>),

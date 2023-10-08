@@ -25,6 +25,7 @@ use crate::bot::commands::{
 use crate::bot::{GuildSettings, UserRoleChanges};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 mod beatleader;
 mod bot;
@@ -41,6 +42,7 @@ lazy_static! {
 pub(crate) struct Data {
     guild_settings_repository: Arc<GuildSettingsRepository>,
     players_repository: Arc<PlayerRepository>,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     oauth_credentials: Option<OAuthAppCredentials>,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -138,10 +140,19 @@ async fn poise(
 
                 let persist_arc = Arc::new(persist);
                 let persist_arc2 = Arc::clone(&persist_arc);
+                let persist_arc3 = Arc::clone(&persist_arc);
+
+                info!("Initializing player OAuth tokens repository...");
+                let player_oauth_token_repository =
+                    Arc::new(PlayerOAuthTokenRepository::new(persist_arc).await.unwrap());
+                info!(
+                    "Player OAuth tokens repository initialized, length: {}.",
+                    player_oauth_token_repository.len().await
+                );
 
                 info!("Initializing guild settings repository...");
                 let guild_settings_repository =
-                    Arc::new(GuildSettingsRepository::new(persist_arc).await.unwrap());
+                    Arc::new(GuildSettingsRepository::new(persist_arc2).await.unwrap());
                 info!(
                     "Guild settings repository initialized, length: {}.",
                     guild_settings_repository.len().await
@@ -149,7 +160,7 @@ async fn poise(
 
                 info!("Initializing players repository...");
                 let players_repository =
-                    Arc::new(PlayerRepository::new(persist_arc2).await.unwrap());
+                    Arc::new(PlayerRepository::new(persist_arc3).await.unwrap());
                 info!(
                     "Players repository initialized, length: {}.",
                     players_repository.len().await
@@ -266,6 +277,7 @@ async fn poise(
                 Ok(Data {
                     guild_settings_repository,
                     players_repository,
+                    player_oauth_token_repository,
                     oauth_credentials,
                 })
             })

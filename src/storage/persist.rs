@@ -8,7 +8,7 @@ use std::{error, fmt};
 use log::{error, trace, warn};
 use serde::{Deserialize, Serialize};
 use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use super::Result;
 
@@ -167,6 +167,10 @@ where
         let read_lock = self.state.read().await;
 
         read_lock.contains_key(key)
+    }
+
+    pub(super) async fn write_lock(&self) -> RwLockWriteGuard<HashMap<K, Mutex<V>>> {
+        self.state.write().await
     }
 
     pub(super) async fn get_and_modify_or_insert<ModifyFunc, InsertFunc>(

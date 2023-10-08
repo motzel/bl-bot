@@ -1,12 +1,14 @@
 use crate::beatleader::clan::Clan;
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthScope, OAuthToken, OAuthTokenRepository};
+use crate::beatleader::player::PlayerId;
 use crate::bot::beatleader::{fetch_clan, Player};
 use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::bot::commands::player::{say_profile_not_linked, say_without_ping};
 use crate::bot::{ClanSettings, GuildSettings};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::{Context, Error, BL_CLIENT};
 use futures::Stream;
 use log::info;
@@ -15,18 +17,18 @@ use poise::{async_trait, serenity_prelude};
 use std::sync::Arc;
 
 pub(crate) struct GuildOAuthTokenRepository {
-    guild_id: GuildId,
-    guild_settings_repository: Arc<GuildSettingsRepository>,
+    owner_id: PlayerId,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
 }
 
 impl GuildOAuthTokenRepository {
     pub fn new(
-        guild_id: GuildId,
-        guild_settings_repository: Arc<GuildSettingsRepository>,
+        player_id: PlayerId,
+        player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     ) -> GuildOAuthTokenRepository {
         GuildOAuthTokenRepository {
-            guild_id,
-            guild_settings_repository,
+            owner_id: player_id,
+            player_oauth_token_repository,
         }
     }
 }
@@ -34,30 +36,16 @@ impl GuildOAuthTokenRepository {
 #[async_trait]
 impl OAuthTokenRepository for GuildOAuthTokenRepository {
     async fn get(&self) -> Result<Option<OAuthToken>, BlError> {
-        match self.guild_settings_repository.get(&self.guild_id).await {
-            Ok(guild_settings) => {
-                if guild_settings.clan_settings.is_none() {
-                    return Ok(None);
-                }
-                Ok(guild_settings.clan_settings.unwrap().oauth_token)
-            }
-            Err(_) => Err(BlError::OAuthStorage),
+        match self.player_oauth_token_repository.get(&self.owner_id).await {
+            Some(player_oauth_token) => Ok(Some(player_oauth_token.into())),
+            None => Err(BlError::OAuthStorage),
         }
     }
 
     async fn store(&self, oauth_token: OAuthToken) -> Result<(), BlError> {
-        let oauth_token_clone = oauth_token.clone();
-
         match self
-            .guild_settings_repository
-            .set_oauth_token(
-                &self.guild_id,
-                |guild_settings| {
-                    // TODO: check if token should be modified; or maybe not here but in OAuthClient::refresh_token()
-                    guild_settings.set_oauth_token(Some(oauth_token))
-                },
-                Some(oauth_token_clone),
-            )
+            .player_oauth_token_repository
+            .set(&self.owner_id, oauth_token)
             .await
         {
             Ok(_) => Ok(()),
@@ -163,7 +151,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let clan_settings = ClanSettings::new(
         current_user.id,
-        player.id,
+        player_clan.leader_id.clone(),
         player_clan.tag.clone(),
         self_invite,
     );
@@ -185,8 +173,8 @@ pub(crate) async fn cmd_set_clan_invitation(
     }
 
     let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
-        guild_settings.guild_id,
-        Arc::clone(&ctx.data().guild_settings_repository),
+        player_clan.leader_id,
+        Arc::clone(&ctx.data().player_oauth_token_repository),
     );
 
     let oauth_client = BL_CLIENT.with_oauth(
@@ -234,14 +222,20 @@ pub(crate) async fn cmd_set_clan_invitation_code(
         return Ok(());
     }
 
+    let owner_id = guild_settings
+        .clan_settings
+        .as_ref()
+        .unwrap()
+        .owner_id
+        .clone();
     let self_invite = guild_settings.clan_settings.as_ref().unwrap().self_invite;
 
     let mut msg_contents = "Fetching access token...".to_owned();
     let msg = ctx.say(&msg_contents).await?;
 
     let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
-        guild_settings.guild_id,
-        Arc::clone(&ctx.data().guild_settings_repository),
+        owner_id,
+        Arc::clone(&ctx.data().player_oauth_token_repository),
     );
     let oauth_client = BL_CLIENT.with_oauth(
         ctx.data().oauth_credentials.as_ref().unwrap().clone(),
@@ -257,6 +251,31 @@ pub(crate) async fn cmd_set_clan_invitation_code(
             )
             .as_str(),
         );
+
+        let msg_contents_clone = msg_contents.clone();
+        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+            .await?;
+
+        return Ok(());
+    }
+
+    msg_contents.push_str("OK\nSaving clan settings...");
+
+    let msg_contents_clone = msg_contents.clone();
+    msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+        .await?;
+
+    let mut clan_settings = guild_settings.clan_settings.unwrap();
+    clan_settings.oauth_token_is_set = true;
+
+    if ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_settings(&guild_settings.guild_id, Some(clan_settings))
+        .await
+        .is_err()
+    {
+        msg_contents.push_str("An error occurred while saving clan settings\n");
 
         let msg_contents_clone = msg_contents.clone();
         msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))

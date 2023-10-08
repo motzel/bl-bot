@@ -797,7 +797,7 @@ impl GuildSettings {
         self.clan_settings = clan_settings;
     }
 
-    pub fn set_oauth_token(&mut self, oauth_token: Option<OAuthToken>) {
+    pub fn set_oauth_token(&mut self, oauth_token: bool) {
         if let Some(ref mut clan_settings) = self.clan_settings {
             clan_settings.set_oauth_token(oauth_token);
         }
@@ -986,7 +986,7 @@ pub struct ClanSettings {
     owner_id: PlayerId,
     clan: ClanTag,
     self_invite: bool,
-    oauth_token: Option<OAuthToken>,
+    oauth_token_is_set: bool,
 }
 
 impl ClanSettings {
@@ -1001,7 +1001,7 @@ impl ClanSettings {
             owner_id,
             clan,
             self_invite,
-            oauth_token: None,
+            oauth_token_is_set: false,
         }
     }
 
@@ -1013,20 +1013,19 @@ impl ClanSettings {
         self.self_invite
     }
 
-    pub fn get_oauth_token(&self) -> Option<OAuthToken> {
-        self.oauth_token.clone()
+    pub fn is_oauth_token_set(&self) -> bool {
+        self.oauth_token_is_set
     }
 
-    pub fn set_oauth_token(&mut self, oauth_token: Option<OAuthToken>) {
-        self.oauth_token = oauth_token;
+    pub fn set_oauth_token(&mut self, oauth_token_is_set: bool) {
+        self.oauth_token_is_set = oauth_token_is_set;
     }
 }
 
 impl std::fmt::Display for ClanSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.oauth_token {
-            None => write!(f, "Unfinished setup for clan {}!", self.get_clan()),
-            Some(_) => write!(
+        if self.oauth_token_is_set {
+            write!(
                 f,
                 "Set up for the clan {}. Users can{} send themselves invitations.",
                 self.clan,
@@ -1035,7 +1034,9 @@ impl std::fmt::Display for ClanSettings {
                 } else {
                     ""
                 }
-            ),
+            )
+        } else {
+            write!(f, "Unfinished setup for clan {}!", self.get_clan())
         }
     }
 }
