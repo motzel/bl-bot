@@ -310,6 +310,10 @@ where
         Ok(previous.is_some())
     }
 
+    pub(super) async fn save(&self, key: K, value: V) -> Result<V> {
+        self.storage.save(key, value).await
+    }
+
     async fn update_index(&self) -> Result<()> {
         let storage_name = self.storage.get_name();
 

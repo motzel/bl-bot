@@ -2,6 +2,7 @@ use log::trace;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::MutexGuard;
 
 use shuttle_persist::PersistInstance;
 
@@ -64,6 +65,32 @@ impl<'a> PlayerOAuthTokenRepository {
 
     pub(crate) async fn get(&self, player_id: &PlayerId) -> Option<PlayerOAuthToken> {
         self.storage.get(player_id).await
+    }
+
+    pub(super) async fn test<ModifyFunc>(
+        &self,
+        player_id: &PlayerId,
+        modify_func: ModifyFunc,
+    ) -> Result<PlayerOAuthToken>
+    where
+        ModifyFunc: FnOnce(MutexGuard<PlayerOAuthToken>) -> MutexGuard<PlayerOAuthToken>,
+    {
+        let write_lock = self.storage.write_lock().await;
+
+        if let Some(token_mutex) = write_lock.get(player_id) {
+            let token_mutex_guard = token_mutex.lock().await;
+
+            let token_mutex_guard = modify_func(token_mutex_guard);
+
+            let saved_token = self
+                .storage
+                .save(player_id.clone(), token_mutex_guard.clone())
+                .await;
+
+            return saved_token;
+        }
+
+        Err(PersistError::NotFound("token not found".to_string()))
     }
 
     pub(crate) async fn set(
