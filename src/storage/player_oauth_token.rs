@@ -1,4 +1,5 @@
 use log::trace;
+use std::future::Future;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -17,9 +18,9 @@ use super::Result;
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub(crate) struct PlayerOAuthToken {
-    player_id: PlayerId,
+    pub player_id: PlayerId,
     #[serde(flatten)]
-    oauth_token: OAuthToken,
+    pub oauth_token: OAuthToken,
 }
 
 impl PlayerOAuthToken {
@@ -67,20 +68,21 @@ impl<'a> PlayerOAuthTokenRepository {
         self.storage.get(player_id).await
     }
 
-    pub(super) async fn test<ModifyFunc>(
+    pub(crate) async fn update<ModifyFunc, Fut>(
         &self,
         player_id: &PlayerId,
         modify_func: ModifyFunc,
     ) -> Result<PlayerOAuthToken>
     where
-        ModifyFunc: FnOnce(MutexGuard<PlayerOAuthToken>) -> MutexGuard<PlayerOAuthToken>,
+        ModifyFunc: FnOnce(MutexGuard<PlayerOAuthToken>) -> Fut,
+        Fut: Future<Output = MutexGuard<'a, PlayerOAuthToken>>,
     {
         let write_lock = self.storage.write_lock().await;
 
         if let Some(token_mutex) = write_lock.get(player_id) {
             let token_mutex_guard = token_mutex.lock().await;
 
-            let token_mutex_guard = modify_func(token_mutex_guard);
+            let token_mutex_guard = modify_func(token_mutex_guard).await;
 
             let saved_token = self
                 .storage

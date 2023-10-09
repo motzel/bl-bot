@@ -43,6 +43,17 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
     }
 
     async fn store(&self, oauth_token: OAuthToken) -> Result<(), BlError> {
+        let oauth_token_clone = oauth_token.clone();
+        let _foo = self
+            .player_oauth_token_repository
+            .update(&self.owner_id, async move |token| {
+                // TODO: check if oauth_token is newer than existing and store it only in that case
+                token.oauth_token = oauth_token_clone;
+
+                token
+            })
+            .await;
+
         match self
             .player_oauth_token_repository
             .set(&self.owner_id, oauth_token)
