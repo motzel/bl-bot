@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
+use log::info;
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -41,17 +42,12 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
     pub async fn access_token_and_store(&self, code: &str) -> beatleader::Result<OAuthToken> {
         let access_token = self.access_token(code).await?;
 
-        self.client.store_token(access_token.clone()).await?;
-
-        Ok(access_token)
+        self.client.store_token(access_token.clone()).await
     }
 
     pub async fn refresh_token(&self, refresh_token: &str) -> beatleader::Result<OAuthToken> {
-        let access_token = self
-            .send_oauth_request(&OAuthGrant::RefreshToken(refresh_token.to_owned()))
-            .await?;
-
-        Ok(access_token)
+        self.send_oauth_request(&OAuthGrant::RefreshToken(refresh_token.to_owned()))
+            .await
     }
 
     pub async fn refresh_token_and_store(
@@ -147,7 +143,7 @@ pub struct OAuthErrorResponse {
 pub struct OAuthToken {
     access_token: String,
     token_type: String,
-    expiration_date: DateTime<Utc>,
+    pub expiration_date: DateTime<Utc>,
     scopes: Vec<OAuthScope>,
     refresh_token: Option<String>,
 }
@@ -369,7 +365,14 @@ where
     pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<OAuthToken, Error> {
         self.oauth_token_repository
             .store(|token| {
+                info!("ClientWithOauth::store_token/closure()");
                 Box::pin(async move {
+                    info!(
+                        "ClientWithOauth::store_token/closure/Box::pin( {} ), OLD: {}, NEWER?: {:?}",
+                        &oauth_token.expiration_date,
+                        &token.expiration_date,
+                        oauth_token.is_newer_than(token)
+                    );
                     if oauth_token.is_newer_than(token) {
                         *token = oauth_token;
                     }

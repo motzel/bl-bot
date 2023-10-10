@@ -1,4 +1,5 @@
 use futures::future::BoxFuture;
+use log::info;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -75,12 +76,19 @@ impl<'a> PlayerOAuthTokenRepository {
     where
         ModifyFunc: for<'b> FnOnce(&'b mut PlayerOAuthToken) -> BoxFuture<'b, ()>,
     {
+        info!("PlayerOauthToken::set()");
         let mut write_lock = self.storage.write_lock().await;
 
         if let Some(token_mutex) = write_lock.get(player_id) {
+            info!("PlayerOauthToken::set() WRITE_LOCK GET!");
             let token_mutex_guard = &mut token_mutex.lock().await;
 
+            info!("PlayerOauthToken, right before modify");
             modify_func(token_mutex_guard).await;
+            info!(
+                "PlayerOauthToken::set() MODIFIED {}!",
+                &token_mutex_guard.clone().oauth_token.expiration_date
+            );
 
             return self
                 .storage
@@ -88,14 +96,27 @@ impl<'a> PlayerOAuthTokenRepository {
                 .await;
         }
 
+        info!("PlayerOauthToken::set() DEFAULT VALUE");
         let value = PlayerOAuthToken::default();
-        let value_clone = value.clone();
+        let value_clone;
 
+        info!("PlayerOauthToken, before mutex");
         let value_mutex = Mutex::new(value);
         {
             let mut value_mutex_guard = value_mutex.lock().await;
+
+            info!("PlayerOauthToken, right before modify");
             modify_func(&mut value_mutex_guard).await;
+            info!("PlayerOauthToken, right after modify");
+
+            value_clone = value_mutex_guard.clone();
+
+            info!(
+                "PlayerOauthToken, after modify: {}",
+                &value_mutex_guard.oauth_token.expiration_date
+            );
         }
+        info!("PlayerOauthToken, after mutex");
 
         write_lock.insert(player_id.clone(), value_mutex);
 
