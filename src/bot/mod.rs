@@ -1043,6 +1043,7 @@ impl std::fmt::Display for ClanSettings {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct GuildOAuthTokenRepository {
     owner_id: PlayerId,
     player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,

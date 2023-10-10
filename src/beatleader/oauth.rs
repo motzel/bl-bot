@@ -6,11 +6,11 @@ use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::beatleader;
 use crate::beatleader::clan::{ClanAuthResource, ClanResource};
 use crate::beatleader::error::Error;
 use crate::beatleader::player::PlayerResource;
 use crate::beatleader::Client;
+use crate::{beatleader, BL_CLIENT};
 
 pub struct OauthResource<'a, T: OAuthTokenRepository> {
     client: &'a ClientWithOAuth<'a, T>,
@@ -35,6 +35,12 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
             .send_oauth_request(&OAuthGrant::AuthorizationCode(code.to_owned()))
             .await?;
 
+        Ok(access_token)
+    }
+
+    pub async fn access_token_and_store(&self, code: &str) -> beatleader::Result<OAuthToken> {
+        let access_token = self.access_token(code).await?;
+
         self.client.store_token(access_token.clone()).await?;
 
         Ok(access_token)
@@ -44,6 +50,15 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
         let access_token = self
             .send_oauth_request(&OAuthGrant::RefreshToken(refresh_token.to_owned()))
             .await?;
+
+        Ok(access_token)
+    }
+
+    pub async fn refresh_token_and_store(
+        &self,
+        refresh_token: &str,
+    ) -> beatleader::Result<OAuthToken> {
+        let access_token = self.refresh_token(refresh_token).await?;
 
         self.client.store_token(access_token.clone()).await?;
 
@@ -238,7 +253,7 @@ impl OAuthGrant {
 }
 
 #[async_trait]
-pub trait OAuthTokenRepository: Sync + Send {
+pub trait OAuthTokenRepository: Sync + Send + Clone + 'static {
     async fn get(&self) -> Result<Option<OAuthToken>, Error>;
     async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, Error>
     where
@@ -307,20 +322,24 @@ where
             return self.build_and_send_request(builder).await;
         }
 
-        let client = self.clone();
+        let oauth_credentials = self.oauth_credentials.clone();
+        let oauth_token_repository = self.oauth_token_repository.clone();
 
         let oauth_token = self
             .oauth_token_repository
             .store(move |token| {
                 Box::pin(async move {
-                    // TODO: check if token == oauth_token, skip refreshing if newer
+                    // refresh only if the token has not changed in the meantime
+                    if token.access_token == oauth_token.access_token {
+                        let new_token_result = BL_CLIENT
+                            .with_oauth(oauth_credentials, oauth_token_repository)
+                            .oauth()
+                            .refresh_token(oauth_token.refresh_token.as_ref().unwrap())
+                            .await;
 
-                    let new_token = client
-                        .oauth()
-                        .refresh_token(oauth_token.refresh_token.as_ref().unwrap())
-                        .await;
-                    if new_token.is_ok() {
-                        *token = new_token.unwrap();
+                        if let Ok(new_token) = new_token_result {
+                            *token = new_token;
+                        }
                     }
                 })
             })

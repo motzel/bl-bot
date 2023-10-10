@@ -197,7 +197,10 @@ pub(crate) async fn cmd_set_clan_invitation_code(
         guild_oauth_token_repository,
     );
 
-    let access_token = oauth_client.oauth().access_token(auth_code.as_str()).await;
+    let access_token = oauth_client
+        .oauth()
+        .access_token_and_store(auth_code.as_str())
+        .await;
     if access_token.is_err() {
         msg_contents.push_str(
             format!(
