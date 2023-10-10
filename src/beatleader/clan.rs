@@ -53,7 +53,7 @@ impl<'a, T: OAuthTokenRepository> ClanAuthResource<'a, T> {
             .request_builder(Method::POST, "/clan/invite")
             .form(&HashMap::from([("player", player_id)]));
 
-        let _ = self.client.send_authorized_request(builder).await?;
+        self.client.send_authorized_request(builder).await?;
 
         Ok(())
     }

@@ -238,7 +238,7 @@ impl OAuthGrant {
 }
 
 #[async_trait]
-pub trait OAuthTokenRepository {
+pub trait OAuthTokenRepository: Sync + Send {
     async fn get(&self) -> Result<Option<OAuthToken>, Error>;
     async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, Error>
     where
@@ -307,26 +307,30 @@ where
             return self.build_and_send_request(builder).await;
         }
 
-        let oauth_token = self.store_token(oauth_token).await;
+        let client = self.clone();
 
-        if oauth_token.is_err() {
-            return self.build_and_send_request(builder).await;
-        }
+        let oauth_token = self
+            .oauth_token_repository
+            .store(move |token| {
+                Box::pin(async move {
+                    // TODO: check if token == oauth_token, skip refreshing if newer
 
-        // TODO:
-        // 3. lock token repository for writing
-        // 4. get the token
-        // 5. check if expired
-        // 5a. if not just send a request with this token; return;
-        // 6. refresh token and store it
-        // 7. send a request
+                    let new_token = client
+                        .oauth()
+                        .refresh_token(oauth_token.refresh_token.as_ref().unwrap())
+                        .await;
+                    if new_token.is_ok() {
+                        *token = new_token.unwrap();
+                    }
+                })
+            })
+            .await?;
 
-        let builder = builder.header(
+        self.build_and_send_request(builder.header(
             "Authorization",
-            format!("Bearer {}", oauth_token.unwrap().access_token),
-        );
-
-        self.build_and_send_request(builder).await
+            format!("Bearer {}", oauth_token.access_token),
+        ))
+        .await
     }
 
     async fn build_and_send_request(
