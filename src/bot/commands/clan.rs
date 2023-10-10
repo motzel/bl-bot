@@ -46,11 +46,16 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
         let oauth_token_clone = oauth_token.clone();
         let _foo = self
             .player_oauth_token_repository
-            .update(&self.owner_id, async move |token| {
-                // TODO: check if oauth_token is newer than existing and store it only in that case
-                token.oauth_token = oauth_token_clone;
-
-                token
+            // .update(&self.owner_id, async move |token| {
+            //     // TODO: check if oauth_token is newer than existing and store it only in that case
+            //     token.oauth_token = oauth_token_clone;
+            //
+            //     token
+            // })
+            .update(&self.owner_id, |token| {
+                Box::pin(async {
+                    token.oauth_token = oauth_token_clone;
+                })
             })
             .await;
 

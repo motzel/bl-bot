@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use log::trace;
 use std::future::Future;
 use std::sync::Arc;
@@ -68,21 +69,20 @@ impl<'a> PlayerOAuthTokenRepository {
         self.storage.get(player_id).await
     }
 
-    pub(crate) async fn update<ModifyFunc, Fut>(
+    pub(crate) async fn update<ModifyFunc>(
         &self,
         player_id: &PlayerId,
         modify_func: ModifyFunc,
     ) -> Result<PlayerOAuthToken>
     where
-        ModifyFunc: FnOnce(MutexGuard<PlayerOAuthToken>) -> Fut,
-        Fut: Future<Output = MutexGuard<'a, PlayerOAuthToken>>,
+        ModifyFunc: for<'b> FnOnce(&'b mut PlayerOAuthToken) -> BoxFuture<'b, ()>,
     {
         let write_lock = self.storage.write_lock().await;
 
         if let Some(token_mutex) = write_lock.get(player_id) {
-            let token_mutex_guard = token_mutex.lock().await;
+            let token_mutex_guard = &mut token_mutex.lock().await;
 
-            let token_mutex_guard = modify_func(token_mutex_guard).await;
+            modify_func(token_mutex_guard).await;
 
             let saved_token = self
                 .storage
