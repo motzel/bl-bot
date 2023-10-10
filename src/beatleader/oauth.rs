@@ -293,7 +293,10 @@ where
         self.client.request_builder(method, endpoint)
     }
 
-    pub async fn send_request(&self, builder: RequestBuilder) -> super::Result<ReqwestResponse> {
+    pub async fn send_authorized_request(
+        &self,
+        builder: RequestBuilder,
+    ) -> super::Result<ReqwestResponse> {
         let Some(oauth_token) = self.get_token().await? else {
             return Err(Error::OAuthStorage);
         };

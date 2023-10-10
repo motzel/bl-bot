@@ -49,7 +49,7 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
     {
         match self
             .player_oauth_token_repository
-            .update(&self.owner_id, |token| {
+            .set(&self.owner_id, |token| {
                 Box::pin(async {
                     modify_func(&mut token.oauth_token);
                 })

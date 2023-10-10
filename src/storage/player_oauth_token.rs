@@ -1,15 +1,15 @@
 use futures::future::BoxFuture;
-use log::trace;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 
 use shuttle_persist::PersistInstance;
 
 use crate::beatleader::oauth::OAuthToken;
 use crate::beatleader::player::PlayerId;
 use crate::storage::persist::{CachedStorage, ShuttleStorage};
-use crate::storage::{PersistError, StorageKey, StorageValue};
+use crate::storage::{StorageKey, StorageValue};
 
 use super::Result;
 
@@ -67,7 +67,7 @@ impl<'a> PlayerOAuthTokenRepository {
         self.storage.get(player_id).await
     }
 
-    pub(crate) async fn update<ModifyFunc>(
+    pub(crate) async fn set<ModifyFunc>(
         &self,
         player_id: &PlayerId,
         modify_func: ModifyFunc,
@@ -75,54 +75,37 @@ impl<'a> PlayerOAuthTokenRepository {
     where
         ModifyFunc: for<'b> FnOnce(&'b mut PlayerOAuthToken) -> BoxFuture<'b, ()>,
     {
-        let write_lock = self.storage.write_lock().await;
+        let mut write_lock = self.storage.write_lock().await;
 
         if let Some(token_mutex) = write_lock.get(player_id) {
             let token_mutex_guard = &mut token_mutex.lock().await;
 
             modify_func(token_mutex_guard).await;
 
-            let saved_token = self
+            return self
                 .storage
                 .save(player_id.clone(), token_mutex_guard.clone())
                 .await;
-
-            return saved_token;
         }
 
-        Err(PersistError::NotFound("token not found".to_string()))
-    }
+        let value = PlayerOAuthToken::default();
+        let value_clone = value.clone();
 
-    pub(crate) async fn set(
-        &self,
-        player_id: &PlayerId,
-        oauth_token: OAuthToken,
-    ) -> Result<PlayerOAuthToken> {
-        trace!("Setting OAuth token for player {}...", &player_id);
-
-        let player_id_clone = player_id.clone();
-        let oauth_token_clone = oauth_token.clone();
-
-        if let Some(token) = self
-            .storage
-            .get_and_modify_or_insert(
-                player_id,
-                |token| {
-                    // TODO: check if oauth_token is newer than existing and store it only in that case
-                    token.oauth_token = oauth_token
-                },
-                || Some(PlayerOAuthToken::new(player_id_clone, oauth_token_clone)),
-            )
-            .await?
+        let value_mutex = Mutex::new(value);
         {
-            trace!("OAuth token for player {} set.", player_id);
-
-            Ok(token)
-        } else {
-            Err(PersistError::NotFound(
-                "player is not registered".to_string(),
-            ))
+            let mut value_mutex_guard = value_mutex.lock().await;
+            modify_func(&mut value_mutex_guard).await;
         }
+
+        write_lock.insert(player_id.clone(), value_mutex);
+
+        drop(write_lock);
+
+        let value = self.storage.save(player_id.clone(), value_clone).await?;
+
+        self.storage.update_index().await?;
+
+        Ok(value)
     }
 
     pub(crate) async fn restore(&self, values: Vec<PlayerOAuthToken>) -> Result<()> {

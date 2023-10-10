@@ -314,7 +314,7 @@ where
         self.storage.save(key, value).await
     }
 
-    async fn update_index(&self) -> Result<()> {
+    pub(super) async fn update_index(&self) -> Result<()> {
         let storage_name = self.storage.get_name();
 
         trace!("Updating {} storage index...", storage_name);
