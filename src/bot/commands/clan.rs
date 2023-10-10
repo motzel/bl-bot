@@ -1,66 +1,13 @@
 use crate::beatleader::clan::Clan;
-use crate::beatleader::error::Error as BlError;
-use crate::beatleader::oauth::{OAuthScope, OAuthToken, OAuthTokenRepository};
-use crate::beatleader::player::PlayerId;
-use crate::bot::beatleader::{fetch_clan, Player};
-use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
+use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
+use crate::bot::beatleader::fetch_clan;
+use crate::bot::commands::guild::get_guild_settings;
 use crate::bot::commands::player::{say_profile_not_linked, say_without_ping};
-use crate::bot::{ClanSettings, GuildSettings};
-use crate::storage::guild::GuildSettingsRepository;
+use crate::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::storage::player::PlayerRepository;
-use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::{Context, Error, BL_CLIENT};
-use futures::future::BoxFuture;
-use futures::Stream;
-use log::info;
-use poise::serenity_prelude::{GuildId, User};
-use poise::{async_trait, serenity_prelude};
+use poise::serenity_prelude::User;
 use std::sync::Arc;
-
-pub(crate) struct GuildOAuthTokenRepository {
-    owner_id: PlayerId,
-    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
-}
-
-impl GuildOAuthTokenRepository {
-    pub fn new(
-        player_id: PlayerId,
-        player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
-    ) -> GuildOAuthTokenRepository {
-        GuildOAuthTokenRepository {
-            owner_id: player_id,
-            player_oauth_token_repository,
-        }
-    }
-}
-
-#[async_trait]
-impl OAuthTokenRepository for GuildOAuthTokenRepository {
-    async fn get(&self) -> Result<Option<OAuthToken>, BlError> {
-        match self.player_oauth_token_repository.get(&self.owner_id).await {
-            Some(player_oauth_token) => Ok(Some(player_oauth_token.into())),
-            None => Err(BlError::OAuthStorage),
-        }
-    }
-
-    async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, BlError>
-    where
-        ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static,
-    {
-        match self
-            .player_oauth_token_repository
-            .set(&self.owner_id, |token| {
-                Box::pin(async {
-                    modify_func(&mut token.oauth_token);
-                })
-            })
-            .await
-        {
-            Ok(player_oauth_token) => Ok(player_oauth_token.into()),
-            Err(_) => Err(BlError::OAuthStorage),
-        }
-    }
-}
 
 /// Set up sending of clan invitations
 #[poise::command(

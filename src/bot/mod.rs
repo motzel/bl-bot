@@ -9,10 +9,11 @@ use std::time::Duration as TimeDuration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
+use futures::future::BoxFuture;
 use log::{error, info, trace};
-use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
+use poise::{async_trait, serenity_prelude as serenity};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serenity::model::gateway::Activity;
@@ -23,10 +24,11 @@ use shuttle_secrets::SecretStore;
 
 use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
-use crate::beatleader::oauth::OAuthToken;
+use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::APP_USER_AGENT;
 use crate::bot::beatleader::{fetch_scores, Player};
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::Context;
 use crate::Error;
@@ -1041,6 +1043,92 @@ impl std::fmt::Display for ClanSettings {
     }
 }
 
+pub(crate) struct GuildOAuthTokenRepository {
+    owner_id: PlayerId,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+}
+
+impl GuildOAuthTokenRepository {
+    pub fn new(
+        player_id: PlayerId,
+        player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    ) -> GuildOAuthTokenRepository {
+        GuildOAuthTokenRepository {
+            owner_id: player_id,
+            player_oauth_token_repository,
+        }
+    }
+}
+
+#[async_trait]
+impl OAuthTokenRepository for GuildOAuthTokenRepository {
+    async fn get(&self) -> Result<Option<OAuthToken>, BlError> {
+        match self.player_oauth_token_repository.get(&self.owner_id).await {
+            Some(player_oauth_token) => Ok(Some(player_oauth_token.into())),
+            None => Err(BlError::OAuthStorage),
+        }
+    }
+
+    async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, BlError>
+    where
+        ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static,
+    {
+        match self
+            .player_oauth_token_repository
+            .set(&self.owner_id, |token| {
+                Box::pin(async {
+                    modify_func(&mut token.oauth_token);
+                })
+            })
+            .await
+        {
+            Ok(player_oauth_token) => Ok(player_oauth_token.into()),
+            Err(_) => Err(BlError::OAuthStorage),
+        }
+    }
+}
+
+pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
+    let client_builder = reqwest::Client::builder()
+        .https_only(true)
+        .gzip(true)
+        .brotli(true)
+        .user_agent(APP_USER_AGENT)
+        .build();
+
+    let Ok(client) = client_builder else {
+        return Err(BlError::Unknown);
+    };
+
+    let request = client
+        .request(Method::GET, url)
+        .timeout(TimeDuration::from_secs(30))
+        .build();
+
+    if let Err(err) = request {
+        return Err(BlError::Request(err));
+    }
+
+    let response = client.execute(request.unwrap()).await;
+
+    match response {
+        Err(err) => Err(BlError::Network(err)),
+        Ok(response) => match response.status().as_u16() {
+            200..=299 => match response.bytes().await {
+                Ok(b) => Ok(b),
+                Err(_err) => Err(BlError::Unknown),
+            },
+            401 | 403 => Err(BlError::Unauthorized),
+            404 => Err(BlError::NotFound),
+            400..=499 => Err(BlError::Client(
+                response.text_with_charset("utf-8").await.ok(),
+            )),
+            500..=599 => Err(BlError::Server),
+            _ => Err(BlError::Unknown),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Duration, Utc};
@@ -1551,46 +1639,5 @@ mod tests {
 
         assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(7)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
-    }
-}
-
-pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
-    let client_builder = reqwest::Client::builder()
-        .https_only(true)
-        .gzip(true)
-        .brotli(true)
-        .user_agent(APP_USER_AGENT)
-        .build();
-
-    let Ok(client) = client_builder else {
-        return Err(BlError::Unknown);
-    };
-
-    let request = client
-        .request(Method::GET, url)
-        .timeout(TimeDuration::from_secs(30))
-        .build();
-
-    if let Err(err) = request {
-        return Err(BlError::Request(err));
-    }
-
-    let response = client.execute(request.unwrap()).await;
-
-    match response {
-        Err(err) => Err(BlError::Network(err)),
-        Ok(response) => match response.status().as_u16() {
-            200..=299 => match response.bytes().await {
-                Ok(b) => Ok(b),
-                Err(_err) => Err(BlError::Unknown),
-            },
-            401 | 403 => Err(BlError::Unauthorized),
-            404 => Err(BlError::NotFound),
-            400..=499 => Err(BlError::Client(
-                response.text_with_charset("utf-8").await.ok(),
-            )),
-            500..=599 => Err(BlError::Server),
-            _ => Err(BlError::Unknown),
-        },
     }
 }
