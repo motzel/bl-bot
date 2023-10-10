@@ -1,10 +1,8 @@
 use futures::future::BoxFuture;
 use log::trace;
-use std::future::Future;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::MutexGuard;
 
 use shuttle_persist::PersistInstance;
 

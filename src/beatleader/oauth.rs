@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
+use futures::future::BoxFuture;
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -140,6 +141,10 @@ impl OAuthToken {
     pub fn is_valid_for(&self, duration: Duration) -> bool {
         self.expiration_date.ge(&(Utc::now() + duration))
     }
+
+    pub fn is_newer_than(&self, other_token: &OAuthToken) -> bool {
+        self.expiration_date.gt(&other_token.expiration_date)
+    }
 }
 
 impl From<OAuthTokenResponse> for OAuthToken {
@@ -235,7 +240,9 @@ impl OAuthGrant {
 #[async_trait]
 pub trait OAuthTokenRepository {
     async fn get(&self) -> Result<Option<OAuthToken>, Error>;
-    async fn store(&self, oauth_token: OAuthToken) -> Result<(), Error>;
+    async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, Error>
+    where
+        ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static;
 }
 
 pub struct ClientWithOAuth<'a, T>
@@ -297,6 +304,12 @@ where
             return self.build_and_send_request(builder).await;
         }
 
+        let oauth_token = self.store_token(oauth_token).await;
+
+        if oauth_token.is_err() {
+            return self.build_and_send_request(builder).await;
+        }
+
         // TODO:
         // 3. lock token repository for writing
         // 4. get the token
@@ -305,7 +318,10 @@ where
         // 6. refresh token and store it
         // 7. send a request
 
-        // let builder = builder.header("Authorization", format!("Bearer {}", token.access_token));
+        let builder = builder.header(
+            "Authorization",
+            format!("Bearer {}", oauth_token.unwrap().access_token),
+        );
 
         self.build_and_send_request(builder).await
     }
@@ -324,7 +340,15 @@ where
         self.oauth_token_repository.get().await
     }
 
-    pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<(), Error> {
-        self.oauth_token_repository.store(oauth_token).await
+    pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<OAuthToken, Error> {
+        self.oauth_token_repository
+            .store(|token| {
+                Box::pin(async move {
+                    if oauth_token.is_newer_than(token) {
+                        *token = oauth_token;
+                    }
+                })
+            })
+            .await
     }
 }

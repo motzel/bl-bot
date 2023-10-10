@@ -10,6 +10,7 @@ use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::{Context, Error, BL_CLIENT};
+use futures::future::BoxFuture;
 use futures::Stream;
 use log::info;
 use poise::serenity_prelude::{GuildId, User};
@@ -42,29 +43,20 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
         }
     }
 
-    async fn store(&self, oauth_token: OAuthToken) -> Result<(), BlError> {
-        let oauth_token_clone = oauth_token.clone();
-        let _foo = self
-            .player_oauth_token_repository
-            // .update(&self.owner_id, async move |token| {
-            //     // TODO: check if oauth_token is newer than existing and store it only in that case
-            //     token.oauth_token = oauth_token_clone;
-            //
-            //     token
-            // })
-            .update(&self.owner_id, |token| {
-                Box::pin(async {
-                    token.oauth_token = oauth_token_clone;
-                })
-            })
-            .await;
-
+    async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, BlError>
+    where
+        ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static,
+    {
         match self
             .player_oauth_token_repository
-            .set(&self.owner_id, oauth_token)
+            .update(&self.owner_id, |token| {
+                Box::pin(async {
+                    modify_func(&mut token.oauth_token);
+                })
+            })
             .await
         {
-            Ok(_) => Ok(()),
+            Ok(player_oauth_token) => Ok(player_oauth_token.into()),
             Err(_) => Err(BlError::OAuthStorage),
         }
     }
