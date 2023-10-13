@@ -1,6 +1,5 @@
 use reqwest::Method;
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
@@ -51,7 +50,7 @@ impl<'a, T: OAuthTokenRepository> ClanAuthResource<'a, T> {
         let builder = self
             .client
             .request_builder(Method::POST, "/clan/invite")
-            .form(&HashMap::from([("player", player_id)]));
+            .query(&[("player", player_id)]);
 
         self.client.send_authorized_request(builder).await?;
 

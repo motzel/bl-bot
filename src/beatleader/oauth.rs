@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::info;
+use log::{info, trace};
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -308,18 +308,33 @@ where
         &self,
         builder: RequestBuilder,
     ) -> super::Result<ReqwestResponse> {
+        trace!("Getting OAuth token from repository...");
+
         let Some(oauth_token) = self.get_token().await? else {
+            trace!("OAuth token error");
+
             return Err(Error::OAuthStorage);
         };
+
+        trace!("OAuth token retrieved from repository");
 
         if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30))
             || oauth_token.refresh_token.is_none()
         {
-            return self.build_and_send_request(builder).await;
+            trace!("OAuth token is valid or there's no refresh token");
+            return self
+                .client
+                .build_and_send_request(builder.header(
+                    "Authorization",
+                    format!("Bearer {}", oauth_token.access_token),
+                ))
+                .await;
         }
 
         let oauth_credentials = self.oauth_credentials.clone();
         let oauth_token_repository = self.oauth_token_repository.clone();
+
+        trace!("Trying to refresh OAuth token...");
 
         let oauth_token = self
             .oauth_token_repository
@@ -334,6 +349,8 @@ where
                             .await;
 
                         if let Ok(new_token) = new_token_result {
+                            println!("New access token: {}", &new_token.access_token);
+
                             *token = new_token;
                         }
                     }
@@ -341,21 +358,14 @@ where
             })
             .await?;
 
-        self.build_and_send_request(builder.header(
-            "Authorization",
-            format!("Bearer {}", oauth_token.access_token),
-        ))
-        .await
-    }
+        trace!("OAuth token refreshed, sending authorized refresh...");
 
-    async fn build_and_send_request(
-        &self,
-        builder: RequestBuilder,
-    ) -> super::Result<ReqwestResponse> {
-        match builder.build() {
-            Ok(request) => self.client.send_request(request).await,
-            Err(err) => Err(Error::Request(err)),
-        }
+        self.client
+            .build_and_send_request(builder.header(
+                "Authorization",
+                format!("Bearer {}", oauth_token.access_token),
+            ))
+            .await
     }
 
     pub async fn get_token(&self) -> Result<Option<OAuthToken>, Error> {

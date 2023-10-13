@@ -123,6 +123,13 @@ impl Client {
         }
     }
 
+    async fn build_and_send_request(&self, builder: RequestBuilder) -> Result<ReqwestResponse> {
+        match builder.build() {
+            Ok(request) => self.send_request(request).await,
+            Err(err) => Err(Error::Request(err)),
+        }
+    }
+
     pub async fn send_request(&self, request: Request) -> Result<ReqwestResponse> {
         trace!("Waiting for rate limiter...");
 
@@ -148,8 +155,6 @@ impl Client {
                 Err(Error::Network(err))
             }
             Ok(response) => {
-                let base = Url::parse(self.base_url.as_str()).unwrap();
-
                 trace!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),

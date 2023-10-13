@@ -21,7 +21,7 @@ use std::sync::Arc;
 )]
 pub(crate) async fn cmd_set_clan_invitation(
     ctx: Context<'_>,
-    #[description = "Allow users to self-invite. Default: true"] self_invite: Option<bool>,
+    // #[description = "Allow users to self-invite. Default: true"] self_invite: Option<bool>,
 ) -> Result<(), Error> {
     if ctx.data().oauth_credentials.is_none() {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
@@ -30,7 +30,8 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let guild_settings = get_guild_settings(ctx, true).await?;
 
-    let self_invite = self_invite.unwrap_or(true);
+    // let self_invite = self_invite.unwrap_or(true);
+    let self_invite = true;
 
     let current_user = ctx.author();
 
@@ -254,10 +255,47 @@ pub(crate) async fn cmd_set_clan_invitation_code(
 /// Send yourself an invitation to join the clan
 #[poise::command(slash_command, rename = "bl-clan-invitation", guild_only)]
 pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
+    if ctx.data().oauth_credentials.is_none() {
+        say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
+        return Ok(());
+    }
+
     let guild_settings = get_guild_settings(ctx, true).await?;
 
-    // TODO: check if guild has clan settings set up
-    println!("{:?}", guild_settings);
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(
+            ctx,
+            "Invitations to the clan were not set up. Ask the clan owner.",
+            true,
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    if !clan_settings.self_invite {
+        say_without_ping(
+            ctx,
+            "Self-sending yourself invitations to the clan is disabled. Ask the clan owner for an invitation.",
+            true,
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    if !clan_settings.oauth_token_is_set {
+        say_without_ping(
+            ctx,
+            "The configuration of clan invitations was not completed by the clan owner. Ask them to complete it.",
+            true,
+        )
+            .await?;
+
+        return Ok(());
+    }
 
     let user_id = ctx.author().id;
 
@@ -287,7 +325,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
 
             let bl_player = bl_player.unwrap();
 
-            let clan_tag = guild_settings.clan_settings.unwrap().clan;
+            let clan_tag = clan_settings.get_clan();
 
             if bl_player.clans.iter().any(|clan| clan.tag == clan_tag) {
                 say_without_ping(ctx, "You are already a clan member.", true).await?;
@@ -301,7 +339,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 return Ok(());
             }
 
-            if bl_player
+            if !bl_player
                 .socials
                 .iter()
                 .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
@@ -313,26 +351,49 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 )
                     .await?;
 
-                // TODO: send clan invitation
+                return Ok(());
+            }
 
+            let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
+                clan_settings.owner_id.clone(),
+                Arc::clone(&ctx.data().player_oauth_token_repository),
+            );
+            let oauth_client = BL_CLIENT.with_oauth(
+                ctx.data().oauth_credentials.as_ref().unwrap().clone(),
+                guild_oauth_token_repository,
+            );
+
+            let invitation_result = oauth_client.clan_auth().invite(bl_player.id).await;
+            if invitation_result.is_err() {
                 say_without_ping(
                     ctx,
-                    "Invitation has been sent! Go to <https://www.beatleader.xyz/clans> and accept it.",
-                    false,
+                    format!(
+                        "Error: sending clan invitation failed: {}",
+                        invitation_result.err().unwrap()
+                    )
+                    .as_str(),
+                    true,
                 )
-                    .await?;
+                .await?;
 
                 return Ok(());
             }
+
+            say_without_ping(
+                ctx,
+                "Invitation has been sent! Go to <https://www.beatleader.xyz/clans> and accept it.",
+                false,
+            )
+            .await?;
+
+            Ok(())
         }
         None => {
             say_profile_not_linked(ctx, &user_id).await?;
 
-            return Ok(());
+            Ok(())
         }
     }
-
-    Ok(())
 }
 
 /// Send the player an invitation to join the clan
