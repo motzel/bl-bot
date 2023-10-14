@@ -7,65 +7,40 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 
 use crate::beatleader;
-use crate::beatleader::error::Error;
-use crate::beatleader::{Client, QueryParam, SortOrder};
+use crate::beatleader::clan::ClanTag;
+use crate::beatleader::{BlApiListResponse, BlApiResponse, Client, List, QueryParam, SortOrder};
 
-pub struct PlayerRequest<'a> {
+pub struct PlayerResource<'a> {
     client: &'a Client,
 }
 
-impl<'a> PlayerRequest<'a> {
+impl<'a> PlayerResource<'a> {
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
-    pub async fn get_by_id(&self, id: &PlayerId) -> beatleader::Result<Player> {
-        match self
-            .client
-            .get(&(format!("/player/{}", id)))
-            .await?
-            .json::<Player>()
+    pub async fn get(&self, id: &PlayerId) -> beatleader::Result<Player> {
+        self.client
+            .get_json::<Player, Player, PlayerScoreParam>(
+                Method::GET,
+                &format!("/player/{}", id),
+                &[],
+            )
             .await
-        {
-            Ok(player) => Ok(player),
-            Err(e) => Err(Error::JsonDecode(e)),
-        }
     }
 
-    pub async fn get_scores(
+    pub async fn scores(
         &self,
         id: &PlayerId,
         params: &[PlayerScoreParam],
-    ) -> beatleader::Result<Scores> {
-        let request = self
-            .client
-            .request_builder(
+    ) -> beatleader::Result<List<Score>> {
+        self.client
+            .get_json::<BlApiListResponse<Score>, List<Score>, PlayerScoreParam>(
                 Method::GET,
-                format!("/player/{}/scores", id),
-                self.client.timeout,
+                &format!("/player/{}/scores", id),
+                params,
             )
-            .query(
-                &(params
-                    .iter()
-                    .map(|param| param.as_query_param())
-                    .collect::<Vec<(String, String)>>()),
-            )
-            .build();
-
-        if let Err(err) = request {
-            return Err(Error::Request(err));
-        }
-
-        match self
-            .client
-            .send_request(request.unwrap())
-            .await?
-            .json::<Scores>()
             .await
-        {
-            Ok(player_scores) => Ok(player_scores),
-            Err(e) => Err(Error::JsonDecode(e)),
-        }
     }
 }
 
@@ -162,15 +137,18 @@ pub struct Player {
     pub banned: bool,
     pub bot: bool,
     pub inactive: bool,
-    pub clans: Vec<Clan>,
+    pub clans: Vec<PlayerClan>,
     pub socials: Vec<Social>,
 }
 
+impl BlApiResponse for Player {}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Clan {
+pub struct PlayerClan {
     pub id: u32,
-    pub tag: String,
+    pub tag: ClanTag,
+    pub color: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -226,14 +204,6 @@ pub struct PlayerScoreStats {
     pub top1_count: u32,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct MetaData {
-    pub items_per_page: u32,
-    pub page: u32,
-    pub total: u32,
-}
-
 #[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -280,6 +250,8 @@ pub struct Score {
     #[serde(with = "ts_seconds")]
     pub timepost: DateTime<Utc>,
 }
+
+impl BlApiResponse for Score {}
 
 #[serde_as]
 #[derive(Deserialize, Debug, Default)]
@@ -392,12 +364,4 @@ pub struct ModifiersRatings {
     pub fs_stars: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub sf_stars: f64,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Scores {
-    #[serde(rename = "data")]
-    pub scores: Vec<Score>,
-    pub metadata: MetaData,
 }

@@ -6,16 +6,22 @@ use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
 use log::{error, info, trace};
-use reqwest::{Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response, Url};
+use reqwest::{
+    Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response as ReqwestResponse,
+    Url,
+};
+use serde::de::DeserializeOwned;
 
-use player::PlayerRequest;
+use crate::beatleader::clan::ClanResource;
+use player::PlayerResource;
+use serde::Deserialize;
 
 use crate::beatleader::error::Error;
-use crate::beatleader::error::Error::{
-    Client as ClientError, Network, NotFound, Request as RequestError, Server, Unknown,
-};
+use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
 
+pub mod clan;
 pub mod error;
+pub mod oauth;
 pub mod player;
 pub mod pp;
 
@@ -58,19 +64,73 @@ impl Client {
         }
     }
 
-    pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<Response> {
-        let request = self
-            .request_builder(Method::GET, endpoint, self.timeout)
-            .build();
+    pub fn player(&self) -> PlayerResource {
+        PlayerResource::new(self)
+    }
+
+    pub fn clan(&self) -> ClanResource {
+        ClanResource::new(self)
+    }
+
+    pub fn with_oauth<T: OAuthTokenRepository>(
+        &self,
+        oauth_credentials: OAuthAppCredentials,
+        oauth_token_repository: T,
+    ) -> ClientWithOAuth<T> {
+        ClientWithOAuth::new(self, oauth_credentials, oauth_token_repository)
+    }
+
+    pub async fn get<U: IntoUrl>(&self, endpoint: U) -> Result<ReqwestResponse> {
+        let request = self.request_builder(Method::GET, endpoint).build();
 
         if let Err(err) = request {
-            return Err(RequestError(err));
+            return Err(Error::Request(err));
         }
 
         self.send_request(request.unwrap()).await
     }
 
-    pub async fn send_request(&self, request: Request) -> Result<Response> {
+    async fn get_json<
+        In: BlApiResponse + Sized + DeserializeOwned,
+        Out: From<In> + Sized,
+        Param: QueryParam,
+    >(
+        &self,
+        method: Method,
+        endpoint: &str,
+        params: &[Param],
+    ) -> Result<Out> {
+        let request = self
+            .request_builder(method, endpoint)
+            .query(
+                &(params
+                    .iter()
+                    .map(|param| param.as_query_param())
+                    .collect::<Vec<(String, String)>>()),
+            )
+            .build();
+
+        if let Err(err) = request {
+            return Err(Error::Request(err));
+        }
+
+        match self.send_request(request.unwrap()).await {
+            Ok(response) => match response.json::<In>().await {
+                Ok(clans) => Ok(clans.into()),
+                Err(e) => Err(Error::JsonDecode(e)),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn build_and_send_request(&self, builder: RequestBuilder) -> Result<ReqwestResponse> {
+        match builder.build() {
+            Ok(request) => self.send_request(request).await,
+            Err(err) => Err(Error::Request(err)),
+        }
+    }
+
+    pub async fn send_request(&self, request: Request) -> Result<ReqwestResponse> {
         trace!("Waiting for rate limiter...");
 
         self.rate_limiter
@@ -92,11 +152,9 @@ impl Client {
             Err(err) => {
                 error!("Response error: {:#?}", err);
 
-                Err(Network(err))
+                Err(Error::Network(err))
             }
             Ok(response) => {
-                let base = Url::parse(self.base_url.as_str()).unwrap();
-
                 trace!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),
@@ -105,30 +163,32 @@ impl Client {
 
                 match response.status().as_u16() {
                     200..=299 => Ok(response),
-                    404 => Err(NotFound),
-                    400..=499 => Err(ClientError),
-                    500..=599 => Err(Server),
-                    _ => Err(Unknown),
+                    401 | 403 => Err(Error::Unauthorized),
+                    404 => Err(Error::NotFound),
+                    400..=499 => Err(Error::Client(
+                        response.text_with_charset("utf-8").await.ok(),
+                    )),
+                    500..=599 => Err(Error::Server),
+                    _ => Err(Error::Unknown),
                 }
             }
         }
-    }
-
-    pub fn player(&self) -> PlayerRequest {
-        PlayerRequest::new(self)
     }
 
     pub(crate) fn request_builder<U: IntoUrl>(
         &self,
         method: Method,
         endpoint: U,
-        timeout: u64,
     ) -> RequestBuilder {
         let full_url = self.base_url.to_owned() + endpoint.as_str();
 
         self.http_client
             .request(method, full_url)
-            .timeout(Duration::from_secs(timeout))
+            .timeout(Duration::from_secs(self.timeout))
+    }
+
+    pub(crate) fn get_timeout(&self) -> u64 {
+        self.timeout
     }
 }
 
@@ -137,6 +197,8 @@ impl Default for Client {
         Self::new(DEFAULT_API_URL.to_string(), 30)
     }
 }
+
+pub trait BlApiResponse: Sized {}
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -156,4 +218,55 @@ impl ToString for SortOrder {
 
 pub trait QueryParam {
     fn as_query_param(&self) -> (String, String);
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaData {
+    pub items_per_page: u32,
+    pub page: u32,
+    pub total: u32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlApiListResponse<T> {
+    pub data: Vec<T>,
+    pub metadata: MetaData,
+}
+
+impl<T> BlApiListResponse<T> {
+    pub fn get_data(&self) -> &Vec<T> {
+        &self.data
+    }
+
+    pub fn get_metadata(&self) -> &MetaData {
+        &self.metadata
+    }
+}
+
+impl<T> BlApiResponse for BlApiListResponse<T> {}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct List<T> {
+    pub data: Vec<T>,
+    pub page: u32,
+    pub items_per_page: u32,
+    pub total: u32,
+}
+
+impl<In, Out> From<BlApiListResponse<In>> for List<Out>
+where
+    In: BlApiResponse + Sized + DeserializeOwned,
+    Out: From<In> + Sized,
+{
+    fn from(value: BlApiListResponse<In>) -> Self {
+        Self {
+            data: value.data.into_iter().map(|v| v.into()).collect(),
+            page: value.metadata.page,
+            items_per_page: value.metadata.items_per_page,
+            total: value.metadata.items_per_page,
+        }
+    }
 }

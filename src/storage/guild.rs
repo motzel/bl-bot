@@ -3,8 +3,11 @@ use std::sync::Arc;
 use log::trace;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use shuttle_persist::PersistInstance;
+use tokio::sync::MutexGuard;
 
-use crate::bot::{Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings};
+use crate::bot::{
+    ClanSettings, Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings,
+};
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 
 use super::Result;
@@ -106,6 +109,70 @@ impl<'a> GuildSettingsRepository {
             .await?
         {
             trace!("Verified profile requirement for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn set_clan_settings(
+        &self,
+        guild_id: &GuildId,
+        clan_settings: Option<ClanSettings>,
+    ) -> Result<GuildSettings> {
+        trace!("Setting clan settings for guild {}...", guild_id);
+
+        let clan_settings_clone = clan_settings.clone();
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.set_clan_settings(clan_settings),
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.set_clan_settings(clan_settings_clone);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            trace!("Clan settings for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn set_oauth_token<ModifyFunc>(
+        &self,
+        guild_id: &GuildId,
+        modify_func: ModifyFunc,
+        oauth_token: bool,
+    ) -> Result<GuildSettings>
+    where
+        ModifyFunc: FnOnce(&mut MutexGuard<GuildSettings>),
+    {
+        trace!("Setting OAuth token for guild {}...", guild_id);
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(guild_id, modify_func, || {
+                let mut guild_settings = GuildSettings::new(*guild_id);
+
+                guild_settings.set_oauth_token(oauth_token);
+
+                Some(guild_settings)
+            })
+            .await?
+        {
+            trace!("OAuth token for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {

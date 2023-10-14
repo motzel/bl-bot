@@ -243,8 +243,9 @@ checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
 name = "bl-bot"
-version = "0.6.3"
+version = "0.8.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "chrono",
  "env_logger",

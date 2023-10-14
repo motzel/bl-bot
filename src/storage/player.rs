@@ -231,7 +231,7 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer> {
-        Ok(BL_CLIENT.player().get_by_id(player_id).await?)
+        Ok(BL_CLIENT.player().get(player_id).await?)
     }
 
     pub(crate) async fn restore(&self, values: Vec<BotPlayer>) -> Result<()> {

@@ -5,12 +5,15 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration as TimeDuration;
 
+use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
+use futures::future::BoxFuture;
 use log::{error, info, trace};
-use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
+use poise::{async_trait, serenity_prelude as serenity};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serenity::model::gateway::Activity;
@@ -18,14 +21,14 @@ use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-use std::time::Duration as TimeDuration;
 
-use crate::beatleader::APP_USER_AGENT;
-use bytes::Bytes;
-
+use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
+use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
+use crate::beatleader::APP_USER_AGENT;
 use crate::bot::beatleader::{fetch_scores, Player};
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::Context;
 use crate::Error;
@@ -758,6 +761,7 @@ pub struct GuildSettings {
     bot_channel_id: Option<ChannelId>,
     requires_verified_profile: bool,
     role_groups: HashMap<RoleGroup, HashMap<RoleId, RoleSettings>>,
+    clan_settings: Option<ClanSettings>,
 }
 
 impl StorageKey for GuildId {}
@@ -771,9 +775,7 @@ impl GuildSettings {
     pub fn new(guild_id: GuildId) -> Self {
         Self {
             guild_id,
-            bot_channel_id: None,
-            requires_verified_profile: false,
-            role_groups: HashMap::new(),
+            ..Default::default()
         }
     }
 
@@ -787,6 +789,20 @@ impl GuildSettings {
 
     pub fn set_channel(&mut self, channel_id: Option<ChannelId>) {
         self.bot_channel_id = channel_id;
+    }
+
+    pub fn get_clan_settings(&self) -> Option<ClanSettings> {
+        self.clan_settings.clone()
+    }
+
+    pub fn set_clan_settings(&mut self, clan_settings: Option<ClanSettings>) {
+        self.clan_settings = clan_settings;
+    }
+
+    pub fn set_oauth_token(&mut self, oauth_token: bool) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_oauth_token(oauth_token);
+        }
     }
 
     pub fn set_verified_profile_requirement(&mut self, requires_verified_profile: bool) {
@@ -926,12 +942,13 @@ impl std::fmt::Display for GuildSettings {
 
         write!(
             f,
-            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\n## Auto roles:\n{}",
+            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\nClan setting: {}\n## Auto roles:\n{}",
             self.bot_channel_id.map_or_else(
                 || "**None**".to_owned(),
                 |channel_id| format!("<#{}>", channel_id.to_owned())
             ),
             if self.requires_verified_profile {"Yes"} else {"No"},
+            if self.clan_settings.is_some() {self.clan_settings.clone().unwrap().to_string()} else {"Not set up".to_owned()},
             {
                 let roles = rg_vec
                     .iter()
@@ -960,6 +977,172 @@ impl std::fmt::Display for GuildSettings {
                 }
             }
         )
+    }
+}
+
+#[derive(Serialize, Default, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct ClanSettings {
+    user_id: UserId,
+    owner_id: PlayerId,
+    clan: ClanTag,
+    self_invite: bool,
+    oauth_token_is_set: bool,
+}
+
+impl ClanSettings {
+    pub fn new(
+        user_id: UserId,
+        owner_id: PlayerId,
+        clan: ClanTag,
+        self_invite: bool,
+    ) -> ClanSettings {
+        ClanSettings {
+            user_id,
+            owner_id,
+            clan,
+            self_invite,
+            oauth_token_is_set: false,
+        }
+    }
+
+    pub fn get_owner(&self) -> PlayerId {
+        self.owner_id.clone()
+    }
+
+    pub fn get_clan(&self) -> ClanTag {
+        self.clan.clone()
+    }
+
+    pub fn supports_self_invitation(&self) -> bool {
+        self.self_invite
+    }
+
+    pub fn is_oauth_token_set(&self) -> bool {
+        self.oauth_token_is_set
+    }
+
+    pub fn set_oauth_token(&mut self, oauth_token_is_set: bool) {
+        self.oauth_token_is_set = oauth_token_is_set;
+    }
+}
+
+impl std::fmt::Display for ClanSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.oauth_token_is_set {
+            write!(
+                f,
+                "Set up for the clan {}. Users can{} send themselves invitations.",
+                self.clan,
+                if !self.supports_self_invitation() {
+                    " NOT"
+                } else {
+                    ""
+                }
+            )
+        } else {
+            write!(f, "Unfinished setup for clan {}!", self.get_clan())
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct GuildOAuthTokenRepository {
+    owner_id: PlayerId,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+}
+
+impl GuildOAuthTokenRepository {
+    pub fn new(
+        player_id: PlayerId,
+        player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    ) -> GuildOAuthTokenRepository {
+        GuildOAuthTokenRepository {
+            owner_id: player_id,
+            player_oauth_token_repository,
+        }
+    }
+}
+
+#[async_trait]
+impl OAuthTokenRepository for GuildOAuthTokenRepository {
+    async fn get(&self) -> Result<Option<OAuthToken>, BlError> {
+        trace!("Fetching OAuth token from repository...");
+
+        match self.player_oauth_token_repository.get(&self.owner_id).await {
+            Some(player_oauth_token) => {
+                trace!("OAuth token fetched from repository.");
+
+                Ok(Some(player_oauth_token.into()))
+            }
+            None => {
+                trace!("No OAuth token in repository.");
+
+                Err(BlError::OAuthStorage)
+            }
+        }
+    }
+
+    async fn store<ModifyFunc>(&self, modify_func: ModifyFunc) -> Result<OAuthToken, BlError>
+    where
+        ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static,
+    {
+        trace!("Storing OAuth token in repository...");
+
+        match self
+            .player_oauth_token_repository
+            .set(&self.owner_id, |token| {
+                Box::pin(async {
+                    modify_func(&mut token.oauth_token).await;
+                })
+            })
+            .await
+        {
+            Ok(player_oauth_token) => Ok(player_oauth_token.into()),
+            Err(_) => Err(BlError::OAuthStorage),
+        }
+    }
+}
+
+pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
+    let client_builder = reqwest::Client::builder()
+        .https_only(true)
+        .gzip(true)
+        .brotli(true)
+        .user_agent(APP_USER_AGENT)
+        .build();
+
+    let Ok(client) = client_builder else {
+        return Err(BlError::Unknown);
+    };
+
+    let request = client
+        .request(Method::GET, url)
+        .timeout(TimeDuration::from_secs(30))
+        .build();
+
+    if let Err(err) = request {
+        return Err(BlError::Request(err));
+    }
+
+    let response = client.execute(request.unwrap()).await;
+
+    match response {
+        Err(err) => Err(BlError::Network(err)),
+        Ok(response) => match response.status().as_u16() {
+            200..=299 => match response.bytes().await {
+                Ok(b) => Ok(b),
+                Err(_err) => Err(BlError::Unknown),
+            },
+            401 | 403 => Err(BlError::Unauthorized),
+            404 => Err(BlError::NotFound),
+            400..=499 => Err(BlError::Client(
+                response.text_with_charset("utf-8").await.ok(),
+            )),
+            500..=599 => Err(BlError::Server),
+            _ => Err(BlError::Unknown),
+        },
     }
 }
 
@@ -1473,43 +1656,5 @@ mod tests {
 
         assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(7)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
-    }
-}
-
-pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
-    let client_builder = reqwest::Client::builder()
-        .https_only(true)
-        .gzip(true)
-        .brotli(true)
-        .user_agent(APP_USER_AGENT)
-        .build();
-
-    let Ok(client) = client_builder else {
-        return Err(BlError::Unknown);
-    };
-
-    let request = client
-        .request(Method::GET, url)
-        .timeout(TimeDuration::from_secs(30))
-        .build();
-
-    if let Err(err) = request {
-        return Err(BlError::Request(err));
-    }
-
-    let response = client.execute(request.unwrap()).await;
-
-    match response {
-        Err(err) => Err(BlError::Network(err)),
-        Ok(response) => match response.status().as_u16() {
-            200..=299 => match response.bytes().await {
-                Ok(b) => Ok(b),
-                Err(_err) => Err(BlError::Unknown),
-            },
-            404 => Err(BlError::NotFound),
-            400..=499 => Err(BlError::Client),
-            500..=599 => Err(BlError::Server),
-            _ => Err(BlError::Unknown),
-        },
     }
 }

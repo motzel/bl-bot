@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
@@ -12,15 +12,20 @@ use shuttle_persist::PersistInstance;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
+use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
+use crate::bot::commands::clan::{
+    cmd_clan_invitation, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
+};
 use crate::bot::commands::{
     cmd_add_auto_role, cmd_export, cmd_import, cmd_link, cmd_profile, cmd_register,
     cmd_remove_auto_role, cmd_replay, cmd_set_log_channel, cmd_set_profile_verification,
     cmd_show_settings, cmd_unlink,
 };
-use crate::bot::{GuildSettings, UserRoleChanges};
+use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 mod beatleader;
 mod bot;
@@ -37,6 +42,8 @@ lazy_static! {
 pub(crate) struct Data {
     guild_settings_repository: Arc<GuildSettingsRepository>,
     players_repository: Arc<PlayerRepository>,
+    player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    oauth_credentials: Option<OAuthAppCredentials>,
 }
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) type Context<'a> = poise::Context<'a, Data, Error>;
@@ -73,8 +80,21 @@ async fn poise(
         .parse()
         .expect("'REFRESH_INTERVAL' should be an integer");
     if refresh_interval < 30 {
-        panic!("REFRESH_INTERVAL should be greater than 30 seconds");
+        panic!("REFRESH_INTERVAL should be at least 30 seconds");
     }
+
+    let oauth_client_id = secret_store.get("OAUTH_CLIENT_ID");
+    let oauth_client_secret = secret_store.get("OAUTH_CLIENT_SECRET");
+    let oauth_redirect_uri = secret_store.get("OAUTH_REDIRECT_URI");
+
+    let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
+        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthAppCredentials {
+            client_id,
+            client_secret,
+            redirect_uri,
+        }),
+        _ => None,
+    };
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -87,6 +107,10 @@ async fn poise(
             cmd_remove_auto_role(),
             cmd_set_log_channel(),
             cmd_set_profile_verification(),
+            cmd_set_clan_invitation(),
+            cmd_set_clan_invitation_code(),
+            cmd_clan_invitation(),
+            // cmd_invite_player(),
             cmd_register(),
             cmd_export(),
             cmd_import(),
@@ -116,10 +140,19 @@ async fn poise(
 
                 let persist_arc = Arc::new(persist);
                 let persist_arc2 = Arc::clone(&persist_arc);
+                let persist_arc3 = Arc::clone(&persist_arc);
+
+                info!("Initializing player OAuth tokens repository...");
+                let player_oauth_token_repository =
+                    Arc::new(PlayerOAuthTokenRepository::new(persist_arc).await.unwrap());
+                info!(
+                    "Player OAuth tokens repository initialized, length: {}.",
+                    player_oauth_token_repository.len().await
+                );
 
                 info!("Initializing guild settings repository...");
                 let guild_settings_repository =
-                    Arc::new(GuildSettingsRepository::new(persist_arc).await.unwrap());
+                    Arc::new(GuildSettingsRepository::new(persist_arc2).await.unwrap());
                 info!(
                     "Guild settings repository initialized, length: {}.",
                     guild_settings_repository.len().await
@@ -127,7 +160,7 @@ async fn poise(
 
                 info!("Initializing players repository...");
                 let players_repository =
-                    Arc::new(PlayerRepository::new(persist_arc2).await.unwrap());
+                    Arc::new(PlayerRepository::new(persist_arc3).await.unwrap());
                 info!(
                     "Players repository initialized, length: {}.",
                     players_repository.len().await
@@ -142,16 +175,65 @@ async fn poise(
 
                 let global_ctx = ctx.clone();
 
+                let player_oauth_token_repository_worker = Arc::clone(&player_oauth_token_repository);
                 let guild_settings_repository_worker = Arc::clone(&guild_settings_repository);
                 let players_repository_worker = Arc::clone(&players_repository);
 
+                let oauth_credentials_clone = oauth_credentials.clone();
+
                 tokio::spawn(async move {
                     let interval = std::time::Duration::from_secs(refresh_interval);
-                    info!("Run a task that updates profiles every {:?}", interval);
+                    info!("Run a task that updates data every {:?}", interval);
 
                     loop {
                         info!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         info!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
+
+                        info!("Refreshing expired OAuth tokens...");
+
+                        if let Some(ref oauth_credentials) = oauth_credentials_clone {
+                            for guild in guild_settings_repository_worker.all().await {
+                                if let Some(clan_settings) = guild.get_clan_settings() {
+                                    if clan_settings.is_oauth_token_set() {
+                                        info!("Refreshing OAuth token for a clan {}...", clan_settings.get_clan());
+
+                                        let clan_owner_id = clan_settings.get_owner();
+
+                                        let oauth_token_option = player_oauth_token_repository_worker.get(&clan_owner_id).await;
+
+                                        if let Some(oauth_token) = oauth_token_option {
+                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(refresh_interval as i64 + 30)) {
+                                                let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
+                                                    clan_owner_id,
+                                                    Arc::clone(&player_oauth_token_repository_worker),
+                                                );
+                                                let oauth_client = BL_CLIENT.with_oauth(
+                                                    oauth_credentials.clone(),
+                                                    guild_oauth_token_repository,
+                                                );
+
+                                                match oauth_client.refresh_token_if_needed().await {
+                                                    Ok(oauth_token) => {
+                                                        info!("OAuth token refreshed, expiration date: {}", oauth_token.get_expiration());
+                                                    },
+                                                    Err(err) => {
+                                                        error!("OAuth token refreshing error: {}", err);
+                                                    }
+                                                }
+                                            } else {
+                                                info!("OAuth token is still valid, skip refreshing.");
+                                            }
+                                        } else {
+                                            warn!("No OAuth token for a clan {} found.", clan_settings.get_clan());
+                                        }
+                                    }
+                                }
+                            }
+
+                            info!("OAuth tokens refreshed.");
+                        } else {
+                            info!("No OAuth credentials, skipping.");
+                        }
 
                         if let Ok(bot_players) =
                             players_repository_worker.update_all_players_stats().await
@@ -244,6 +326,8 @@ async fn poise(
                 Ok(Data {
                     guild_settings_repository,
                     players_repository,
+                    player_oauth_token_repository,
+                    oauth_credentials,
                 })
             })
         })

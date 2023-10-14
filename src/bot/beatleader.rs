@@ -1,28 +1,21 @@
-use crate::Context;
-use bytes::Bytes;
+use crate::beatleader::clan::Clan;
+use crate::beatleader::player::{DifficultyStatus, MapType, PlayerId};
+use crate::beatleader::player::{
+    Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
+};
+use crate::beatleader::pp::calculate_pp_boundary;
+use crate::beatleader::{error::Error as BlError, List as BlList, MetaData, SortOrder};
+use crate::bot::{Metric, PlayerMetricValue};
+use crate::storage::{StorageKey, StorageValue};
+use crate::BL_CLIENT;
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
 use log::{info, trace};
-use poise::serenity_prelude::{AttachmentType, CacheHttp, ChannelId, GuildId, Message, UserId};
+use poise::serenity_prelude::{AttachmentType, GuildId, UserId};
 use poise::CreateReply;
-use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
 use std::borrow::Cow;
-use std::fmt::format;
-use std::time::Duration;
-
-use crate::beatleader::error::Error;
-use crate::beatleader::player::{DifficultyStatus, MapType, MetaData, PlayerId};
-use crate::beatleader::player::{
-    Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore, Scores as BlScores,
-};
-use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, SortOrder, APP_USER_AGENT};
-use crate::bot::{Metric, PlayerMetricValue};
-use crate::embed::embed_score;
-use crate::storage::{StorageKey, StorageValue};
-use crate::BL_CLIENT;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -393,18 +386,13 @@ impl Score {
     }
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Scores {
-    #[serde(rename = "data")]
-    pub scores: Vec<Score>,
-    pub metadata: MetaData,
-}
-impl From<BlScores> for Scores {
-    fn from(bl_scores: BlScores) -> Self {
+impl From<BlList<BlScore>> for BlList<Score> {
+    fn from(value: BlList<BlScore>) -> Self {
         Self {
-            scores: bl_scores.scores.into_iter().map(Score::from).collect(),
-            metadata: bl_scores.metadata,
+            data: value.data.into_iter().map(|v| v.into()).collect(),
+            page: value.page,
+            items_per_page: value.items_per_page,
+            total: value.total,
         }
     }
 }
@@ -412,10 +400,12 @@ impl From<BlScores> for Scores {
 pub(crate) async fn fetch_scores(
     player_id: &PlayerId,
     params: &[PlayerScoreParam],
-) -> Result<Scores, BlError> {
-    Ok(Scores::from(
-        BL_CLIENT.player().get_scores(player_id, params).await?,
-    ))
+) -> Result<BlList<Score>, BlError> {
+    Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
+}
+
+pub(crate) async fn fetch_clan(tag: &str) -> Result<Clan, BlError> {
+    BL_CLIENT.clan().by_tag(tag).await
 }
 
 #[derive(Debug, Default)]
@@ -482,14 +472,14 @@ pub(crate) async fn fetch_ranked_scores_stats(
             Ok(scores_page) => {
                 trace!("Scores page #{} fetched.", page);
 
-                if scores_page.scores.is_empty() {
+                if scores_page.data.is_empty() {
                     break 'outer;
                 }
 
-                page_count = scores_page.metadata.total / ITEMS_PER_PAGE
-                    + u32::from(scores_page.metadata.total % ITEMS_PER_PAGE != 0);
+                page_count = scores_page.total / ITEMS_PER_PAGE
+                    + u32::from(scores_page.total % ITEMS_PER_PAGE != 0);
 
-                for score in scores_page.scores {
+                for score in scores_page.data {
                     player_scores.push(score.pp);
 
                     if score.modifiers.contains("NF")
