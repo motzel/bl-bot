@@ -15,23 +15,23 @@ log = "^0.4"
 reqwest = { version = "^0.11", features = ["json", "rustls-tls", "gzip", "brotli"] }
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
-tokio = { version = "^1.29.1", features = ["full"] }
+tokio = { version = "^1.32.0", features = ["full"] }
 poise = { version = "^0.5", features = ["cache"] }
-shuttle-persist = "^0.27"
-shuttle-poise = "^0.27"
-shuttle-runtime = "^0.27"
-shuttle-secrets = "^0.27"
-tracing = "^0.1.37"
-futures = "^0.3.28"
+shuttle-persist = "^0.29"
+shuttle-poise = "^0.29"
+shuttle-runtime = "^0.29"
+shuttle-secrets = "^0.29"
+tracing = "^0.1.38"
+futures = "^0.3.0"
 lazy_static = "^1.4.0"
 peak_alloc = "^0.2.0"
 governor = "^0.6.0"
 serde_with = {version = "^3.2.0", features = ["chrono"]}
 regex = "^1.9.3"
-chrono = {version = "^0.4.30", features = ["serde"] }
-serde_repr = "^0.1.16"
+chrono = {version = "^0.4.0", features = ["serde"] }
+serde_repr = "^0.1.0"
 ril = { version = "^0.9.0", features = ["all-pure"] }
 stackblur-iter = "^0.2.0"
 bytes = "^1.5.0"
-relativetime = {version = "^0.1.4", features = ["chrono"] }
-async-trait = "0.1.73"
+relativetime = {version = "^0.1.0", features = ["chrono"] }
+async-trait = "^0.1.0"
