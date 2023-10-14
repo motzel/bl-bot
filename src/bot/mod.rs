@@ -1064,9 +1064,19 @@ impl GuildOAuthTokenRepository {
 #[async_trait]
 impl OAuthTokenRepository for GuildOAuthTokenRepository {
     async fn get(&self) -> Result<Option<OAuthToken>, BlError> {
+        trace!("Fetching OAuth token from repository...");
+
         match self.player_oauth_token_repository.get(&self.owner_id).await {
-            Some(player_oauth_token) => Ok(Some(player_oauth_token.into())),
-            None => Err(BlError::OAuthStorage),
+            Some(player_oauth_token) => {
+                trace!("OAuth token fetched from repository.");
+
+                Ok(Some(player_oauth_token.into()))
+            }
+            None => {
+                trace!("No OAuth token in repository.");
+
+                Err(BlError::OAuthStorage)
+            }
         }
     }
 
@@ -1074,6 +1084,8 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
     where
         ModifyFunc: for<'b> FnOnce(&'b mut OAuthToken) -> BoxFuture<'b, ()> + Send + 'static,
     {
+        trace!("Storing OAuth token in repository...");
+
         match self
             .player_oauth_token_repository
             .set(&self.owner_id, |token| {

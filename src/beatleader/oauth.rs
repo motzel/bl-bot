@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{info, trace};
+use log::{error, trace};
 use poise::async_trait;
-use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse};
+use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse, Url};
 use serde::{Deserialize, Serialize};
 
 use crate::beatleader::clan::{ClanAuthResource, ClanResource};
@@ -65,23 +65,54 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
         let request = oauth_grant.get_request_builder(self.client).build();
 
         if let Err(err) = request {
+            trace!("OAuth grant builder error: {}", err);
+
             return Err(Error::Request(err));
         }
 
-        match self.client.client.send_request(request.unwrap()).await {
-            Ok(response) => match response.json::<OAuthTokenResponse>().await {
-                Ok(oauth_token_response) => Ok(oauth_token_response.into()),
-                Err(e) => Err(Error::JsonDecode(e)),
-            },
-            Err(e) => match e {
-                Error::Client(error_text) => match error_text {
-                    Some(error_text) => Err(Error::OAuth(
-                        serde_json::from_str::<OAuthErrorResponse>(error_text.as_str()).ok(),
-                    )),
-                    None => Err(Error::OAuth(None)),
-                },
-                _ => Err(e),
-            },
+        let request = request.unwrap();
+
+        let base = Url::parse(self.client.client.base_url.as_str()).unwrap();
+
+        trace!(
+            "Sending OAuth request to {}",
+            base.make_relative(request.url()).unwrap()
+        );
+
+        match self.client.client.send_request(request).await {
+            Ok(response) => {
+                trace!(
+                    "Endpoint {} responded with status: {}",
+                    base.make_relative(response.url()).unwrap(),
+                    response.status().as_u16()
+                );
+
+                match response.json::<OAuthTokenResponse>().await {
+                    Ok(oauth_token_response) => {
+                        trace!("OAuth token retrieved from response");
+
+                        Ok(oauth_token_response.into())
+                    }
+                    Err(e) => {
+                        trace!("OAuth token retrieving from response error: {}", e);
+
+                        Err(Error::JsonDecode(e))
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Response error: {:#?}", e);
+
+                match e {
+                    Error::Client(error_text) => match error_text {
+                        Some(error_text) => Err(Error::OAuth(
+                            serde_json::from_str::<OAuthErrorResponse>(error_text.as_str()).ok(),
+                        )),
+                        None => Err(Error::OAuth(None)),
+                    },
+                    _ => Err(e),
+                }
+            }
         }
     }
 }
@@ -187,6 +218,11 @@ impl OAuthGrant {
         &self,
         client: &ClientWithOAuth<T>,
     ) -> RequestBuilder {
+        trace!(
+            "Getting OAuth grant request builder for client {}...",
+            &client.oauth_credentials.client_id
+        );
+
         let mut params = HashMap::from([
             ("client_id", client.oauth_credentials.client_id.clone()),
             (
@@ -197,16 +233,17 @@ impl OAuthGrant {
 
         match self {
             OAuthGrant::Authorize(scopes) => {
+                let scopes_str = scopes
+                    .iter()
+                    .map(String::from)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                trace!("Authorize grant selected with scopes {}", &scopes_str);
+
                 params.extend(HashMap::from([
                     ("response_type", "code".to_owned()),
-                    (
-                        "scope",
-                        scopes
-                            .iter()
-                            .map(String::from)
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    ),
+                    ("scope", scopes_str),
                 ]));
 
                 client
@@ -215,6 +252,8 @@ impl OAuthGrant {
                     .query(&params)
             }
             OAuthGrant::AuthorizationCode(auth_code) => {
+                trace!("Authorization code grant selected");
+
                 params.extend(HashMap::from([
                     ("code", auth_code.clone()),
                     ("grant_type", "authorization_code".to_owned()),
@@ -230,6 +269,8 @@ impl OAuthGrant {
                     .form(&params)
             }
             OAuthGrant::RefreshToken(refresh_token) => {
+                trace!("Refresh token grant selected");
+
                 params.extend(HashMap::from([
                     ("refresh_token", refresh_token.clone()),
                     ("grant_type", "refresh_token".to_owned()),
@@ -308,11 +349,7 @@ where
         &self,
         builder: RequestBuilder,
     ) -> super::Result<ReqwestResponse> {
-        trace!("Getting OAuth token from repository...");
-
         let Some(oauth_token) = self.get_token().await? else {
-            trace!("OAuth token error");
-
             return Err(Error::OAuthStorage);
         };
 
@@ -321,7 +358,8 @@ where
         if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30))
             || oauth_token.refresh_token.is_none()
         {
-            trace!("OAuth token is valid or there's no refresh token");
+            trace!("OAuth token is valid or there's no refresh token. Trying to send a request...");
+
             return self
                 .client
                 .build_and_send_request(builder.header(
@@ -334,7 +372,7 @@ where
         let oauth_credentials = self.oauth_credentials.clone();
         let oauth_token_repository = self.oauth_token_repository.clone();
 
-        trace!("Trying to refresh OAuth token...");
+        trace!("Trying to refresh expired OAuth token...");
 
         let oauth_token = self
             .oauth_token_repository
@@ -349,8 +387,6 @@ where
                             .await;
 
                         if let Ok(new_token) = new_token_result {
-                            println!("New access token: {}", &new_token.access_token);
-
                             *token = new_token;
                         }
                     }
@@ -375,14 +411,7 @@ where
     pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<OAuthToken, Error> {
         self.oauth_token_repository
             .store(|token| {
-                info!("ClientWithOauth::store_token/closure()");
                 Box::pin(async move {
-                    info!(
-                        "ClientWithOauth::store_token/closure/Box::pin( {} ), OLD: {}, NEWER?: {:?}",
-                        &oauth_token.expiration_date,
-                        &token.expiration_date,
-                        oauth_token.is_newer_than(token)
-                    );
                     if oauth_token.is_newer_than(token) {
                         *token = oauth_token;
                     }
