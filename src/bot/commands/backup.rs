@@ -6,6 +6,7 @@ use std::borrow::Cow;
 
 use crate::bot::beatleader::Player as BotPlayer;
 use crate::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
+use crate::storage::player_oauth_token::PlayerOAuthToken;
 use crate::{Context, Error};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -14,6 +15,7 @@ struct BotData {
     version: String,
     guilds: Vec<GuildSettings>,
     players: Vec<BotPlayer>,
+    player_oauth_tokens: Vec<PlayerOAuthToken>,
 }
 
 /// Export bot data
@@ -33,6 +35,7 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         guilds: ctx.data().guild_settings_repository.all().await,
         players: ctx.data().players_repository.all().await,
+        player_oauth_tokens: ctx.data().player_oauth_token_repository.all().await,
     };
 
     match serde_json::to_string::<BotData>(&data) {
@@ -93,6 +96,21 @@ pub(crate) async fn cmd_import(
                     if let Err(err) = ctx.data().players_repository.restore(data.players).await {
                         ctx.say(format!(
                             "An error occurred during restoring linked players: {}",
+                            err
+                        ))
+                        .await?;
+
+                        return Ok(());
+                    }
+
+                    if let Err(err) = ctx
+                        .data()
+                        .player_oauth_token_repository
+                        .restore(data.player_oauth_tokens)
+                        .await
+                    {
+                        ctx.say(format!(
+                            "An error occurred during restoring oauth tokens: {}",
                             err
                         ))
                         .await?;
