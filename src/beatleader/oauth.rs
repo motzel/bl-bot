@@ -174,12 +174,16 @@ pub struct OAuthErrorResponse {
 pub struct OAuthToken {
     access_token: String,
     token_type: String,
-    pub expiration_date: DateTime<Utc>,
+    expiration_date: DateTime<Utc>,
     scopes: Vec<OAuthScope>,
     refresh_token: Option<String>,
 }
 
 impl OAuthToken {
+    pub fn get_expiration(&self) -> DateTime<Utc> {
+        self.expiration_date
+    }
+
     pub fn is_valid_for(&self, duration: Duration) -> bool {
         self.expiration_date.ge(&(Utc::now() + duration))
     }
@@ -349,24 +353,51 @@ where
         &self,
         builder: RequestBuilder,
     ) -> super::Result<ReqwestResponse> {
+        let oauth_token = self.refresh_token_if_needed().await?;
+
+        trace!("Sending authorized refresh...");
+
+        self.client
+            .build_and_send_request(builder.header(
+                "Authorization",
+                format!("Bearer {}", oauth_token.access_token),
+            ))
+            .await
+    }
+
+    pub async fn get_token(&self) -> Result<Option<OAuthToken>, Error> {
+        self.oauth_token_repository.get().await
+    }
+
+    pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<OAuthToken, Error> {
+        self.oauth_token_repository
+            .store(|token| {
+                Box::pin(async move {
+                    if oauth_token.is_newer_than(token) {
+                        *token = oauth_token;
+                    }
+                })
+            })
+            .await
+    }
+
+    pub async fn refresh_token_if_needed(&self) -> super::Result<OAuthToken> {
         let Some(oauth_token) = self.get_token().await? else {
             return Err(Error::OAuthStorage);
         };
 
         trace!("OAuth token retrieved from repository");
 
-        if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30))
-            || oauth_token.refresh_token.is_none()
-        {
-            trace!("OAuth token is valid or there's no refresh token. Trying to send a request...");
+        if oauth_token.is_valid_for(Duration::seconds(self.client.get_timeout() as i64 + 30)) {
+            trace!("OAuth token is valid, skipping refreshing.");
 
-            return self
-                .client
-                .build_and_send_request(builder.header(
-                    "Authorization",
-                    format!("Bearer {}", oauth_token.access_token),
-                ))
-                .await;
+            return Ok(oauth_token);
+        }
+
+        if oauth_token.refresh_token.is_none() {
+            trace!("No refresh token, skip refreshing.");
+
+            return Err(Error::OAuthStorage);
         }
 
         let oauth_credentials = self.oauth_credentials.clone();
@@ -394,29 +425,8 @@ where
             })
             .await?;
 
-        trace!("OAuth token refreshed, sending authorized refresh...");
+        trace!("OAuth token refreshed.");
 
-        self.client
-            .build_and_send_request(builder.header(
-                "Authorization",
-                format!("Bearer {}", oauth_token.access_token),
-            ))
-            .await
-    }
-
-    pub async fn get_token(&self) -> Result<Option<OAuthToken>, Error> {
-        self.oauth_token_repository.get().await
-    }
-
-    pub async fn store_token(&self, oauth_token: OAuthToken) -> Result<OAuthToken, Error> {
-        self.oauth_token_repository
-            .store(|token| {
-                Box::pin(async move {
-                    if oauth_token.is_newer_than(token) {
-                        *token = oauth_token;
-                    }
-                })
-            })
-            .await
+        Ok(oauth_token)
     }
 }

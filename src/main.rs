@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
@@ -22,7 +22,7 @@ use crate::bot::commands::{
     cmd_remove_auto_role, cmd_replay, cmd_set_log_channel, cmd_set_profile_verification,
     cmd_show_settings, cmd_unlink,
 };
-use crate::bot::{GuildSettings, UserRoleChanges};
+use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -80,7 +80,7 @@ async fn poise(
         .parse()
         .expect("'REFRESH_INTERVAL' should be an integer");
     if refresh_interval < 30 {
-        panic!("REFRESH_INTERVAL should be greater than 30 seconds");
+        panic!("REFRESH_INTERVAL should be at least 30 seconds");
     }
 
     let oauth_client_id = secret_store.get("OAUTH_CLIENT_ID");
@@ -175,16 +175,65 @@ async fn poise(
 
                 let global_ctx = ctx.clone();
 
+                let player_oauth_token_repository_worker = Arc::clone(&player_oauth_token_repository);
                 let guild_settings_repository_worker = Arc::clone(&guild_settings_repository);
                 let players_repository_worker = Arc::clone(&players_repository);
 
+                let oauth_credentials_clone = oauth_credentials.clone();
+
                 tokio::spawn(async move {
                     let interval = std::time::Duration::from_secs(refresh_interval);
-                    info!("Run a task that updates profiles every {:?}", interval);
+                    info!("Run a task that updates data every {:?}", interval);
 
                     loop {
                         info!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         info!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
+
+                        info!("Refreshing expired OAuth tokens...");
+
+                        if let Some(ref oauth_credentials) = oauth_credentials_clone {
+                            for guild in guild_settings_repository_worker.all().await {
+                                if let Some(clan_settings) = guild.get_clan_settings() {
+                                    if clan_settings.is_oauth_token_set() {
+                                        info!("Refreshing OAuth token for a clan {}...", clan_settings.get_clan());
+
+                                        let clan_owner_id = clan_settings.get_owner();
+
+                                        let oauth_token_option = player_oauth_token_repository_worker.get(&clan_owner_id).await;
+
+                                        if let Some(oauth_token) = oauth_token_option {
+                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(refresh_interval as i64 + 30)) {
+                                                let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
+                                                    clan_owner_id,
+                                                    Arc::clone(&player_oauth_token_repository_worker),
+                                                );
+                                                let oauth_client = BL_CLIENT.with_oauth(
+                                                    oauth_credentials.clone(),
+                                                    guild_oauth_token_repository,
+                                                );
+
+                                                match oauth_client.refresh_token_if_needed().await {
+                                                    Ok(oauth_token) => {
+                                                        info!("OAuth token refreshed, expiration date: {}", oauth_token.get_expiration());
+                                                    },
+                                                    Err(err) => {
+                                                        error!("OAuth token refreshing error: {}", err);
+                                                    }
+                                                }
+                                            } else {
+                                                info!("OAuth token is still valid, skip refreshing.");
+                                            }
+                                        } else {
+                                            warn!("No OAuth token for a clan {} found.", clan_settings.get_clan());
+                                        }
+                                    }
+                                }
+                            }
+
+                            info!("OAuth tokens refreshed.");
+                        } else {
+                            info!("No OAuth credentials, skipping.");
+                        }
 
                         if let Ok(bot_players) =
                             players_repository_worker.update_all_players_stats().await

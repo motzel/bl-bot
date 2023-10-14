@@ -1007,6 +1007,10 @@ impl ClanSettings {
         }
     }
 
+    pub fn get_owner(&self) -> PlayerId {
+        self.owner_id.clone()
+    }
+
     pub fn get_clan(&self) -> ClanTag {
         self.clan.clone()
     }
