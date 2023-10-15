@@ -106,6 +106,8 @@ pub(crate) async fn cmd_link(
         player_id = caps["player_id"].to_owned().clone();
     }
 
+    ctx.defer().await?;
+
     match ctx
         .data()
         .players_repository
@@ -239,6 +241,8 @@ pub(crate) async fn cmd_profile(
     ctx: Context<'_>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
+    ctx.defer().await?;
+
     let guild_id = get_guild_id(ctx, true).await?;
 
     let selected_user = user.as_ref().unwrap_or_else(|| ctx.author());

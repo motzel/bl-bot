@@ -2,14 +2,17 @@ use crate::beatleader::player::DifficultyStatus;
 use crate::bot::beatleader::{Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
-use crate::embed::utils::{draw_rounded_rectangle, draw_text, Corner};
+use crate::embed::font::{
+    could_be_drawn, draw_multilang_text, draw_text_segment, split_text_by_fonts, NOTO_FONT_FAMILY,
+    ROBOTO_FONT_FAMILY,
+};
+use crate::embed::utils::{draw_rounded_rectangle, Corner};
 use relativetime::RelativeTime;
 use ril::prelude::*;
 
 mod blur;
+mod font;
 mod utils;
-
-const TTF_FONT: &[u8] = include_bytes!("./assets/RobotoCondensed-Bold.ttf") as &[u8];
 
 pub async fn embed_score(
     score: &Score,
@@ -30,10 +33,7 @@ pub async fn embed_score(
     let smaller_font_size = FONT_SIZE * 0.75;
     let big_font_size = FONT_SIZE * 1.5;
 
-    // load font
-    let Ok(font) = Font::from_bytes(TTF_FONT, FONT_SIZE) else {
-        return None;
-    };
+    let roboto_font = &ROBOTO_FONT_FAMILY.fonts[0].font;
 
     // load background
     let bg_bytes = get_binary_file(&score.song_cover)
@@ -153,7 +153,7 @@ pub async fn embed_score(
         difficulty_desc.push_str(shorten_difficulty_name(score.difficulty_name.as_str()).as_str());
     }
     let mut difficulty_text_segment =
-        TextSegment::new(&font, difficulty_desc, Rgba::white()).with_size(small_font_size);
+        TextSegment::new(roboto_font, difficulty_desc, Rgba::white()).with_size(small_font_size);
     let difficulty_text_layout = TextLayout::new()
         .with_wrap(WrapStyle::None)
         .with_segment(&difficulty_text_segment);
@@ -172,7 +172,7 @@ pub async fn embed_score(
         BORDER_RADIUS,
         &[Corner::TopRight, Corner::BottomLeft],
     );
-    draw_text(
+    draw_text_segment(
         &mut difficulty,
         &mut difficulty_text_segment,
         0,
@@ -187,14 +187,18 @@ pub async fn embed_score(
         &difficulty,
     );
 
-    draw_text(
+    let song_name = format!("{} {}", score.song_name, score.song_sub_name);
+    let text = song_name.as_str();
+    let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
+    if !could_be_drawn(&text_fonts) {
+        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+    }
+
+    draw_multilang_text(
         &mut image,
-        &mut TextSegment::new(
-            &font,
-            format!("{} {}", score.song_name, score.song_sub_name),
-            Rgba::white(),
-        )
-        .with_size(smaller_font_size),
+        text_fonts,
+        Rgba::white(),
+        smaller_font_size,
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         BORDER_SIZE / 2 + BORDER_RADIUS / 4,
         WIDTH - BORDER_SIZE - BORDER_RADIUS - difficulty_badge_width,
@@ -202,9 +206,17 @@ pub async fn embed_score(
         0,
     );
 
-    draw_text(
+    let text = player.name.as_str();
+    let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
+    if !could_be_drawn(&text_fonts) {
+        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+    }
+
+    draw_multilang_text(
         &mut image,
-        &mut TextSegment::new(&font, player.name.clone(), Rgba::white()).with_size(FONT_SIZE),
+        text_fonts,
+        Rgba::white(),
+        FONT_SIZE,
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         HEIGHT - BORDER_SIZE / 2 - BORDER_SIZE / 4 - BORDER_RADIUS / 4 - FONT_SIZE as u32,
         WIDTH - BORDER_SIZE - BORDER_RADIUS,
@@ -216,10 +228,14 @@ pub async fn embed_score(
         WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 2;
     let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 2;
     let acc_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.25) as u32;
-    draw_text(
+    draw_text_segment(
         &mut image,
-        &mut TextSegment::new(&font, format!("{:.2}%", score.accuracy), Rgba::white())
-            .with_size(big_font_size),
+        &mut TextSegment::new(
+            roboto_font,
+            format!("{:.2}%", score.accuracy),
+            Rgba::white(),
+        )
+        .with_size(big_font_size),
         stats_pos_x,
         acc_pos_y,
         stats_width,
@@ -227,10 +243,10 @@ pub async fn embed_score(
         stats_width,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
         &mut TextSegment::new(
-            &font,
+            roboto_font,
             format!(
                 "{}{:.2} / {:.2}",
                 if score.mistakes > 0 {
@@ -251,10 +267,10 @@ pub async fn embed_score(
         stats_width,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
         &mut TextSegment::new(
-            &font,
+            roboto_font,
             format!(
                 "{} {} • {}",
                 if !score.modifiers.is_empty() {
@@ -299,10 +315,10 @@ pub async fn embed_score(
         stats_width,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
         &mut TextSegment::new(
-            &font,
+            roboto_font,
             format!(
                 "#{}{}",
                 score.rank,
@@ -351,10 +367,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
     let smaller_font_size = FONT_SIZE * 0.75;
     let big_font_size = FONT_SIZE * 1.5;
 
-    // load font
-    let Ok(font) = Font::from_bytes(TTF_FONT, FONT_SIZE) else {
-        return None;
-    };
+    let roboto_font = &ROBOTO_FONT_FAMILY.fonts[0].font;
 
     // load background
     let Ok(mut bg) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
@@ -453,7 +466,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
 
     if !player.is_verified {
         let mut not_verified_text_segment =
-            TextSegment::new(&font, "Not verified", Rgba::white()).with_size(small_font_size);
+            TextSegment::new(roboto_font, "Not verified", Rgba::white()).with_size(small_font_size);
         let not_verified_text_layout = TextLayout::new()
             .with_wrap(WrapStyle::None)
             .with_segment(&not_verified_text_segment);
@@ -472,7 +485,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
             BORDER_RADIUS,
             &[Corner::TopRight, Corner::BottomLeft],
         );
-        draw_text(
+        draw_text_segment(
             &mut not_verified,
             &mut not_verified_text_segment,
             0,
@@ -488,9 +501,9 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         );
     }
 
-    draw_text(
+    draw_text_segment(
         &mut image,
-        &mut TextSegment::new(&font, format!("#{}", player.rank), Rgba::white())
+        &mut TextSegment::new(roboto_font, format!("#{}", player.rank), Rgba::white())
             .with_size(FONT_SIZE),
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         HEIGHT
@@ -505,10 +518,14 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         AVATAR_SIZE,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
-        &mut TextSegment::new(&font, format!("#{} peak", player.peak_rank), Rgba::white())
-            .with_size(small_font_size),
+        &mut TextSegment::new(
+            roboto_font,
+            format!("#{} peak", player.peak_rank),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         HEIGHT
             - BORDER_SIZE
@@ -524,9 +541,16 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         AVATAR_SIZE + AVATAR_SIZE / 2,
     );
 
-    draw_text(
+    let text = &player.name;
+    let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
+    if !could_be_drawn(&text_fonts) {
+        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+    }
+    draw_multilang_text(
         &mut image,
-        &mut TextSegment::new(&font, &player.name, Rgba::white()).with_size(FONT_SIZE),
+        text_fonts,
+        Rgba::white(),
+        FONT_SIZE,
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
         HEIGHT - BORDER_SIZE / 2 - BORDER_SIZE / 4 - BORDER_RADIUS / 4 - FONT_SIZE as u32,
         WIDTH - BORDER_SIZE - BORDER_RADIUS,
@@ -538,9 +562,9 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 2;
     let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 2;
     let stats_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.25) as u32;
-    draw_text(
+    draw_text_segment(
         &mut image,
-        &mut TextSegment::new(&font, format!("{:.2}pp", player.pp), Rgba::white())
+        &mut TextSegment::new(roboto_font, format!("{:.2}pp", player.pp), Rgba::white())
             .with_size(big_font_size),
         stats_pos_x,
         stats_pos_y,
@@ -549,10 +573,10 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         stats_width,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
         &mut TextSegment::new(
-            &font,
+            roboto_font,
             format!(
                 "{:.2} top pp{}",
                 player.top_pp,
@@ -572,10 +596,10 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         stats_width,
     );
 
-    draw_text(
+    draw_text_segment(
         &mut image,
         &mut TextSegment::new(
-            &font,
+            roboto_font,
             format!(
                 "{}{:.2}% avg acc",
                 if player.last_scores_fetch.is_some() {
@@ -597,10 +621,10 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
 
     let mut y_offset = 0;
     if player.last_scores_fetch.is_some() {
-        draw_text(
+        draw_text_segment(
             &mut image,
             &mut TextSegment::new(
-                &font,
+                roboto_font,
                 if player.last_ranked_paused_at.is_some() {
                     let mut relative_time = player.last_ranked_paused_at.unwrap().to_relative();
                     if relative_time == "1 months ago" {
@@ -628,9 +652,9 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
     }
 
     if !player.clans.is_empty() {
-        draw_text(
+        draw_text_segment(
             &mut image,
-            &mut TextSegment::new(&font, player.clans.join(" • "), Rgba::white())
+            &mut TextSegment::new(roboto_font, player.clans.join(" • "), Rgba::white())
                 .with_size(small_font_size),
             stats_pos_x,
             stats_pos_y
