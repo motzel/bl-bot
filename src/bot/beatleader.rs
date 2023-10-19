@@ -10,7 +10,7 @@ use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
-use log::{info, trace};
+use log::{error, info, trace};
 use poise::serenity_prelude::{AttachmentType, GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
@@ -418,10 +418,12 @@ pub(crate) struct ScoreStats {
 
 pub(crate) async fn fetch_ranked_scores_stats(
     player: &Player,
+    force: bool,
 ) -> Result<Option<ScoreStats>, BlError> {
     info!("Fetching all ranked scores of {}...", player.name);
 
-    if player.last_scores_fetch.is_some()
+    if !force
+        && player.last_scores_fetch.is_some()
         && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
         && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::minutes(30)
     {
@@ -436,7 +438,13 @@ pub(crate) async fn fetch_ranked_scores_stats(
     const ITEMS_PER_PAGE: u32 = 100;
 
     let time_param: Vec<PlayerScoreParam> = match player.last_scores_fetch {
-        Some(last_scores_fetch) => vec![PlayerScoreParam::TimeFrom(last_scores_fetch)],
+        Some(last_scores_fetch) => {
+            if force {
+                vec![]
+            } else {
+                vec![PlayerScoreParam::TimeFrom(last_scores_fetch)]
+            }
+        }
         None => vec![],
     };
 

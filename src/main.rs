@@ -14,12 +14,10 @@ use shuttle_secrets::SecretStore;
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
-use crate::bot::commands::clan::{
-    cmd_clan_invitation, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
-};
 use crate::bot::commands::{
-    cmd_add_auto_role, cmd_export, cmd_import, cmd_link, cmd_profile, cmd_register,
-    cmd_remove_auto_role, cmd_replay, cmd_set_log_channel, cmd_set_profile_verification,
+    cmd_add_auto_role, cmd_clan_invitation, cmd_export, cmd_import, cmd_link, cmd_profile,
+    cmd_refresh_scores, cmd_register, cmd_remove_auto_role, cmd_replay, cmd_set_clan_invitation,
+    cmd_set_clan_invitation_code, cmd_set_log_channel, cmd_set_profile_verification,
     cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
@@ -114,6 +112,7 @@ async fn poise(
             cmd_register(),
             cmd_export(),
             cmd_import(),
+            cmd_refresh_scores(),
         ],
         pre_command: |ctx| {
             Box::pin(async move {
@@ -236,7 +235,7 @@ async fn poise(
                         }
 
                         if let Ok(bot_players) =
-                            players_repository_worker.update_all_players_stats().await
+                            players_repository_worker.update_all_players_stats(false).await
                         {
                             info!("Updating players roles ({})...", bot_players.len());
 

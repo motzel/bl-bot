@@ -142,7 +142,10 @@ impl<'a> PlayerRepository {
         }
     }
 
-    pub(crate) async fn update_all_players_stats(&self) -> Result<Vec<BotPlayer>> {
+    pub(crate) async fn update_all_players_stats(
+        &self,
+        force_scores_download: bool,
+    ) -> Result<Vec<BotPlayer>> {
         trace!("Updating all users stats...");
 
         let mut ret = Vec::with_capacity(self.storage.len().await);
@@ -158,7 +161,10 @@ impl<'a> PlayerRepository {
                 continue;
             }
 
-            if let Ok(player) = self.update_player_stats(&player).await {
+            if let Ok(player) = self
+                .update_player_stats(&player, force_scores_download)
+                .await
+            {
                 ret.push(player);
             }
         }
@@ -168,7 +174,11 @@ impl<'a> PlayerRepository {
         Ok(ret)
     }
 
-    pub(crate) async fn update_player_stats(&self, player: &BotPlayer) -> Result<BotPlayer> {
+    pub(crate) async fn update_player_stats(
+        &self,
+        player: &BotPlayer,
+        force_scores_download: bool,
+    ) -> Result<BotPlayer> {
         trace!(
             "Updating user {} / BL player {} stats...",
             player.user_id,
@@ -188,7 +198,7 @@ impl<'a> PlayerRepository {
             bl_player.name
         );
 
-        let scores_stats = fetch_ranked_scores_stats(player).await?;
+        let scores_stats = fetch_ranked_scores_stats(player, force_scores_download).await?;
 
         match self
             .storage

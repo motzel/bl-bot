@@ -387,6 +387,28 @@ pub(crate) async fn cmd_replay(
     Ok(())
 }
 
+/// Force refreshing all players scores
+#[poise::command(
+    slash_command,
+    rename = "bl-refresh-scores",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only
+)]
+pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
+    say_without_ping(ctx, "Please wait...", true).await?;
+
+    let players_repository = &ctx.data().players_repository;
+
+    players_repository.update_all_players_stats(true).await?;
+
+    say_without_ping(ctx, "All players scores refreshed.", true).await?;
+
+    Ok(())
+}
+
 fn add_replay_components<'a>(
     c: &'a mut CreateComponents,
     player_scores: &BlList<Score>,

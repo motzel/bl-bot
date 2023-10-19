@@ -266,7 +266,7 @@ where
             data: value.data.into_iter().map(|v| v.into()).collect(),
             page: value.metadata.page,
             items_per_page: value.metadata.items_per_page,
-            total: value.metadata.items_per_page,
+            total: value.metadata.total,
         }
     }
 }
