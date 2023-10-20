@@ -11,7 +11,7 @@ use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use bytes::Bytes;
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
-use crate::beatleader::{List as BlList, SortOrder};
+use crate::beatleader::{BlContext, List as BlList, SortOrder};
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
 use crate::bot::commands::guild::get_guild_id;
 use crate::bot::get_binary_file;
@@ -46,6 +46,30 @@ impl Sort {
             Sort::ByStars => PlayerScoreSort::Stars,
             Sort::ByRank => PlayerScoreSort::Rank,
             Sort::ByMaxStreak => PlayerScoreSort::MaxStreak,
+        }
+    }
+}
+
+#[derive(Debug, poise::ChoiceParameter, Default)]
+pub(crate) enum BlCommandContext {
+    #[name = "General"]
+    #[default]
+    General,
+    #[name = "No modifiers"]
+    NoModifiers,
+    #[name = "No pauses"]
+    NoPauses,
+    #[name = "Golf"]
+    Golf,
+}
+
+impl BlCommandContext {
+    pub fn to_player_score_context(&self) -> BlContext {
+        match self {
+            BlCommandContext::General => BlContext::General,
+            BlCommandContext::NoModifiers => BlContext::NoModifiers,
+            BlCommandContext::NoPauses => BlContext::NoPauses,
+            BlCommandContext::Golf => BlContext::Golf,
         }
     }
 }
@@ -288,6 +312,7 @@ pub(crate) async fn cmd_profile(
 pub(crate) async fn cmd_replay(
     ctx: Context<'_>,
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
+    #[description = "BL context (General if not specified)"] context: Option<BlCommandContext>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let guild_id = get_guild_id(ctx, true).await?;
@@ -296,6 +321,8 @@ pub(crate) async fn cmd_replay(
     let selected_user = user.as_ref().unwrap_or(current_user);
 
     let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
+    let player_score_context =
+        (context.unwrap_or(BlCommandContext::default())).to_player_score_context();
 
     let Some(player) = ctx.data().players_repository.get(&selected_user.id).await else {
         say_profile_not_linked(ctx, &selected_user.id).await?;
@@ -316,11 +343,19 @@ pub(crate) async fn cmd_replay(
             PlayerScoreParam::Count(25),
             PlayerScoreParam::Sort(player_score_sort),
             PlayerScoreParam::Order(SortOrder::Descending),
+            PlayerScoreParam::Context(player_score_context.clone()),
         ],
     )
     .await
     {
-        Ok(player_scores) => player_scores,
+        Ok(player_scores) => {
+            if player_scores.total == 0 {
+                say_without_ping(ctx, "No scores.", true).await?;
+                return Ok(());
+            }
+
+            player_scores
+        }
         Err(e) => {
             ctx.say(format!("Error fetching scores: {}", e)).await?;
             return Ok(());
@@ -363,7 +398,15 @@ pub(crate) async fn cmd_replay(
             }
             "post_btn" => {
                 if !score_ids.is_empty() {
-                    post_replays(ctx, &score_ids, &player_scores, &player, &msg).await?;
+                    post_replays(
+                        ctx,
+                        &score_ids,
+                        &player_scores,
+                        &player,
+                        &player_score_context,
+                        &msg,
+                    )
+                    .await?;
                 } else {
                     mci.defer(ctx).await?;
                 }
@@ -457,6 +500,7 @@ async fn post_replays(
     score_ids: &Vec<String>,
     player_scores: &BlList<Score>,
     player: &Player,
+    bl_context: &BlContext,
     msg: &ReplyHandle<'_>,
 ) -> Result<(), Error> {
     let mut msg_contents = "Loading player avatar...".to_owned();
@@ -510,7 +554,7 @@ async fn post_replays(
         }
 
         ctx.send(|m| {
-            score.add_embed(m, player, embed_image);
+            score.add_embed(m, player, bl_context, embed_image);
 
             m.allowed_mentions(|am| {
                 am.parse(serenity::builder::ParseValue::Users)

@@ -216,6 +216,26 @@ impl ToString for SortOrder {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum BlContext {
+    General,
+    NoModifiers,
+    NoPauses,
+    Golf,
+}
+
+impl ToString for BlContext {
+    fn to_string(&self) -> String {
+        match self {
+            BlContext::General => "general".to_owned(),
+            BlContext::NoModifiers => "nomods".to_owned(),
+            BlContext::NoPauses => "nopause".to_owned(),
+            BlContext::Golf => "golf".to_owned(),
+        }
+    }
+}
+
 pub trait QueryParam {
     fn as_query_param(&self) -> (String, String);
 }

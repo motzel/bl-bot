@@ -4,7 +4,7 @@ use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, List as BlList, MetaData, SortOrder};
+use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, MetaData, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
@@ -294,6 +294,7 @@ impl Score {
         &self,
         reply: &mut CreateReply,
         player: &Player,
+        bl_context: &BlContext,
         embed_image: Option<Vec<u8>>,
     ) {
         let with_embed_image = embed_image.is_some();
@@ -308,7 +309,7 @@ impl Score {
         reply.embed(|f| {
             let mut desc = "".to_owned();
 
-            desc.push_str(&format!("**{} / {}", self.difficulty_name, self.difficulty_status));
+            desc.push_str(&format!("**{} / {} / {}", capitalize(&bl_context.to_string()), self.difficulty_name, self.difficulty_status));
 
             if self.difficulty_stars > 0.0 {
                 desc.push_str(&format!(
@@ -533,4 +534,12 @@ pub(crate) async fn fetch_ranked_scores_stats(
         last_ranked_paused_at,
         plus_1pp,
     }))
+}
+
+pub fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
 }

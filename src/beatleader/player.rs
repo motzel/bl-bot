@@ -8,7 +8,9 @@ use chrono::{DateTime, Utc};
 
 use crate::beatleader;
 use crate::beatleader::clan::ClanTag;
-use crate::beatleader::{BlApiListResponse, BlApiResponse, Client, List, QueryParam, SortOrder};
+use crate::beatleader::{
+    BlApiListResponse, BlApiResponse, BlContext, Client, List, QueryParam, SortOrder,
+};
 
 pub struct PlayerResource<'a> {
     client: &'a Client,
@@ -75,6 +77,7 @@ pub enum PlayerScoreParam {
     Count(u32),
     Type(MapType),
     TimeFrom(DateTime<Utc>),
+    Context(BlContext),
 }
 
 impl QueryParam for PlayerScoreParam {
@@ -95,13 +98,7 @@ impl QueryParam for PlayerScoreParam {
                     PlayerScoreSort::Mistakes => "mistakes".to_owned(),
                 },
             ),
-            PlayerScoreParam::Order(order) => (
-                "order".to_owned(),
-                match order {
-                    SortOrder::Ascending => "asc".to_owned(),
-                    SortOrder::Descending => "desc".to_owned(),
-                },
-            ),
+            PlayerScoreParam::Order(order) => ("order".to_owned(), order.to_string()),
             PlayerScoreParam::Count(count) => ("count".to_owned(), count.to_string()),
             PlayerScoreParam::TimeFrom(time) => {
                 ("from_time".to_owned(), time.timestamp().to_string())
@@ -114,6 +111,9 @@ impl QueryParam for PlayerScoreParam {
                     MapType::Unranked => "unranked".to_owned(),
                 },
             ),
+            PlayerScoreParam::Context(context) => {
+                ("leaderboardContext".to_owned(), context.to_string())
+            }
         }
     }
 }
