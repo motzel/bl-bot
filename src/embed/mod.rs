@@ -210,6 +210,24 @@ pub async fn embed_score(
         0,
     );
 
+    draw_text_segment(
+        &mut image,
+        &mut TextSegment::new(
+            roboto_font,
+            format!(
+                "{} / {:.0} BPM / {:.2} NPS",
+                score.song_duration, score.song_bpm, score.difficulty_nps
+            ),
+            Rgba::white(),
+        )
+        .with_size(small_font_size),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        BORDER_SIZE / 2 + BORDER_RADIUS / 4 + PADDING + smaller_font_size as u32,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS - difficulty_badge_width,
+        0,
+        0,
+    );
+
     let text = player.name.as_str();
     let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
     if !could_be_drawn(&text_fonts) {

@@ -1,5 +1,5 @@
 use crate::beatleader::clan::Clan;
-use crate::beatleader::player::{DifficultyStatus, MapType, PlayerId};
+use crate::beatleader::player::{DifficultyStatus, Duration, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
@@ -223,9 +223,12 @@ pub struct Score {
     pub song_mapper: String,
     pub song_author: String,
     pub song_cover: String,
+    pub song_bpm: f32,
+    pub song_duration: Duration,
     pub difficulty_name: String,
     pub difficulty_stars: f64,
     pub difficulty_stars_modified: bool,
+    pub difficulty_nps: f64,
     #[serde_as(deserialize_as = "DefaultOnError")]
     #[serde(default)]
     pub difficulty_status: DifficultyStatus,
@@ -278,9 +281,12 @@ impl From<BlScore> for Score {
             song_mapper: bl_score.leaderboard.song.mapper,
             song_author: bl_score.leaderboard.song.author,
             song_cover: bl_score.leaderboard.song.cover_image,
+            song_bpm: bl_score.leaderboard.song.bpm,
+            song_duration: bl_score.leaderboard.song.duration,
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
             difficulty_stars: stars,
             difficulty_stars_modified: modified_stars,
+            difficulty_nps: bl_score.leaderboard.difficulty.nps,
             difficulty_status: bl_score.leaderboard.difficulty.status,
             mode_name: bl_score.leaderboard.difficulty.mode_name,
             timeset: bl_score.timeset,

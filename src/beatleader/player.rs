@@ -1,5 +1,5 @@
 use reqwest::Method;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
 
@@ -265,6 +265,15 @@ pub struct Leaderboard {
     pub difficulty: Difficulty,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct Duration(u32);
+
+impl std::fmt::Display for Duration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{:02}", self.0 / 60, self.0 % 60)
+    }
+}
+
 #[serde_as]
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -282,7 +291,7 @@ pub struct Song {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub author: String,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub duration: u32,
+    pub duration: Duration,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub bpm: f32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -315,6 +324,8 @@ pub struct Difficulty {
     pub stars: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub notes: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub nps: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub modifiers_rating: Option<ModifiersRatings>,
     #[serde_as(deserialize_as = "DefaultOnError")]
