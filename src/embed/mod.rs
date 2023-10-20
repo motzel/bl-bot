@@ -3,8 +3,8 @@ use crate::bot::beatleader::{Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
 use crate::embed::font::{
-    could_be_drawn, draw_multilang_text, draw_text_segment, split_text_by_fonts, NOTO_FONT_FAMILY,
-    ROBOTO_FONT_FAMILY,
+    could_be_drawn, draw_multilang_text, draw_text_segment, load_noto_fonts, split_text_by_fonts,
+    FontFamily, ROBOTO_FONT_FAMILY,
 };
 use crate::embed::utils::{draw_rounded_rectangle, Corner};
 use relativetime::RelativeTime;
@@ -187,11 +187,15 @@ pub async fn embed_score(
         &difficulty,
     );
 
+    let mut noto_fonts_option: Option<FontFamily> = None;
+
     let song_name = format!("{} {}", score.song_name, score.song_sub_name);
     let text = song_name.as_str();
     let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
     if !could_be_drawn(&text_fonts) {
-        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+        noto_fonts_option = Some(load_noto_fonts());
+
+        text_fonts = split_text_by_fonts(text, noto_fonts_option.as_ref().unwrap());
     }
 
     draw_multilang_text(
@@ -209,7 +213,11 @@ pub async fn embed_score(
     let text = player.name.as_str();
     let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
     if !could_be_drawn(&text_fonts) {
-        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+        if noto_fonts_option.is_none() {
+            noto_fonts_option = Some(load_noto_fonts());
+        }
+
+        text_fonts = split_text_by_fonts(text, noto_fonts_option.as_ref().unwrap());
     }
 
     draw_multilang_text(
@@ -541,11 +549,18 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         AVATAR_SIZE + AVATAR_SIZE / 2,
     );
 
+    let mut noto_fonts_option = None;
+
     let text = &player.name;
     let mut text_fonts = split_text_by_fonts(text, &ROBOTO_FONT_FAMILY);
     if !could_be_drawn(&text_fonts) {
-        text_fonts = split_text_by_fonts(text, &NOTO_FONT_FAMILY);
+        if noto_fonts_option.is_none() {
+            noto_fonts_option = Some(load_noto_fonts());
+        }
+
+        text_fonts = split_text_by_fonts(text, noto_fonts_option.as_ref().unwrap());
     }
+
     draw_multilang_text(
         &mut image,
         text_fonts,

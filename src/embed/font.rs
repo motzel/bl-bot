@@ -1,7 +1,16 @@
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use ril::{Font, Image, Pixel, TextLayout, TextSegment, WrapStyle};
+use std::fs;
 
 use ttf_parser::os2::UnicodeRanges;
+
+const NOTO_FONT_PATHS: &[&str] = &[
+    "./assets/fonts/NotoSansSC-Medium.ttf",
+    "./assets/fonts/NotoSansKR-Medium.ttf",
+    "./assets/fonts/NotoColorEmoji-Regular.ttf",
+    "./assets/fonts/NotoEmoji-Medium.ttf",
+];
 
 lazy_static! {
     static ref ROBOTO_FONTS_BYTES: Vec<&'static [u8]> =
@@ -16,24 +25,6 @@ lazy_static! {
             .collect(),
         y_offset: 0.0,
     };
-    static ref NOTO_FONTS_BYTES: Vec<&'static [u8]> = vec![
-        include_bytes!("./assets/NotoSansSC-Medium.ttf") as &[u8],
-        include_bytes!("./assets/NotoSansKR-Medium.ttf") as &[u8],
-        // include_bytes!("./assets/NotoSansTC-Medium.ttf") as &[u8],
-        // include_bytes!("./assets/NotoSansJP-Medium.ttf") as &[u8],
-        include_bytes!("./assets/NotoEmoji-Medium.ttf") as &[u8],
-        // include_bytes!("./assets/NotoSans-Medium.ttf") as &[u8],
-    ];
-    pub(crate) static ref NOTO_FONT_FAMILY: FontFamily = FontFamily {
-        fonts: NOTO_FONTS_BYTES
-            .iter()
-            .map(|b| FontWithRange {
-                font: Font::from_bytes(b, 32.0).unwrap(),
-                unicode_ranges: ttf_parser::Face::parse(b, 0).unwrap().unicode_ranges()
-            })
-            .collect(),
-        y_offset: -0.2,
-    };
 }
 
 pub(crate) struct FontWithRange {
@@ -46,9 +37,9 @@ pub(crate) struct FontFamily {
     pub y_offset: f32,
 }
 
-pub(crate) struct TextWithFontFamily {
+pub(crate) struct TextWithFontFamily<'a> {
     pub text: String,
-    pub font_family: &'static FontFamily,
+    pub font_family: &'a FontFamily,
     pub idx: usize,
 }
 
@@ -120,10 +111,10 @@ pub(crate) fn draw_text_segment<T>(
     img.draw(&text_layout);
 }
 
-pub(crate) fn split_text_by_fonts(
+pub(crate) fn split_text_by_fonts<'a>(
     text: &str,
-    font_family: &'static FontFamily,
-) -> Vec<TextWithFontFamily> {
+    font_family: &'a FontFamily,
+) -> Vec<TextWithFontFamily<'a>> {
     text.chars()
         .map(|c| {
             (
@@ -306,5 +297,24 @@ pub(crate) fn draw_multilang_text<T>(
             pos_y,
             max_width,
         );
+    }
+}
+
+pub(super) fn load_noto_fonts() -> FontFamily {
+    FontFamily {
+        fonts: NOTO_FONT_PATHS
+            .par_iter()
+            .map(fs::read)
+            .filter(|r| r.is_ok())
+            .map(|f| {
+                let data = f.unwrap();
+
+                FontWithRange {
+                    font: Font::from_bytes(&data, 32.0).unwrap(),
+                    unicode_ranges: ttf_parser::Face::parse(&data, 0).unwrap().unicode_ranges(),
+                }
+            })
+            .collect::<Vec<FontWithRange>>(),
+        y_offset: -0.2,
     }
 }
