@@ -9,7 +9,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
@@ -621,11 +621,9 @@ impl UserRoleChanges {
                 continue;
             }
 
-            trace!(
+            debug!(
                 "Role {} added to user {} ({})",
-                role_id,
-                self.user_id,
-                self.name
+                role_id, self.user_id, self.name
             );
         }
 
@@ -660,11 +658,9 @@ impl UserRoleChanges {
                 continue;
             }
 
-            trace!(
+            debug!(
                 "Role {} removed from user {} ({})",
-                role_id,
-                self.user_id,
-                self.name
+                role_id, self.user_id, self.name
             );
         }
 

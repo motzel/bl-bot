@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
-use log::{error, info, trace, warn};
+use log::{debug, error, info, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
@@ -231,7 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             let mut current_players_roles = Vec::new();
                             for bot_player in bot_players {
-                                trace!(
+                                debug!(
                                     "Fetching user {} ({}) roles...",
                                     &bot_player.user_id, &bot_player.name
                                 );

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::file_storage::PersistInstance;
-use log::trace;
+use log::{debug, trace};
 use poise::serenity_prelude::{GuildId, UserId};
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
@@ -95,7 +95,7 @@ impl<'a> PlayerRepository {
             .await?
         {
             Some(player) => {
-                trace!("User {} linked with BL player {}.", user_id, player_id);
+                debug!("User {} linked with BL player {}.", user_id, player_id);
                 Ok(player)
             }
             None => Err(PersistError::Unknown),
@@ -125,17 +125,17 @@ impl<'a> PlayerRepository {
         {
             Some(_) => {
                 if existed {
-                    trace!("User {} unlinked from guild {}.", user_id, guild_id);
+                    debug!("User {} unlinked from guild {}.", user_id, guild_id);
 
                     Ok(())
                 } else {
-                    trace!("User {} is not linked to guild {}.", user_id, guild_id);
+                    debug!("User {} is not linked to guild {}.", user_id, guild_id);
 
                     Err(PersistError::NotFound("user is not linked".to_owned()))
                 }
             }
             None => {
-                trace!("User {} is not linked to guild {}.", user_id, guild_id);
+                debug!("User {} is not linked to guild {}.", user_id, guild_id);
 
                 Err(PersistError::NotFound("user is not linked".to_owned()))
             }
@@ -169,7 +169,7 @@ impl<'a> PlayerRepository {
             }
         }
 
-        trace!("All users stats updated.");
+        debug!("All users stats updated.");
 
         Ok(ret)
     }
@@ -224,15 +224,14 @@ impl<'a> PlayerRepository {
             .await?
         {
             None => {
-                trace!("User {} not found.", player.user_id);
+                debug!("User {} not found.", player.user_id);
 
                 Err(PersistError::NotFound("player not found".to_owned()))
             }
             Some(player) => {
-                trace!(
+                debug!(
                     "User {} / BL player {} stats updated.",
-                    player.user_id,
-                    player.name
+                    player.user_id, player.name
                 );
 
                 Ok(player)

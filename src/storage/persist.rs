@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::{error, fmt};
 
 use crate::file_storage::{PersistError as FilePersistError, PersistInstance};
-use log::{error, trace, warn};
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
@@ -102,7 +102,7 @@ where
         }
         trace!("{} storage data loaded.", storage_name);
 
-        trace!("{} storage initialized.", storage_name);
+        debug!("{} storage initialized.", storage_name);
 
         Ok(Self {
             state: RwLock::new(hm),
@@ -356,7 +356,7 @@ where
 
         self.update_index().await?;
 
-        trace!("{} storage restored.", storage_name);
+        debug!("{} storage restored.", storage_name);
 
         Ok(())
     }
