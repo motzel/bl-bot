@@ -1047,6 +1047,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
 
 [[package]]
+name = "libwebp-sys2"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74f9c6964201c51319f16a796dc947a73961646eba49f584187b12de9970d077"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1589,6 +1602,7 @@ dependencies = [
  "gif",
  "jpeg-decoder",
  "jpeg-encoder",
+ "libwebp-sys2",
  "num-traits",
  "png",
 ]
