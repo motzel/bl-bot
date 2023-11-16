@@ -34,3 +34,4 @@ async-trait = "^0.1.0"
 ttf-parser = "^0.20.0"
 rayon = "^1.8.0"
 config = { version = "^0.13.3", features = ["toml"], default-features = false }
+serenity_ctrlc = "0.3.0"

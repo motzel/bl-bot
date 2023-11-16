@@ -9,6 +9,7 @@ use log::{error, info, trace, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
+use serenity_ctrlc::{Disconnector, Ext};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
@@ -63,7 +64,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("bl_bot=info"))
         .target(env_logger::Target::Stdout)
         .init();
@@ -320,5 +321,20 @@ async fn main() {
             })
         });
 
-    framework.run().await.unwrap();
+    framework
+        .build()
+        .await?
+        .start_with(|c| async move {
+            c.ctrlc_with(|dc| async {
+                warn!("Shutting down...");
+                Disconnector::disconnect_some(dc).await;
+                info!("Bye!");
+            })
+            .unwrap()
+            .start()
+            .await
+        })
+        .await?;
+
+    Ok(())
 }
