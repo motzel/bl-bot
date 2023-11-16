@@ -19,6 +19,7 @@ use crate::bot::commands::{
     cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
+use crate::config::Settings;
 use crate::file_storage::PersistInstance;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
@@ -26,6 +27,7 @@ use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 mod beatleader;
 mod bot;
+mod config;
 mod embed;
 mod file_storage;
 mod storage;
@@ -66,32 +68,20 @@ async fn main() {
         .target(env_logger::Target::Stdout)
         .init();
 
+    let settings = Settings::new().unwrap();
+
     info!("Starting up...");
 
-    let storage_path = std::env::var("STORAGE_PATH").unwrap_or("./.storage".to_owned());
-    let discord_token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
-    let refresh_interval: u64 = std::env::var("REFRESH_INTERVAL")
-        .unwrap_or("600".to_owned())
-        .parse()
-        .expect("'REFRESH_INTERVAL' should be an integer");
-    if refresh_interval < 30 {
-        panic!("REFRESH_INTERVAL should be at least 30 seconds");
-    }
+    let oauth_credentials = settings
+        .oauth
+        .as_ref()
+        .map(|oauth_settings| OAuthAppCredentials {
+            client_id: oauth_settings.client_id.clone(),
+            client_secret: oauth_settings.client_secret.clone(),
+            redirect_uri: oauth_settings.redirect_uri.clone(),
+        });
 
-    let oauth_client_id = std::env::var("OAUTH_CLIENT_ID").ok();
-    let oauth_client_secret = std::env::var("OAUTH_CLIENT_SECRET").ok();
-    let oauth_redirect_uri = std::env::var("OAUTH_REDIRECT_URI").ok();
-
-    let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
-        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthAppCredentials {
-            client_id,
-            client_secret,
-            redirect_uri,
-        }),
-        _ => None,
-    };
-
-    let persist = PersistInstance::new(PathBuf::from(storage_path)).unwrap();
+    let persist = PersistInstance::new(PathBuf::from(&settings.storage_path)).unwrap();
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -130,7 +120,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(options)
-        .token(discord_token)
+        .token(settings.discord_token.clone())
         .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTENT
         .setup(move |ctx, _ready, _framework| {
             Box::pin(async move {
@@ -180,7 +170,7 @@ async fn main() {
                 let oauth_credentials_clone = oauth_credentials.clone();
 
                 tokio::spawn(async move {
-                    let interval = std::time::Duration::from_secs(refresh_interval);
+                    let interval = std::time::Duration::from_secs(settings.refresh_interval);
                     info!("Run a task that updates data every {:?}", interval);
 
                     loop {
@@ -200,7 +190,7 @@ async fn main() {
                                         let oauth_token_option = player_oauth_token_repository_worker.get(&clan_owner_id).await;
 
                                         if let Some(oauth_token) = oauth_token_option {
-                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(refresh_interval as i64 + 30)) {
+                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(settings.refresh_interval as i64 + 30)) {
                                                 let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
                                                     clan_owner_id,
                                                     Arc::clone(&player_oauth_token_repository_worker),
