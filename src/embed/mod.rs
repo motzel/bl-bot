@@ -134,7 +134,7 @@ pub async fn embed_score(
         &Ellipse::from_bounding_box(0, 0, AVATAR_SIZE, AVATAR_SIZE).with_fill(BitPixel::on()),
     );
     let avatar_pos_x = BORDER_SIZE / 2 + AVATAR_SIZE / 4;
-    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 4 - FONT_SIZE as u32 - AVATAR_SIZE;
+    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 6 - FONT_SIZE as u32 - AVATAR_SIZE;
     image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
 
     let mut difficulty_desc = "".to_owned();
@@ -212,6 +212,17 @@ pub async fn embed_score(
 
     draw_text_segment(
         &mut image,
+        &mut TextSegment::new(roboto_font, score.song_mapper.clone(), Rgba::white())
+            .with_size(small_font_size),
+        BORDER_SIZE / 2 + BORDER_RADIUS / 2,
+        BORDER_SIZE / 2 + BORDER_RADIUS / 4 + PADDING + smaller_font_size as u32,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
+        0,
+        0,
+    );
+
+    draw_text_segment(
+        &mut image,
         &mut TextSegment::new(
             roboto_font,
             format!(
@@ -222,8 +233,13 @@ pub async fn embed_score(
         )
         .with_size(small_font_size),
         BORDER_SIZE / 2 + BORDER_RADIUS / 2,
-        BORDER_SIZE / 2 + BORDER_RADIUS / 4 + PADDING + smaller_font_size as u32,
-        WIDTH - BORDER_SIZE - BORDER_RADIUS - difficulty_badge_width,
+        BORDER_SIZE / 2
+            + BORDER_RADIUS / 4
+            + PADDING
+            + smaller_font_size as u32
+            + small_font_size as u32
+            + PADDING / 2,
+        WIDTH - BORDER_SIZE - BORDER_RADIUS,
         0,
         0,
     );
@@ -251,9 +267,9 @@ pub async fn embed_score(
     );
 
     let stats_width =
-        WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 2;
-    let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 2;
-    let acc_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.25) as u32;
+        WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 4;
+    let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 4;
+    let acc_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.9) as u32;
     draw_text_segment(
         &mut image,
         &mut TextSegment::new(
