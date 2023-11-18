@@ -503,7 +503,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
         &Ellipse::from_bounding_box(0, 0, AVATAR_SIZE, AVATAR_SIZE).with_fill(BitPixel::on()),
     );
     let avatar_pos_x = BORDER_SIZE / 2 + AVATAR_SIZE / 4;
-    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 4 - FONT_SIZE as u32 - AVATAR_SIZE;
+    let avatar_pos_y = HEIGHT - BORDER_SIZE - BORDER_RADIUS / 6 - FONT_SIZE as u32 - AVATAR_SIZE;
     image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
 
     if !player.is_verified {
