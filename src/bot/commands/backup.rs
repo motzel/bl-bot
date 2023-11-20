@@ -29,6 +29,12 @@ struct BotData {
     guild_only
 )]
 pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
+    let is_bot_owner = ctx.framework().options().owners.contains(&ctx.author().id);
+    if !is_bot_owner {
+        ctx.say("Can only be used by bot owner").await?;
+        return Ok(());
+    }
+
     ctx.defer_ephemeral().await?;
 
     let data = BotData {
@@ -72,6 +78,12 @@ pub(crate) async fn cmd_import(
     ctx: Context<'_>,
     #[description = "bl-bot-backup.json"] backup_json: Attachment,
 ) -> Result<(), Error> {
+    let is_bot_owner = ctx.framework().options().owners.contains(&ctx.author().id);
+    if !is_bot_owner {
+        ctx.say("Can only be used by bot owner").await?;
+        return Ok(());
+    }
+
     ctx.defer_ephemeral().await?;
 
     match backup_json.download().await {
