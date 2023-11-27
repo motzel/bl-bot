@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # Regex for a version number such as v0.1.1
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  build-and-release:
+    name: Build and release
+    if: ${{ always() && contains(join(needs.*.result, ','), 'success') }}
+    needs: [ test ]
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - build: x86_64-linux-gnu
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+          - build: x86_64-linux-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+
+          - build: aarch64-linux
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+
+          - build: x86_64-windows-msvc
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: '${{ matrix.target }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+
+      - run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Get the release version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - run: cross build --verbose --release --target ${{ matrix.target }}
+
+      - name: Build archive
+        shell: bash
+        run: |
+          binary_name="${GITHUB_REPOSITORY#*/}"
+
+          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          mkdir "$dirname"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv "target/${{ matrix.target }}/release/$binary_name.exe" "$dirname"
+          else
+            mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
+          fi
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "$dirname.zip" "$dirname"
+            echo "ASSET=$dirname.zip" >> $GITHUB_ENV
+          else
+            tar -czf "$dirname.tar.gz" "$dirname"
+            echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Upload the binaries
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.ASSET }}
+
+      # update target condition to match your server architecture
+      - name: Deploy
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
+          
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          
+          binary_name="${GITHUB_REPOSITORY#*/}"
+
+          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/_logs && mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/${{ github.sha }} && exit"
+          scp .deploy/deploy.sh "$dirname/$binary_name" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/$repository_name/${{ github.sha }}/"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.DEPLOY_PATH }}/$repository_name && chmod +x ${{ github.sha }}/deploy.sh && ln -f -s ${{ github.sha }}/$binary_name && ln -f -s ${{ github.sha }}/deploy.sh && ./deploy.sh && exit"
+          
+          rm -rf ~/.ssh
