@@ -10,6 +10,7 @@ use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 use crate::BL_CLIENT;
 
 use super::Result;
+use tokio_util::sync::CancellationToken;
 
 pub(crate) struct PlayerRepository {
     storage: CachedStorage<UserId, BotPlayer>,
@@ -145,6 +146,7 @@ impl<'a> PlayerRepository {
     pub(crate) async fn update_all_players_stats(
         &self,
         force_scores_download: bool,
+        token: Option<CancellationToken>,
     ) -> Result<Vec<BotPlayer>> {
         trace!("Updating all users stats...");
 
@@ -166,6 +168,10 @@ impl<'a> PlayerRepository {
                 .await
             {
                 ret.push(player);
+            }
+
+            if token.is_some() && token.as_ref().unwrap().is_cancelled() {
+                return Err(PersistError::Cancelled);
             }
         }
 

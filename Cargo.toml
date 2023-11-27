@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.10.0"
+version = "0.10.1"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
@@ -34,4 +34,4 @@ async-trait = "^0.1.74"
 ttf-parser = "^0.20.0"
 rayon = "^1.8.0"
 config = { version = "^0.13.3", features = ["toml"], default-features = false }
-serenity_ctrlc = "0.3.0"
+tokio-util = { version = "0.7.10", features = ["full"] }

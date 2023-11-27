@@ -9,7 +9,6 @@ use log::{debug, error, info, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
-use serenity_ctrlc::{Disconnector, Ext};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
@@ -25,6 +24,10 @@ use crate::file_storage::PersistInstance;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
+
+use tokio::signal;
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 
 mod beatleader;
 mod bot;
@@ -72,6 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings::new().unwrap();
 
     info!("Starting up...");
+
+    let tracker = TaskTracker::new();
+    let cloned_tracker = tracker.clone();
+
+    let token = CancellationToken::new();
+    let cloned_token = token.clone();
 
     let oauth_credentials = settings
         .oauth
@@ -170,11 +179,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let oauth_credentials_clone = oauth_credentials.clone();
 
-                tokio::spawn(async move {
+                cloned_tracker.spawn(async move {
                     let interval = std::time::Duration::from_secs(settings.refresh_interval);
                     info!("Run a task that updates data every {:?}", interval);
 
-                    loop {
+                    'outer: loop {
                         info!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
                         info!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
 
@@ -217,6 +226,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     }
                                 }
+
+                                if cloned_token.is_cancelled() {
+                                    warn!("Update task is shutting down...");
+                                    break 'outer;
+                                }
                             }
 
                             info!("OAuth tokens refreshed.");
@@ -225,7 +239,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
 
                         if let Ok(bot_players) =
-                            players_repository_worker.update_all_players_stats(false).await
+                            players_repository_worker.update_all_players_stats(false, Some(cloned_token.clone())).await
                         {
                             info!("Updating players roles ({})...", bot_players.len());
 
@@ -250,6 +264,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         bot_player.clone(),
                                         member.roles,
                                     ));
+
+                                    if cloned_token.is_cancelled() {
+                                        warn!("Update task is shutting down...");
+                                        break 'outer;
+                                    }
                                 }
                             }
 
@@ -303,13 +322,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         );
                                     }
                                 }
+
+                                if cloned_token.is_cancelled() {
+                                    warn!("Update task is shutting down...");
+                                    break 'outer;
+                                }
                             }
 
                             info!("Players roles updated.");
                         }
 
-                        tokio::time::sleep(interval).await;
+                        tokio::select! {
+                            _ = cloned_token.cancelled() => {
+                                warn!("Update task is shutting down...");
+                                break 'outer;
+                            }
+                            _ = tokio::time::sleep(interval) => {}
+                        }
                     }
+
+                    info!("Update task shut down.");
                 });
 
                 Ok(Data {
@@ -319,22 +351,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     oauth_credentials,
                 })
             })
-        });
-
-    framework
-        .build()
-        .await?
-        .start_with(|c| async move {
-            c.ctrlc_with(|dc| async {
-                warn!("Shutting down...");
-                Disconnector::disconnect_some(dc).await;
-                info!("Bye!");
-            })
-            .unwrap()
-            .start()
-            .await
         })
+        .build()
         .await?;
+
+    #[cfg(windows)]
+    let framework_clone_win = framework.clone();
+
+    #[cfg(unix)]
+    let framework_clone_unix = framework.clone();
+
+    #[cfg(windows)]
+    tracker.spawn(async move {
+        let _ = signal::ctrl_c().await;
+        warn!("CTRL+C pressed, shutting down...");
+        token.cancel();
+
+        warn!("Discord client is shutting down...");
+        framework_clone_win
+            .shard_manager()
+            .lock()
+            .await
+            .shutdown_all()
+            .await;
+        info!("Discord client shut down.");
+    });
+
+    #[cfg(unix)]
+    tracker.spawn(async move {
+        let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt()).unwrap();
+        let mut sighup = signal::unix::signal(signal::unix::SignalKind::hangup()).unwrap();
+        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate()).unwrap();
+
+        tokio::select! {
+            _ = sigint.recv() => {
+                warn!("SIGINT received, shutting down...");
+                token.cancel();
+                warn!("Discord client is shutting down...");
+                framework_clone_unix
+                    .shard_manager()
+                    .lock()
+                    .await
+                    .shutdown_all()
+                    .await;
+                info!("Discord client shut down.");
+            }
+            _ = sighup.recv() => {
+                warn!("SIGHUP received, shutting down...");
+                token.cancel();
+                warn!("Discord client is shutting down...");
+                framework_clone_unix
+                    .shard_manager()
+                    .lock()
+                    .await
+                    .shutdown_all()
+                    .await;
+                info!("Discord client shut down.");
+            }
+            _ = sigterm.recv() => {
+                warn!("SIGTERM received, shutting down...");
+                token.cancel();
+                warn!("Discord client is shutting down...");
+                framework_clone_unix
+                    .shard_manager()
+                    .lock()
+                    .await
+                    .shutdown_all()
+                    .await;
+                info!("Discord client shut down.");
+            }
+        }
+    });
+
+    tracker.spawn(framework.start());
+
+    tracker.close();
+
+    tracker.wait().await;
+
+    info!("Bye!");
 
     Ok(())
 }

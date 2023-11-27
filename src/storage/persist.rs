@@ -18,6 +18,7 @@ pub enum PersistError {
     BlApi(crate::beatleader::error::Error),
     NotFound(String),
     ProfileNotVerified,
+    Cancelled,
     Unknown,
 }
 
@@ -27,6 +28,7 @@ impl error::Error for PersistError {
             PersistError::Storage(e) => Some(e),
             PersistError::BlApi(e) => Some(e),
             PersistError::Unknown
+            | PersistError::Cancelled
             | PersistError::NotFound(_)
             | PersistError::ProfileNotVerified => None,
         }
@@ -46,6 +48,7 @@ impl Display for PersistError {
             PersistError::BlApi(e) => write!(f, "Beat Leader API error: {}", e),
             PersistError::NotFound(e) => write!(f, "{}", e),
             PersistError::Unknown => write!(f, "unknown error"),
+            PersistError::Cancelled => write!(f, "cancelled"),
             PersistError::ProfileNotVerified => write!(f, "profile is not verified. Log in to the Beat Leader website and link your Discord account under Settings/Account."),
         }
     }

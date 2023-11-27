@@ -53,6 +53,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -155,7 +161,7 @@ checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
 name = "bl-bot"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -177,10 +183,10 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_with",
- "serenity_ctrlc",
  "stackblur-iter",
  "thiserror",
  "tokio",
+ "tokio-util",
  "ttf-parser 0.20.0",
 ]
 
@@ -373,16 +379,6 @@ name = "csscolorparser"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb2a7d3066da2de787b7f032c736763eb7ae5d355f81a68bab2675a96008b0bf"
-
-[[package]]
-name = "ctrlc"
-version = "3.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e95fbd621905b854affdc67943b043a0fbb6ed7385fd5a25650d19a8a6cfdf"
-dependencies = [
- "nix",
- "windows-sys",
-]
 
 [[package]]
 name = "darling"
@@ -807,6 +803,10 @@ name = "hashbrown"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dfda62a12f55daeae5015f81b0baea145391cb4520f86c248fc615d72640d12"
+dependencies = [
+ "ahash",
+ "allocator-api2",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -1164,17 +1164,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nix"
-version = "0.27.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
-dependencies = [
- "bitflags 2.4.0",
- "cfg-if",
- "libc",
 ]
 
 [[package]]
@@ -1884,17 +1873,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serenity_ctrlc"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccbf5fb83c8092bb802462f91cde3a7791e7a6ab89b5597e3c1356bc8b80627b"
-dependencies = [
- "ctrlc",
- "serenity",
- "tokio",
-]
-
-[[package]]
 name = "sha-1"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2175,14 +2153,18 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.9"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d68074620f57a0b21594d9735eb2e98ab38b17f80d3fcb189fca266771ca60d"
+checksum = "5419f34732d9eb6ee4c3578b7989078579b7f039cbbb9ca2c4da015749371e15"
 dependencies = [
  "bytes",
  "futures-core",
+ "futures-io",
  "futures-sink",
+ "futures-util",
+ "hashbrown 0.14.1",
  "pin-project-lite",
+ "slab",
  "tokio",
  "tracing",
 ]
