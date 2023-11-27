@@ -4,7 +4,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use shuttle_persist::PersistInstance;
+use crate::file_storage::PersistInstance;
 
 use crate::beatleader::oauth::OAuthToken;
 use crate::beatleader::player::PlayerId;

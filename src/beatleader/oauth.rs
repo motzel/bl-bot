@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{error, trace};
+use log::{debug, error, trace};
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse, Url};
 use serde::{Deserialize, Serialize};
@@ -65,7 +65,7 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
         let request = oauth_grant.get_request_builder(self.client).build();
 
         if let Err(err) = request {
-            trace!("OAuth grant builder error: {}", err);
+            error!("OAuth grant builder error: {}", err);
 
             return Err(Error::Request(err));
         }
@@ -74,14 +74,14 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
 
         let base = Url::parse(self.client.client.base_url.as_str()).unwrap();
 
-        trace!(
+        debug!(
             "Sending OAuth request to {}",
             base.make_relative(request.url()).unwrap()
         );
 
         match self.client.client.send_request(request).await {
             Ok(response) => {
-                trace!(
+                debug!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),
                     response.status().as_u16()
@@ -94,7 +94,7 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
                         Ok(oauth_token_response.into())
                     }
                     Err(e) => {
-                        trace!("OAuth token retrieving from response error: {}", e);
+                        error!("OAuth token retrieving from response error: {}", e);
 
                         Err(Error::JsonDecode(e))
                     }
@@ -425,7 +425,7 @@ where
             })
             .await?;
 
-        trace!("OAuth token refreshed.");
+        debug!("OAuth token refreshed.");
 
         Ok(oauth_token)
     }

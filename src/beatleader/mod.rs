@@ -5,7 +5,7 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use reqwest::{
     Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response as ReqwestResponse,
     Url,
@@ -155,7 +155,7 @@ impl Client {
                 Err(Error::Network(err))
             }
             Ok(response) => {
-                trace!(
+                debug!(
                     "Endpoint {} responded with status: {}",
                     base.make_relative(response.url()).unwrap(),
                     response.status().as_u16()

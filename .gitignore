@@ -1,6 +1,6 @@
 .idea/
-.shuttle-storage/*
-shuttle_persist/*
+.storage
+.test_output
 /target
-Secrets.toml
-Secrets.dev.toml
+config.dev.toml
+config.toml

@@ -1,0 +1,9 @@
+discord_token = "the contents of my discord token"
+refresh_interval = 600 # seconds
+storage_path = "./.storage"
+
+# uncomment to enable oauth features (clan invites for now)
+#[oauth]
+#client_id = "your bl oauth app id"
+#client_secret = "your bl oauth app secret"
+#redirect_uri = "your bl oauth app redirect uri"

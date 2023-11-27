@@ -19,23 +19,25 @@ A simple Discord bot providing the following commands:
 
 All of the following commands require a Rust environment installed on your computer.
 
-1. Copy ``Secrets.example.toml`` as ``Secrets.toml`` and ``Secrets.dev.toml``. The first will be used production, the second for development.
+1. Copy ``config.example.toml`` as ``config.toml`` and/or ``config.dev.toml``. The first will be used production, the second for development. If both are present dev one takes precedence.
 2. Register bot:
 - Go to [Discord Developer Portal](https://discord.com/developers/applications)
 - Create New Application
-- Copy Discord Token (click ``Reset Token`` button on Bot tab to obtain it) and set ``DISCORD_TOKEN`` in ``Secrets.toml``
+- Copy Discord Token (click ``Reset Token`` button on Bot tab to obtain it) and set ``discord_token`` in ``config.toml`` / ``config.dev.toml``
 3. Invite a bot to your server (**replace ``<APP_ID>`` with your application ID**, you can find it on General Information tab in Discord Developer Portal)
 ``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
-4. Create free [shuttle.rs](https://www.shuttle.rs/) account
-5. ``cargo install cargo-shuttle``
-6. ``cargo shuttle login``
-7. ``cargo shuttle project start --idle-minutes 0``
 
-## Deploy
+## Build
 
 ```bash
-cargo shuttle deploy
+cargo test && cargo build
+```
+
+## Run
+
+```bash
+cargo run
 ```
 
 After you launch and invite the bot to your server, it will be visible in the list of users, but inaccessible. The bot does not automatically register Discord commands globally, you have to do it manually. To do this, after logging into the account that owns the bot, issue the command ``@BL Bot register`` (use the name you gave it). The bot will respond by displaying 4 buttons that allow you to register or delete commands globally or only on this server.
@@ -46,5 +48,5 @@ Note: If you register commands globally remember that [global commands can take 
 
 ## Develop
 ```bash
-cargo shuttle run
+cargo file_storage run
 ```

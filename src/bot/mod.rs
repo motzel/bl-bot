@@ -5,12 +5,11 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration as TimeDuration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
@@ -19,8 +18,7 @@ use serde::{Deserialize, Serialize};
 use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
-use shuttle_poise::ShuttlePoise;
-use shuttle_secrets::SecretStore;
+use std::time::Duration as TimeDuration;
 
 use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
@@ -623,11 +621,9 @@ impl UserRoleChanges {
                 continue;
             }
 
-            trace!(
+            debug!(
                 "Role {} added to user {} ({})",
-                role_id,
-                self.user_id,
-                self.name
+                role_id, self.user_id, self.name
             );
         }
 
@@ -662,11 +658,9 @@ impl UserRoleChanges {
                 continue;
             }
 
-            trace!(
+            debug!(
                 "Role {} removed from user {} ({})",
-                role_id,
-                self.user_id,
-                self.name
+                role_id, self.user_id, self.name
             );
         }
 

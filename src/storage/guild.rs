@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use log::trace;
+use crate::file_storage::PersistInstance;
+use log::{debug, trace};
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
-use shuttle_persist::PersistInstance;
 use tokio::sync::MutexGuard;
 
 use crate::bot::{
@@ -72,7 +72,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            trace!("Bot channel for guild {} set.", guild_id);
+            debug!("Bot channel for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -108,7 +108,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            trace!("Verified profile requirement for guild {} set.", guild_id);
+            debug!("Verified profile requirement for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -140,7 +140,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            trace!("Clan settings for guild {} set.", guild_id);
+            debug!("Clan settings for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -172,7 +172,7 @@ impl<'a> GuildSettingsRepository {
             })
             .await?
         {
-            trace!("OAuth token for guild {} set.", guild_id);
+            debug!("OAuth token for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -215,7 +215,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            trace!("Auto role for guild {} added.", guild_id);
+            debug!("Auto role for guild {} added.", guild_id);
 
             Ok(guild_settings)
         } else {
@@ -244,7 +244,7 @@ impl<'a> GuildSettingsRepository {
             )
             .await?
         {
-            trace!("Auto role for guild {} removed.", guild_id);
+            debug!("Auto role for guild {} removed.", guild_id);
 
             Ok(guild_settings)
         } else {

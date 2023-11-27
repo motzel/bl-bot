@@ -1,16 +1,15 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use lazy_static::lazy_static;
-use log::{error, info, trace, warn};
+use log::{debug, error, info, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use serenity::model::id::GuildId;
-use shuttle_persist::PersistInstance;
-use shuttle_poise::ShuttlePoise;
-use shuttle_secrets::SecretStore;
+use serenity_ctrlc::{Disconnector, Ext};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
@@ -21,13 +20,17 @@ use crate::bot::commands::{
     cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
+use crate::config::Settings;
+use crate::file_storage::PersistInstance;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 mod beatleader;
 mod bot;
+mod config;
 mod embed;
+mod file_storage;
 mod storage;
 
 #[global_allocator]
@@ -60,39 +63,26 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     }
 }
 
-#[shuttle_runtime::main]
-async fn poise(
-    #[shuttle_secrets::Secrets] secret_store: SecretStore,
-    #[shuttle_persist::Persist] persist: PersistInstance,
-) -> ShuttlePoise<Data, Error> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("bl_bot=info"))
+        .target(env_logger::Target::Stdout)
+        .init();
+
+    let settings = Settings::new().unwrap();
+
     info!("Starting up...");
 
-    // Get config set in `Secrets.toml`
-    let discord_token = secret_store
-        .get("DISCORD_TOKEN")
-        .expect("'DISCORD_TOKEN' was not found");
+    let oauth_credentials = settings
+        .oauth
+        .as_ref()
+        .map(|oauth_settings| OAuthAppCredentials {
+            client_id: oauth_settings.client_id.clone(),
+            client_secret: oauth_settings.client_secret.clone(),
+            redirect_uri: oauth_settings.redirect_uri.clone(),
+        });
 
-    let refresh_interval: u64 = secret_store
-        .get("REFRESH_INTERVAL")
-        .expect("'REFRESH_INTERVAL' was not found")
-        .parse()
-        .expect("'REFRESH_INTERVAL' should be an integer");
-    if refresh_interval < 30 {
-        panic!("REFRESH_INTERVAL should be at least 30 seconds");
-    }
-
-    let oauth_client_id = secret_store.get("OAUTH_CLIENT_ID");
-    let oauth_client_secret = secret_store.get("OAUTH_CLIENT_SECRET");
-    let oauth_redirect_uri = secret_store.get("OAUTH_REDIRECT_URI");
-
-    let oauth_credentials = match (oauth_client_id, oauth_client_secret, oauth_redirect_uri) {
-        (Some(client_id), Some(client_secret), Some(redirect_uri)) => Some(OAuthAppCredentials {
-            client_id,
-            client_secret,
-            redirect_uri,
-        }),
-        _ => None,
-    };
+    let persist = PersistInstance::new(PathBuf::from(&settings.storage_path)).unwrap();
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -131,7 +121,7 @@ async fn poise(
 
     let framework = poise::Framework::builder()
         .options(options)
-        .token(discord_token)
+        .token(settings.discord_token.clone())
         .intents(serenity::GatewayIntents::non_privileged()) // | serenity::GatewayIntents::MESSAGE_CONTENT
         .setup(move |ctx, _ready, _framework| {
             Box::pin(async move {
@@ -181,7 +171,7 @@ async fn poise(
                 let oauth_credentials_clone = oauth_credentials.clone();
 
                 tokio::spawn(async move {
-                    let interval = std::time::Duration::from_secs(refresh_interval);
+                    let interval = std::time::Duration::from_secs(settings.refresh_interval);
                     info!("Run a task that updates data every {:?}", interval);
 
                     loop {
@@ -201,7 +191,7 @@ async fn poise(
                                         let oauth_token_option = player_oauth_token_repository_worker.get(&clan_owner_id).await;
 
                                         if let Some(oauth_token) = oauth_token_option {
-                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(refresh_interval as i64 + 30)) {
+                                            if !oauth_token.oauth_token.is_valid_for(chrono::Duration::seconds(settings.refresh_interval as i64 + 30)) {
                                                 let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
                                                     clan_owner_id,
                                                     Arc::clone(&player_oauth_token_repository_worker),
@@ -241,7 +231,7 @@ async fn poise(
 
                             let mut current_players_roles = Vec::new();
                             for bot_player in bot_players {
-                                trace!(
+                                debug!(
                                     "Fetching user {} ({}) roles...",
                                     &bot_player.user_id, &bot_player.name
                                 );
@@ -329,10 +319,22 @@ async fn poise(
                     oauth_credentials,
                 })
             })
-        })
-        .build()
-        .await
-        .map_err(shuttle_runtime::CustomError::new)?;
+        });
 
-    Ok(framework.into())
+    framework
+        .build()
+        .await?
+        .start_with(|c| async move {
+            c.ctrlc_with(|dc| async {
+                warn!("Shutting down...");
+                Disconnector::disconnect_some(dc).await;
+                info!("Bye!");
+            })
+            .unwrap()
+            .start()
+            .await
+        })
+        .await?;
+
+    Ok(())
 }

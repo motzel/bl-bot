@@ -10,7 +10,7 @@ use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use poise::serenity_prelude::{AttachmentType, GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
@@ -485,7 +485,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
         .await
         {
             Ok(scores_page) => {
-                trace!("Scores page #{} fetched.", page);
+                debug!("Scores page #{} fetched.", page);
 
                 if scores_page.data.is_empty() {
                     break 'outer;

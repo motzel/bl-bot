@@ -5,18 +5,16 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{error, fmt};
 
-use log::{error, trace, warn};
+use crate::file_storage::{PersistError as FilePersistError, PersistInstance};
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
-use shuttle_persist::{PersistError as ShuttlePersistError, PersistInstance};
 use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 use super::Result;
 
 #[derive(Debug)]
 pub enum PersistError {
-    Storage(ShuttlePersistError),
-    JsonDeserialize(serde_json::Error),
-    JsonSerialize(serde_json::Error),
+    Storage(FilePersistError),
     BlApi(crate::beatleader::error::Error),
     NotFound(String),
     ProfileNotVerified,
@@ -27,8 +25,6 @@ impl error::Error for PersistError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self {
             PersistError::Storage(e) => Some(e),
-            PersistError::JsonDeserialize(e) => Some(e),
-            PersistError::JsonSerialize(e) => Some(e),
             PersistError::BlApi(e) => Some(e),
             PersistError::Unknown
             | PersistError::NotFound(_)
@@ -47,8 +43,6 @@ impl Display for PersistError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PersistError::Storage(e) => write!(f, "storage error: {}", e),
-            PersistError::JsonDeserialize(e) => write!(f, "deserialization error: {}", e),
-            PersistError::JsonSerialize(e) => write!(f, "serialization error: {}", e),
             PersistError::BlApi(e) => write!(f, "Beat Leader API error: {}", e),
             PersistError::NotFound(e) => write!(f, "{}", e),
             PersistError::Unknown => write!(f, "unknown error"),
@@ -108,7 +102,7 @@ where
         }
         trace!("{} storage data loaded.", storage_name);
 
-        trace!("{} storage initialized.", storage_name);
+        debug!("{} storage initialized.", storage_name);
 
         Ok(Self {
             state: RwLock::new(hm),
@@ -362,7 +356,7 @@ where
 
         self.update_index().await?;
 
-        trace!("{} storage restored.", storage_name);
+        debug!("{} storage restored.", storage_name);
 
         Ok(())
     }
@@ -406,28 +400,21 @@ where
             storage_name
         );
 
-        match self.persist.load::<String>(storage_name.as_str()) {
-            Ok(json) => match serde_json::from_str::<Vec<K>>(json.as_str()) {
-                Ok(keys) => {
-                    trace!(
-                        "{} storage index with name {} loaded.",
-                        self.name,
-                        storage_name
-                    );
+        match self.persist.load::<Vec<K>>(storage_name.as_str()) {
+            Ok(keys) => {
+                trace!(
+                    "{} storage index with name {} loaded.",
+                    self.name,
+                    storage_name
+                );
 
-                    Ok(keys)
-                }
-                Err(e) => {
-                    error!(
-                        "Can not deserialize {} storage index to JSON: {}",
-                        self.name, e
-                    );
-
-                    Err(PersistError::JsonDeserialize(e))
-                }
-            },
+                Ok(keys)
+            }
             Err(e) => {
-                error!("Can not load {} storage index: {}", self.name, e);
+                error!(
+                    "Can not deserialize {} storage index to JSON: {}",
+                    self.name, e
+                );
 
                 Err(PersistError::Storage(e))
             }
@@ -443,30 +430,20 @@ where
             storage_name
         );
 
-        match serde_json::to_string::<Vec<K>>(&keys) {
-            Ok(json) => match self.persist.save::<String>(storage_name.as_str(), json) {
-                Ok(_) => {
-                    trace!(
-                        "{} storage index with name {} saved.",
-                        self.name,
-                        storage_name
-                    );
-
-                    Ok(())
-                }
-                Err(e) => {
-                    error!("Can not save {} storage index: {}", self.name, e);
-
-                    Err(PersistError::Storage(e))
-                }
-            },
-            Err(e) => {
-                error!(
-                    "Can not serialize {} storage index to JSON: {}",
-                    self.name, e
+        match self.persist.save::<Vec<K>>(storage_name.as_str(), keys) {
+            Ok(_) => {
+                trace!(
+                    "{} storage index with name {} saved.",
+                    self.name,
+                    storage_name
                 );
 
-                Err(PersistError::JsonSerialize(e))
+                Ok(())
+            }
+            Err(e) => {
+                error!("Can not save {} storage index: {}", self.name, e);
+
+                Err(PersistError::Storage(e))
             }
         }
     }
@@ -481,32 +458,20 @@ where
             storage_name
         );
 
-        match self.persist.load::<String>(storage_name.as_str()) {
-            Ok(json) => match serde_json::from_str::<V>(json.as_str()) {
-                Ok(value) => {
-                    trace!(
-                        "item {} from {} storage with name {} loaded",
-                        key.to_string(),
-                        self.name,
-                        storage_name
-                    );
+        match self.persist.load::<V>(storage_name.as_str()) {
+            Ok(value) => {
+                trace!(
+                    "item {} from {} storage with name {} loaded",
+                    key.to_string(),
+                    self.name,
+                    storage_name
+                );
 
-                    Ok(value)
-                }
-                Err(e) => {
-                    error!(
-                        "Can not deserialize {} from {} storage to JSON: {}",
-                        key.to_string(),
-                        self.name,
-                        e
-                    );
-
-                    Err(PersistError::JsonDeserialize(e))
-                }
-            },
+                Ok(value)
+            }
             Err(e) => {
                 error!(
-                    "Can not load {} from {} storage: {}",
+                    "Can not deserialize {} from {} storage to JSON: {}",
                     key.to_string(),
                     self.name,
                     e
@@ -527,38 +492,26 @@ where
             storage_name
         );
 
-        match serde_json::to_string::<V>(&value) {
-            Ok(json) => match self.persist.save::<String>(storage_name.as_str(), json) {
-                Ok(_) => {
-                    trace!(
-                        "{} to {} storage with name {} saved.",
-                        key.to_string(),
-                        self.name,
-                        storage_name
-                    );
+        match self.persist.save::<V>(storage_name.as_str(), value.clone()) {
+            Ok(_) => {
+                trace!(
+                    "{} to {} storage with name {} saved.",
+                    key.to_string(),
+                    self.name,
+                    storage_name
+                );
 
-                    Ok(value)
-                }
-                Err(e) => {
-                    error!(
-                        "Can not save {} to {} storage: {}",
-                        key.to_string(),
-                        self.name,
-                        e
-                    );
-
-                    Err(PersistError::Storage(e))
-                }
-            },
+                Ok(value)
+            }
             Err(e) => {
                 error!(
-                    "Can not serialize {} from {} storage to JSON: {}",
+                    "Can not save {} to {} storage: {}",
                     key.to_string(),
                     self.name,
                     e
                 );
 
-                Err(PersistError::JsonSerialize(e))
+                Err(PersistError::Storage(e))
             }
         }
     }
