@@ -28,16 +28,9 @@ All of the following commands require a Rust environment installed on your compu
 ``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
 
-## Build
-
+## Build and run
 ```bash
-cargo test && cargo build
-```
-
-## Run
-
-```bash
-cargo run
+cargo test && cargo run
 ```
 
 After you launch and invite the bot to your server, it will be visible in the list of users, but inaccessible. The bot does not automatically register Discord commands globally, you have to do it manually. To do this, after logging into the account that owns the bot, issue the command ``@BL Bot register`` (use the name you gave it). The bot will respond by displaying 4 buttons that allow you to register or delete commands globally or only on this server.
@@ -46,7 +39,86 @@ After you launch and invite the bot to your server, it will be visible in the li
 
 Note: If you register commands globally remember that [global commands can take up to 1 hour to update](https://discordnet.dev/guides/int_basics/application-commands/slash-commands/creating-slash-commands.html#:~:text=Note%3A%20Global%20commands%20will%20take,yet%20please%20follow%20this%20guide.). During development, it is better to register them only on the test server, because they update immediately.
 
-## Develop
+
+## Setting up an automatic deployment using Github Actions
+
+The description applies to Ubuntu Server 22.04 (x86_64), but it will look similar for other Linux distributions.
+
+1. Add ``deploy`` user and create ``deployments`` directory
+
 ```bash
-cargo file_storage run
+sudo useradd -m -s /sbin/bash -d /home/deploy deploy
+sudo -u deploy bash -c "mkdir -p /home/deploy/deployments"
 ```
+
+2. Install ``supervisor``
+
+```bash
+sudo apt install supervisor
+```
+
+3. Update ``/etc/supervisor/supervisord.conf``
+
+```tom
+[unix_http_server]
+file=/tmp/supervisor.sock
+chown=deploy:deploy
+chmod=0700
+
+... 
+
+[supervisorctl]
+serverurl=unix:///tmp/supervisor.sock
+```
+
+4. Restart ``supervisor`` service
+
+```bash
+ systemctl restart supervisor
+```
+
+5. Add process configuration ``/etc/supervisor/conf.d/your-program-name.conf``
+
+```
+[program:your-program-name]
+directory=/home/deploy/deployments/your-program-name
+command=/home/deploy/deployments/your-program-name/your-program-name
+environment=RUST_LOG="your_program_name=debug"
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=deploy
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/home/deploy/deployments/your-program-name/_logs/your-program-name.log
+stdout_logfile_maxbytes=20MB
+stdout_logfile_backups=30
+stopwaitsecs=30
+```
+
+6. Update config and start program
+
+```bash
+supervisorctl update your-program-name
+```
+
+7. Update program name in ``.deploy/deploy.sh`` and possibly the architecture of your server in ``.github/workflows/release.yml``
+
+
+8. Create SSH keys
+
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+and copy public key contents to ``/home/deploy/.ssh/authorized_keys`` on your server. Make sure that both ``.ssh`` directory and ``/home/deploy/.ssh/authorized_keys`` file are owned by ``deploy:deploy`` and have ``0700`` and ``0600`` permissions, respectively.
+
+9. Add GitHub actions secrets (Settings/Secrets and variables/Actions)
+- ``SSH_PRIVATE_KEY`` - copy contents of your private SSH key
+- ``SSH_HOST`` - set it to your server IP address
+- ``SSH_USER`` - set it to ``deploy``
+- ``DEPLOY_PATH`` - set it to ``/home/deploy/deployments``
+
+10. Create ``/home/deployments/YOUR-PROGRAM-NAME/_logs`` and ``/home/deploy/deployments/YOUR-PROGRAM-NAME/.storage`` directories. Copy ``config.example.toml`` as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/config.toml`` and set it up.
+ 
+Every time you want to deploy a new version, just add the ``vX.Y.Z`` (e.g. ``v0.1.1``) tag to your commit and push the code to the repository.
