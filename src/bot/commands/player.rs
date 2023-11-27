@@ -320,8 +320,8 @@ pub(crate) async fn cmd_replay(
     let current_user = ctx.author();
     let selected_user = user.as_ref().unwrap_or(current_user);
 
-    let player_score_sort = (sort.unwrap_or(Sort::default())).to_player_score_sort();
-    let player_score_context = (context.unwrap_or(BlCommandContext::default())).to_bl_context();
+    let player_score_sort = (sort.unwrap_or_default()).to_player_score_sort();
+    let player_score_context = (context.unwrap_or_default()).to_bl_context();
 
     let Some(player) = ctx.data().players_repository.get(&selected_user.id).await else {
         say_profile_not_linked(ctx, &selected_user.id).await?;

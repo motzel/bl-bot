@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("Executing command {}...", ctx.command().qualified_name);
             })
         },
-        /// This code is run after a command if it was successful (returned Ok)
+        // This code is run after a command if it was successful (returned Ok)
         post_command: |ctx| {
             Box::pin(async move {
                 info!("Executed command {}!", ctx.command().qualified_name);
