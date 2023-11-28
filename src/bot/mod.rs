@@ -674,29 +674,43 @@ impl UserRoleChanges {
 impl std::fmt::Display for UserRoleChanges {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let to_add_list = if !self.to_add.is_empty() {
-            self.to_add
-                .iter()
-                .map(|role| format!("<@&{}>", role))
-                .collect::<Vec<String>>()
-                .join(", ")
+            Some(
+                self.to_add
+                    .iter()
+                    .map(|role| format!("<@&{}>", role))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            )
         } else {
-            "None".to_string()
+            None
         };
 
         let to_remove_list = if !self.to_remove.is_empty() {
-            self.to_remove
-                .iter()
-                .map(|role| format!("<@&{}>", role))
-                .collect::<Vec<String>>()
-                .join(", ")
+            Some(
+                self.to_remove
+                    .iter()
+                    .map(|role| format!("<@&{}>", role))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            )
         } else {
-            "None".to_string()
+            None
         };
 
         write!(
             f,
-            "The roles of user <@{}> have been updated\n**Added roles:** {}\n**Removed roles:** {}",
-            self.user_id, to_add_list, to_remove_list,
+            "The roles of user <@{}> have been updated{}{}",
+            self.user_id,
+            if to_add_list.is_some() {
+                format!("\n**Added roles:** {}", to_add_list.unwrap())
+            } else {
+                "".to_owned()
+            },
+            if to_remove_list.is_some() {
+                format!("\n**Removed roles:** {}", to_remove_list.unwrap())
+            } else {
+                "".to_owned()
+            },
         )
     }
 }

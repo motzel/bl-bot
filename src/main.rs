@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::AttachmentType;
 use serenity::model::id::GuildId;
 
 use crate::beatleader::oauth::OAuthAppCredentials;
@@ -25,6 +27,7 @@ use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
+use crate::bot::commands::player::get_player_embed;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -301,17 +304,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     bot_channel_id
                                                 );
 
-                                                match bot_channel_id
-                                                    .send_message(global_ctx.clone(), |m| {
-                                                        m.content(format!("{}", rc))
-                                                            .allowed_mentions(|am| am.empty_parse())
-                                                    })
-                                                    .await {
-                                                    Ok(_) => {}
-                                                    Err(err) => {
-                                                        info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
+                                                match players_repository_worker.get(&rc.user_id).await {
+                                                    Some(player) => {
+                                                        let embed_image = get_player_embed(&player).await;
+
+                                                        match bot_channel_id
+                                                            .send_message(global_ctx.clone(), |m| {
+                                                                if let Some(embed_buffer) = embed_image {
+                                                                    m.add_file(AttachmentType::Bytes {
+                                                                        data: Cow::<[u8]>::from(embed_buffer),
+                                                                        filename: "embed.png".to_string(),
+                                                                    });
+                                                                }
+
+                                                                m.content(format!("{}", rc))
+                                                                    .allowed_mentions(|am| am.empty_parse())
+                                                            })
+                                                            .await {
+                                                            Ok(_) => {}
+                                                            Err(err) => {
+                                                                info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
+                                                            }
+                                                        };
                                                     }
-                                                };
+                                                    None => {
+                                                        match bot_channel_id
+                                                            .send_message(global_ctx.clone(), |m| {
+                                                                m.content(format!("{}", rc))
+                                                                    .allowed_mentions(|am| am.empty_parse())
+                                                            })
+                                                            .await {
+                                                            Ok(_) => {}
+                                                            Err(err) => {
+                                                                info!("Can not post log update to channel #{}: {}", bot_channel_id, err);
+                                                            }
+                                                        };
+                                                    }
+                                                }
                                             }
                                         }
                                     }

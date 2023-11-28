@@ -676,7 +676,7 @@ pub(crate) async fn say_without_ping(
     Ok(())
 }
 
-async fn get_player_embed(player: &Player) -> Option<Vec<u8>> {
+pub(crate) async fn get_player_embed(player: &Player) -> Option<Vec<u8>> {
     let player_avatar = get_binary_file(&player.avatar)
         .await
         .unwrap_or(Bytes::new());
