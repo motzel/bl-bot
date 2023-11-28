@@ -28,6 +28,7 @@ pub struct Player {
     pub name: String,
     pub active: bool,
     pub avatar: String,
+    pub profile_cover: Option<String>,
     pub country: String,
     pub rank: u32,
     pub country_rank: u32,
@@ -100,6 +101,7 @@ impl Player {
             name: bl_player.name,
             active: !bl_player.inactive && !bl_player.banned && !bl_player.bot,
             avatar: bl_player.avatar,
+            profile_cover: bl_player.profile_settings.profile_cover,
             country: bl_player.country,
             clans: bl_player
                 .clans

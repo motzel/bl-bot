@@ -681,8 +681,25 @@ pub(crate) async fn get_player_embed(player: &Player) -> Option<Vec<u8>> {
         .await
         .unwrap_or(Bytes::new());
 
+    let player_cover = if player.profile_cover.is_some() {
+        get_binary_file(player.profile_cover.as_ref().unwrap())
+            .await
+            .unwrap_or(Bytes::new())
+    } else {
+        Bytes::new()
+    };
+
     if !player_avatar.is_empty() {
-        embed_profile(player, player_avatar.as_ref()).await
+        embed_profile(
+            player,
+            player_avatar.as_ref(),
+            if player_cover.is_empty() {
+                player_avatar.as_ref()
+            } else {
+                player_cover.as_ref()
+            },
+        )
+        .await
     } else {
         None
     }
