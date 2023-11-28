@@ -13,21 +13,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: "cargo check"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/cache@v3
-        with:
-          path: ~/.cargo/registry
-          key: '${{ runner.os }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - run: cargo check
-
   test:
     name: "cargo test"
     runs-on: "ubuntu-latest"
