@@ -20,6 +20,8 @@ use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use std::time::Duration as TimeDuration;
 
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+
 use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
@@ -1114,15 +1116,27 @@ impl OAuthTokenRepository for GuildOAuthTokenRepository {
 }
 
 pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
+    trace!("Fetching binary file, url: {}", url);
+
     let client_builder = reqwest::Client::builder()
         .https_only(true)
         .gzip(true)
         .brotli(true)
-        .user_agent(APP_USER_AGENT)
-        .build();
+        .user_agent(APP_USER_AGENT);
 
-    let Ok(client) = client_builder else {
-        return Err(BlError::Unknown);
+    let client = match client_builder.build() {
+        Ok(client) => reqwest_middleware::ClientBuilder::new(client)
+            .with(Cache(HttpCache {
+                mode: CacheMode::Default,
+                manager: CACacheManager {
+                    path: "./.http-cache".into(),
+                },
+                options: HttpCacheOptions::default(),
+            }))
+            .build(),
+        Err(_) => {
+            return Err(BlError::Unknown);
+        }
     };
 
     let request = client
@@ -1136,8 +1150,21 @@ pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
 
     let response = client.execute(request.unwrap()).await;
 
+    if response.is_ok() {
+        debug!("Binary file {} fetched.", url);
+    } else {
+        debug!(
+            "Binary file {} fetching error: {:?}",
+            url,
+            response.as_ref().err()
+        );
+    }
+
     match response {
-        Err(err) => Err(BlError::Network(err)),
+        Err(err) => match err {
+            reqwest_middleware::Error::Middleware(_err) => Err(BlError::Unknown),
+            reqwest_middleware::Error::Reqwest(err) => Err(BlError::Network(err)),
+        },
         Ok(response) => match response.status().as_u16() {
             200..=299 => match response.bytes().await {
                 Ok(b) => Ok(b),
