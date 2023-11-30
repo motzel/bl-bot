@@ -74,6 +74,7 @@ jobs:
           mkdir "$dirname"
           
           cp config.example.toml "$dirname/config.toml"
+          cp -r assets/ "$dirname"
           
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             mv "target/${{ matrix.target }}/release/$binary_name.exe" "$dirname"
@@ -110,8 +111,9 @@ jobs:
 
           dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
           
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/_logs && mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/${{ github.sha }} && exit"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/.logs && mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/.http-cache && mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/.storage && mkdir -p ${{ secrets.DEPLOY_PATH }}/$repository_name/${{ github.sha }} && exit"
           scp .deploy/deploy.sh "$dirname/$binary_name" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/$repository_name/${{ github.sha }}/"
+          scp -pr assets/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/$repository_name/"
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.DEPLOY_PATH }}/$repository_name && chmod +x ${{ github.sha }}/deploy.sh && ln -f -s ${{ github.sha }}/$binary_name && ln -f -s ${{ github.sha }}/deploy.sh && ./deploy.sh && exit"
           
           rm -rf ~/.ssh
