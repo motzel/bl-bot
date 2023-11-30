@@ -434,7 +434,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
     if !force
         && player.last_scores_fetch.is_some()
         && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
-        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::minutes(30)
+        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::hours(24)
     {
         info!(
             "No new scores since last fetching ({}), skipping.",
