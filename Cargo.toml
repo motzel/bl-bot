@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.10.2"
+version = "0.10.3"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
@@ -35,3 +35,6 @@ ttf-parser = "^0.20.0"
 rayon = "^1.8.0"
 config = { version = "^0.13.3", features = ["toml"], default-features = false }
 tokio-util = { version = "0.7.10", features = ["full"] }
+http-cache-reqwest = { version = "^0.12.0", features = ["manager-cacache"] }
+cacache = { version = "^12.0.0", default-features = false, features = ["tokio-runtime", "mmap"] }
+reqwest-middleware = "0.2.4"

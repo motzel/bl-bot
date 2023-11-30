@@ -394,7 +394,11 @@ pub async fn embed_score(
 }
 
 #[allow(unused_assignments)]
-pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Option<Vec<u8>> {
+pub async fn embed_profile(
+    player: &Player,
+    player_avatar_bytes: &[u8],
+    player_cover_bytes: &[u8],
+) -> Option<Vec<u8>> {
     const FONT_SIZE: f32 = 32.0;
     const WIDTH: u32 = 512;
     const HEIGHT: u32 = 296;
@@ -402,7 +406,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
     const BORDER_SIZE: u32 = 28;
     const BORDER_RADIUS: u32 = 32;
     const BLUR_RADIUS_BORDER: f32 = 25.0;
-    const BLUR_RADIUS: f32 = 15.0;
+    const BLUR_RADIUS: f32 = 7.5;
     const PADDING: u32 = 8;
 
     let small_font_size = FONT_SIZE * 0.5;
@@ -412,7 +416,7 @@ pub async fn embed_profile(player: &Player, player_avatar_bytes: &[u8]) -> Optio
     let roboto_font = &ROBOTO_FONT_FAMILY.fonts[0].font;
 
     // load background
-    let Ok(mut bg) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+    let Ok(mut bg) = Image::<Rgba>::from_bytes_inferred(player_cover_bytes) else {
         return None;
     };
 

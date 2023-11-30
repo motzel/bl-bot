@@ -139,6 +139,7 @@ pub struct Player {
     pub inactive: bool,
     pub clans: Vec<PlayerClan>,
     pub socials: Vec<Social>,
+    pub profile_settings: PlayerProfileSettings,
 }
 
 impl BlApiResponse for Player {}
@@ -202,6 +203,14 @@ pub struct PlayerScoreStats {
     pub watched_replays: u32,
     pub peak_rank: u32,
     pub top1_count: u32,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerProfileSettings {
+    pub left_saber_color: Option<String>,
+    pub right_saber_color: Option<String>,
+    pub profile_cover: Option<String>,
 }
 
 #[serde_as]
