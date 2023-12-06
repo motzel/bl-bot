@@ -12,8 +12,10 @@ A simple Discord bot providing the following commands:
 - ``/bl-add-auto-role`` / ``/bl-remove-auto-role``, allowing a user (role management permission required) to configure the automatic setting of selected roles to server users based on their BL profile. The roles to be set up are grouped, and each role can be assigned a set of multiple conditions that must be met for it to be given. ![](docs/bl-role.gif)
 - ``/bl-set-log-channel``, allowing to set the channel on which all role changes will be posted ![](docs/bl-log.gif)
 - ``/bl-set-profile-verification``, allowing to set the profile verification requirement when linking a player's profile
+- ``/bl-set-clan-invitation`` / ``/bl-set-clan-invitation-code``, allowing to set up self-sending by the user invitations to the clan without the involvement of the clan owner (**NOTE**: requires contacting NSGolova on BeatLeader discord to get OAuth application id and secret)
+- ``/bl-clan-invitation``, allowing a user to send an invitation to join a clan on their own
 - ``/bl-show-settings``, showing current server settings ![](docs/bl-show.gif)
-- ``/bl-export`` / ``/bl-import``, allowing to export and import all bot data
+- ``/bl-export`` / ``/bl-import``, allowing to export and import all bot data (bot owner only)
 
 ## Setup
 
@@ -24,6 +26,7 @@ All of the following commands require a Rust environment installed on your compu
 - Go to [Discord Developer Portal](https://discord.com/developers/applications)
 - Create New Application
 - Copy Discord Token (click ``Reset Token`` button on Bot tab to obtain it) and set ``discord_token`` in ``config.toml`` / ``config.dev.toml``
+- If you want to use clan commands set ``client_id``, ``client_secret`` and ``redirect_url`` in the ``oauth`` section of ``config.toml`` (get them from NSGolova on BeatLeader discord). In addition, you need to run a server that will receive the OAuth Authorization code and generate the corresponding Discord command. You can use this [project](https://github.com/motzel/bl-bot-frontend) for this purpose or write your own.
 3. Invite a bot to your server (**replace ``<APP_ID>`` with your application ID**, you can find it on General Information tab in Discord Developer Portal)
 ``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
@@ -38,6 +41,8 @@ After you launch and invite the bot to your server, it will be visible in the li
 ![](docs/register.png)
 
 Note: If you register commands globally remember that [global commands can take up to 1 hour to update](https://discordnet.dev/guides/int_basics/application-commands/slash-commands/creating-slash-commands.html#:~:text=Note%3A%20Global%20commands%20will%20take,yet%20please%20follow%20this%20guide.). During development, it is better to register them only on the test server, because they update immediately.
+
+
 
 
 ## Setting up an automatic deployment using Github Actions
