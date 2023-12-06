@@ -30,6 +30,7 @@ All of the following commands require a Rust environment installed on your compu
 3. Invite a bot to your server (**replace ``<APP_ID>`` with your application ID**, you can find it on General Information tab in Discord Developer Portal)
 ``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
+4. Either download the latest version for your server architecture from the [Releases](releases) page and run it, or build from source as described below. Make sure that the directory from which you run the bot includes the ``config.toml`` file, the ``assets`` directory from this repository, and empty ``.logs``, ``.storage`` and ``.http-cache`` directories.
 
 ## Build and run
 ```bash
