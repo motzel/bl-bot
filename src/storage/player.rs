@@ -143,6 +143,74 @@ impl<'a> PlayerRepository {
         }
     }
 
+    pub(crate) async fn unlink_guilds(
+        &self,
+        user_id: &UserId,
+        guilds_to_unlink: Vec<u64>,
+    ) -> Result<()> {
+        if guilds_to_unlink.is_empty() {
+            return Ok(());
+        }
+
+        trace!(
+            "Unlinking user {} from guilds {:?}...",
+            user_id,
+            &guilds_to_unlink
+        );
+
+        let mut existed = false;
+        let existed_ref = &mut existed;
+        let guilds_to_unlink_clone = guilds_to_unlink.clone();
+
+        match self
+            .storage
+            .get_and_modify_or_insert(
+                user_id,
+                move |player| {
+                    let prev_len = player.linked_guilds.len();
+
+                    player
+                        .linked_guilds
+                        .retain(|g| !guilds_to_unlink_clone.contains(&u64::from(*g)));
+
+                    *existed_ref = player.linked_guilds.len() < prev_len;
+                },
+                || None,
+            )
+            .await?
+        {
+            Some(_) => {
+                if existed {
+                    debug!(
+                        "User {} unlinked from guilds {:?}.",
+                        user_id, &guilds_to_unlink
+                    );
+
+                    Ok(())
+                } else {
+                    debug!(
+                        "User {} is not linked to any of the passed guilds {:?}.",
+                        user_id, &guilds_to_unlink
+                    );
+
+                    Err(PersistError::NotFound(
+                        "user is not linked to any of the passed guilds".to_owned(),
+                    ))
+                }
+            }
+            None => {
+                debug!(
+                    "User {} is not linked to any of the passed guilds {:?}.",
+                    user_id, &guilds_to_unlink
+                );
+
+                Err(PersistError::NotFound(
+                    "user is not linked to any of the passed guilds".to_owned(),
+                ))
+            }
+        }
+    }
+
     pub(crate) async fn update_all_players_stats(
         &self,
         force_scores_download: bool,

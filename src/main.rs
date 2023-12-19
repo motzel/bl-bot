@@ -9,8 +9,8 @@ use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
-use poise::serenity_prelude::AttachmentType;
-use serenity::model::id::GuildId;
+use poise::serenity_prelude::{AttachmentType, SerenityError};
+use serenity::{http, model::id::GuildId};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::Client;
@@ -253,13 +253,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     &bot_player.user_id, &bot_player.name
                                 );
 
+                                let mut guilds_to_unlink = vec![];
                                 for guild_id in &bot_player.linked_guilds {
-                                    let Ok(member) = global_ctx
+                                    let member = match global_ctx
                                         .http
                                         .get_member(u64::from(*guild_id), bot_player.user_id.into())
-                                        .await else {
-                                        error!("Can not fetch user {} membership.", bot_player.user_id);
-                                        continue;
+                                        .await {
+                                        Ok(member) => member,
+                                        Err(err) => {
+                                            error!("Can not fetch user {} membership in {} guild due to an error: {:?}.", bot_player.user_id, &guild_id, err);
+
+                                            match err {
+                                                SerenityError::Http(http_err) => {
+                                                    match *http_err {
+                                                        http::HttpError::UnsuccessfulRequest(http::error::ErrorResponse {error : discord_err, ..}) => {
+                                                            // see: https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
+                                                            if discord_err.code == 10007 {
+                                                                debug!("User {} ({}) is not a member of the guild {} anymore.", &bot_player.user_id, &bot_player.name, &guild_id);
+                                                                guilds_to_unlink.push(u64::from(*guild_id));
+                                                            }
+
+                                                            continue
+                                                        }
+                                                        _ => continue
+                                                    }
+
+                                                }
+                                                _ => continue
+                                            }
+                                        }
                                     };
 
                                     current_players_roles.push((
@@ -272,6 +294,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         warn!("Update task is shutting down...");
                                         break 'outer;
                                     }
+                                }
+
+                                if !guilds_to_unlink.is_empty() {
+                                    info!("Unlinking user {} ({}) from guilds {:?}...", &bot_player.user_id, &bot_player.name, &guilds_to_unlink);
+
+                                    let _ = players_repository_worker.unlink_guilds(&bot_player.user_id, guilds_to_unlink).await;
                                 }
                             }
 
