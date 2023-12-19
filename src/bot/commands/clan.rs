@@ -2,7 +2,7 @@ use crate::beatleader::clan::Clan;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::bot::beatleader::fetch_clan;
 use crate::bot::commands::guild::get_guild_settings;
-use crate::bot::commands::player::{say_profile_not_linked, say_without_ping};
+use crate::bot::commands::player::{link_user_if_needed, say_profile_not_linked, say_without_ping};
 use crate::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::storage::player::PlayerRepository;
 use crate::{Context, Error, BL_CLIENT};
@@ -255,6 +255,8 @@ pub(crate) async fn cmd_set_clan_invitation_code(
 /// Send yourself an invitation to join the clan
 #[poise::command(slash_command, rename = "bl-clan-invitation", guild_only)]
 pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+
     if ctx.data().oauth_credentials.is_none() {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
         return Ok(());
@@ -297,12 +299,19 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
         return Ok(());
     }
 
-    let user_id = ctx.author().id;
+    let current_user = ctx.author();
 
-    match ctx.data().players_repository.get(&user_id).await {
+    match link_user_if_needed(
+        ctx,
+        &guild_settings.guild_id,
+        current_user,
+        guild_settings.requires_verified_profile,
+    )
+    .await
+    {
         Some(player) => {
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &user_id).await?;
+                say_profile_not_linked(ctx, &current_user.id).await?;
 
                 return Ok(());
             }
@@ -339,11 +348,9 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 return Ok(());
             }
 
-            if !bl_player
-                .socials
-                .iter()
-                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
-            {
+            if !bl_player.socials.iter().any(|social| {
+                social.service == "Discord" && social.user_id == current_user.id.to_string()
+            }) {
                 say_without_ping(
                     ctx,
                     "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.",
@@ -389,7 +396,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
             Ok(())
         }
         None => {
-            say_profile_not_linked(ctx, &user_id).await?;
+            say_profile_not_linked(ctx, &current_user.id).await?;
 
             Ok(())
         }

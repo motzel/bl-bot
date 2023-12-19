@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::convert::From;
 use std::sync::Arc;
 
-use log::{info, trace};
+use log::{debug, info, trace, warn};
 use poise::serenity_prelude::{
-    AttachmentType, CreateComponents, MessageComponentInteraction, User, UserId,
+    AttachmentType, CreateComponents, GuildId, MessageComponentInteraction, User, UserId,
 };
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 
@@ -13,9 +13,10 @@ use bytes::Bytes;
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
 use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
-use crate::bot::commands::guild::get_guild_id;
+use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
+use crate::storage::player::PlayerRepository;
 use crate::storage::PersistError;
 use crate::{Context, Error};
 
@@ -114,13 +115,9 @@ pub(crate) async fn cmd_link(
             }
         }
         None => {
-            let Ok(guild) = ctx.data().guild_settings_repository.get(&guild_id).await else {
-                say_without_ping(ctx, "Error: can not get guild settings", true).await?;
+            let guild_settings = get_guild_settings(ctx, true).await?;
 
-                return Ok(());
-            };
-
-            (ctx.author().id, guild.requires_verified_profile)
+            (ctx.author().id, guild_settings.requires_verified_profile)
         }
     };
 
@@ -267,13 +264,20 @@ pub(crate) async fn cmd_profile(
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let guild_id = get_guild_id(ctx, true).await?;
+    let guild_settings = get_guild_settings(ctx, true).await?;
 
     let selected_user = user.as_ref().unwrap_or_else(|| ctx.author());
 
-    match ctx.data().players_repository.get(&selected_user.id).await {
+    match link_user_if_needed(
+        ctx,
+        &guild_settings.guild_id,
+        selected_user,
+        guild_settings.requires_verified_profile,
+    )
+    .await
+    {
         Some(player) => {
-            if !player.is_linked_to_guild(&guild_id) {
+            if !player.is_linked_to_guild(&guild_settings.guild_id) {
                 say_profile_not_linked(ctx, &selected_user.id).await?;
 
                 return Ok(());
@@ -305,6 +309,80 @@ pub(crate) async fn cmd_profile(
     }
 }
 
+pub(crate) async fn link_user_if_needed(
+    ctx: Context<'_>,
+    guild_id: &GuildId,
+    selected_user: &User,
+    requires_verified_profile: bool,
+) -> Option<Player> {
+    trace!(
+        "Checking if user {} should be linked to the guild {}...",
+        selected_user.id,
+        guild_id
+    );
+
+    match ctx.data().players_repository.get(&selected_user.id).await {
+        Some(mut player) => {
+            trace!(
+                "User {} exists, checking if they should be linked to the guild {}...",
+                selected_user.id,
+                guild_id
+            );
+            if !player.is_linked_to_guild(guild_id)
+                && ctx
+                    .data()
+                    .players_repository
+                    .link_guild(&selected_user.id, *guild_id)
+                    .await
+                    .is_ok()
+            {
+                trace!(
+                    "User {} linked to the guild {}.",
+                    selected_user.id,
+                    guild_id
+                );
+
+                player.linked_guilds.push(*guild_id);
+            }
+
+            Some(player)
+        }
+        None => {
+            trace!(
+                "User {} is not linked yet, trying to fetch player from BL using Discord id...",
+                selected_user.id
+            );
+
+            if let Ok(bl_player) =
+                PlayerRepository::fetch_player_from_bl_by_user_id(&selected_user.id).await
+            {
+                trace!(
+                    "User {} is linked on the BL website, player name: {}. Trying to link...",
+                    selected_user.id,
+                    &bl_player.name
+                );
+
+                return match ctx
+                    .data()
+                    .players_repository
+                    .link_player(
+                        *guild_id,
+                        selected_user.id,
+                        bl_player,
+                        requires_verified_profile,
+                    )
+                    .await
+                {
+                    Ok(player) => Some(player),
+                    Err(_) => None,
+                };
+            };
+
+            None
+        }
+    }
+}
+
 /// Post link to a replay, yours or another server user who has linked they BL account.
 ///
 /// Enter any user of this server as a parameter. If you omit it then your replay will be searched for.
@@ -315,118 +393,130 @@ pub(crate) async fn cmd_replay(
     #[description = "BL context (General if not specified)"] context: Option<BlCommandContext>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
-    let guild_id = get_guild_id(ctx, true).await?;
+    ctx.defer_ephemeral().await?;
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
 
     let current_user = ctx.author();
     let selected_user = user.as_ref().unwrap_or(current_user);
 
-    let player_score_sort = (sort.unwrap_or_default()).to_player_score_sort();
-    let player_score_context = (context.unwrap_or_default()).to_bl_context();
-
-    let Some(player) = ctx.data().players_repository.get(&selected_user.id).await else {
-        say_profile_not_linked(ctx, &selected_user.id).await?;
-
-        return Ok(());
-    };
-
-    if !player.is_linked_to_guild(&guild_id) {
-        say_profile_not_linked(ctx, &selected_user.id).await?;
-
-        return Ok(());
-    }
-
-    let player_scores = match fetch_scores(
-        &player.id,
-        &[
-            PlayerScoreParam::Page(1),
-            PlayerScoreParam::Count(25),
-            PlayerScoreParam::Sort(player_score_sort),
-            PlayerScoreParam::Order(SortOrder::Descending),
-            PlayerScoreParam::Context(player_score_context.clone()),
-        ],
+    match link_user_if_needed(
+        ctx,
+        &guild_settings.guild_id,
+        selected_user,
+        guild_settings.requires_verified_profile,
     )
     .await
     {
-        Ok(player_scores) => {
-            if player_scores.total == 0 {
-                say_without_ping(ctx, "No scores.", true).await?;
+        Some(player) => {
+            let player_score_sort = (sort.unwrap_or_default()).to_player_score_sort();
+            let player_score_context = (context.unwrap_or_default()).to_bl_context();
+
+            if !player.is_linked_to_guild(&guild_settings.guild_id) {
+                say_profile_not_linked(ctx, &selected_user.id).await?;
+
                 return Ok(());
             }
 
-            player_scores
-        }
-        Err(e) => {
-            ctx.say(format!("Error fetching scores: {}", e)).await?;
-            return Ok(());
-        }
-    };
+            let player_scores = match fetch_scores(
+                &player.id,
+                &[
+                    PlayerScoreParam::Page(1),
+                    PlayerScoreParam::Count(25),
+                    PlayerScoreParam::Sort(player_score_sort),
+                    PlayerScoreParam::Order(SortOrder::Descending),
+                    PlayerScoreParam::Context(player_score_context.clone()),
+                ],
+            )
+            .await
+            {
+                Ok(player_scores) => {
+                    if player_scores.total == 0 {
+                        say_without_ping(ctx, "No scores.", true).await?;
+                        return Ok(());
+                    }
 
-    let msg = ctx
-        .send(|m| {
-            let selected_ids = Vec::new();
-            m.components(|c| add_replay_components(c, &player_scores, &selected_ids))
-                .ephemeral(true)
-        })
-        .await?;
+                    player_scores
+                }
+                Err(e) => {
+                    ctx.say(format!("Error fetching scores: {}", e)).await?;
+                    return Ok(());
+                }
+            };
 
-    let mut score_ids = Vec::<String>::new();
-    let mut replay_posted = false;
+            let msg = ctx
+                .send(|m| {
+                    let selected_ids = Vec::new();
+                    m.components(|c| add_replay_components(c, &player_scores, &selected_ids))
+                        .ephemeral(true)
+                })
+                .await?;
 
-    while let Some(mci) = serenity::CollectComponentInteraction::new(ctx)
-        .author_id(current_user.id)
-        .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(120))
-        .await
-    {
-        trace!("Interaction response: {:?}", mci.data);
+            let mut score_ids = Vec::<String>::new();
+            let mut replay_posted = false;
 
-        match mci.data.custom_id.as_str() {
-            "score_id" => {
-                score_ids = mci.data.values.clone();
+            while let Some(mci) = serenity::CollectComponentInteraction::new(ctx)
+                .author_id(current_user.id)
+                .channel_id(ctx.channel_id())
+                .timeout(std::time::Duration::from_secs(120))
+                .await
+            {
+                trace!("Interaction response: {:?}", mci.data);
 
-                // edit message
-                mci.create_interaction_response(ctx, |ir| {
-                    ir.kind(serenity::InteractionResponseType::UpdateMessage)
-                        .interaction_response_data(|message| {
-                            message.components(|c| {
-                                add_replay_components(c, &player_scores, &score_ids)
-                            })
+                match mci.data.custom_id.as_str() {
+                    "score_id" => {
+                        score_ids = mci.data.values.clone();
+
+                        // edit message
+                        mci.create_interaction_response(ctx, |ir| {
+                            ir.kind(serenity::InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|message| {
+                                    message.components(|c| {
+                                        add_replay_components(c, &player_scores, &score_ids)
+                                    })
+                                })
                         })
+                        .await?;
+                    }
+                    "post_btn" => {
+                        if !score_ids.is_empty() {
+                            post_replays(
+                                ctx,
+                                &score_ids,
+                                &player_scores,
+                                &player,
+                                &player_score_context,
+                                &msg,
+                            )
+                            .await?;
+                        } else {
+                            mci.defer(ctx).await?;
+                        }
+
+                        replay_posted = true;
+                    }
+                    _ => {
+                        mci.defer(ctx).await?;
+                    }
+                }
+            }
+
+            if !replay_posted {
+                msg.edit(ctx, |m| {
+                    m.components(|c| c)
+                        .content("Interaction timed out. Dismiss this message and try again.")
                 })
                 .await?;
             }
-            "post_btn" => {
-                if !score_ids.is_empty() {
-                    post_replays(
-                        ctx,
-                        &score_ids,
-                        &player_scores,
-                        &player,
-                        &player_score_context,
-                        &msg,
-                    )
-                    .await?;
-                } else {
-                    mci.defer(ctx).await?;
-                }
 
-                replay_posted = true;
-            }
-            _ => {
-                mci.defer(ctx).await?;
-            }
+            Ok(())
+        }
+        None => {
+            say_profile_not_linked(ctx, &selected_user.id).await?;
+
+            Ok(())
         }
     }
-
-    if !replay_posted {
-        msg.edit(ctx, |m| {
-            m.components(|c| c)
-                .content("Interaction timed out. Dismiss this message and try again.")
-        })
-        .await?;
-    }
-
-    Ok(())
 }
 
 /// Force refreshing all players scores
@@ -500,7 +590,7 @@ async fn post_replays(
     ctx: Context<'_>,
     score_ids: &Vec<String>,
     player_scores: &BlList<Score>,
-    player: &Player,
+    player: &BotPlayer,
     bl_context: &BlContext,
     msg: &ReplyHandle<'_>,
 ) -> Result<(), Error> {
@@ -650,7 +740,7 @@ pub(crate) async fn say_profile_not_linked(
     say_without_ping(
         ctx,
         format!(
-            "<@{}> is not linked to the BL profile. Use ``/bl-link`` command first.",
+            "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. Use the ``/bl-link`` command first or link the account on the BL site.",
             user_id
         )
         .as_str(),
@@ -676,7 +766,7 @@ pub(crate) async fn say_without_ping(
     Ok(())
 }
 
-pub(crate) async fn get_player_embed(player: &Player) -> Option<Vec<u8>> {
+pub(crate) async fn get_player_embed(player: &BotPlayer) -> Option<Vec<u8>> {
     let player_avatar = get_binary_file(&player.avatar)
         .await
         .unwrap_or(Bytes::new());

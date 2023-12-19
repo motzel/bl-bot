@@ -5,6 +5,7 @@ use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
 
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
+use poise::serenity_prelude::UserId;
 
 use crate::beatleader;
 use crate::beatleader::clan::ClanTag;
@@ -26,6 +27,16 @@ impl<'a> PlayerResource<'a> {
             .get_json::<Player, Player, PlayerScoreParam>(
                 Method::GET,
                 &format!("/player/{}", id),
+                &[],
+            )
+            .await
+    }
+
+    pub async fn get_by_discord(&self, id: &UserId) -> beatleader::Result<Player> {
+        self.client
+            .get_json::<Player, Player, PlayerScoreParam>(
+                Method::GET,
+                &format!("/player/discord/{}", id),
                 &[],
             )
             .await

@@ -255,6 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 let mut guilds_to_unlink = vec![];
                                 for guild_id in &bot_player.linked_guilds {
+                                    // TODO: do not get user roles if guild does not have automatic roles enabled
                                     let member = match global_ctx
                                         .http
                                         .get_member(u64::from(*guild_id), bot_player.user_id.into())

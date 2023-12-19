@@ -46,60 +46,46 @@ impl<'a> PlayerRepository {
 
         let bl_player = PlayerRepository::fetch_player_from_bl(&player_id).await?;
 
-        if requires_verification
-            && !bl_player
-                .socials
-                .iter()
-                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
-        {
-            return Err(PersistError::ProfileNotVerified);
-        }
+        self.link_player(guild_id, user_id, bl_player, requires_verification)
+            .await
+    }
 
-        let bl_player_clone = bl_player.clone();
+    pub(crate) async fn link_guild(&self, user_id: &UserId, guild_id: GuildId) -> Result<()> {
+        trace!("Linking user {} to guild {}...", user_id, &guild_id);
 
-        trace!(
-            "BL player {} fetched. Player name: {}",
-            bl_player.id,
-            bl_player.name
-        );
-
-        let player_id_clone = player_id.clone();
+        let mut existed = false;
+        let existed_ref = &mut existed;
 
         match self
             .storage
             .get_and_modify_or_insert(
-                &user_id,
+                user_id,
                 move |player| {
                     player.linked_guilds.retain(|g| *g != u64::from(guild_id));
                     player.linked_guilds.push(guild_id);
 
-                    **player = BotPlayer::from_user_id_and_bl_player(
-                        user_id,
-                        player.linked_guilds.clone(),
-                        bl_player,
-                        if player.id == player_id_clone {
-                            Some(player)
-                        } else {
-                            None
-                        },
-                    );
+                    *existed_ref = true;
                 },
-                || {
-                    Some(BotPlayer::from_user_id_and_bl_player(
-                        user_id,
-                        vec![guild_id],
-                        bl_player_clone,
-                        None,
-                    ))
-                },
+                || None,
             )
             .await?
         {
-            Some(player) => {
-                debug!("User {} linked with BL player {}.", user_id, player_id);
-                Ok(player)
+            Some(_) => {
+                if existed {
+                    debug!("User {} linked to the guild {}.", user_id, &guild_id);
+
+                    Ok(())
+                } else {
+                    debug!("User {} does not exists", user_id);
+
+                    Err(PersistError::NotFound("user does not exists".to_owned()))
+                }
             }
-            None => Err(PersistError::Unknown),
+            None => {
+                debug!("User {} does not exists.", user_id);
+
+                Err(PersistError::NotFound("user does not exists".to_owned()))
+            }
         }
     }
 
@@ -317,7 +303,76 @@ impl<'a> PlayerRepository {
         Ok(BL_CLIENT.player().get(player_id).await?)
     }
 
+    pub(crate) async fn fetch_player_from_bl_by_user_id(user_id: &UserId) -> Result<BlPlayer> {
+        Ok(BL_CLIENT.player().get_by_discord(user_id).await?)
+    }
+
     pub(crate) async fn restore(&self, values: Vec<BotPlayer>) -> Result<()> {
         self.storage.restore(values).await
+    }
+
+    pub(crate) async fn link_player(
+        &self,
+        guild_id: GuildId,
+        user_id: UserId,
+        bl_player: BlPlayer,
+        requires_verification: bool,
+    ) -> Result<BotPlayer> {
+        if requires_verification
+            && !bl_player
+                .socials
+                .iter()
+                .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
+        {
+            return Err(PersistError::ProfileNotVerified);
+        }
+
+        let bl_player_clone = bl_player.clone();
+
+        trace!(
+            "BL player {} fetched. Player name: {}",
+            bl_player.id,
+            bl_player.name
+        );
+
+        let player_id = bl_player.id.clone();
+        let player_id_clone = bl_player.id.clone();
+
+        match self
+            .storage
+            .get_and_modify_or_insert(
+                &user_id,
+                move |player| {
+                    player.linked_guilds.retain(|g| *g != u64::from(guild_id));
+                    player.linked_guilds.push(guild_id);
+
+                    **player = BotPlayer::from_user_id_and_bl_player(
+                        user_id,
+                        player.linked_guilds.clone(),
+                        bl_player,
+                        if player.id == player_id_clone {
+                            Some(player)
+                        } else {
+                            None
+                        },
+                    );
+                },
+                || {
+                    Some(BotPlayer::from_user_id_and_bl_player(
+                        user_id,
+                        vec![guild_id],
+                        bl_player_clone,
+                        None,
+                    ))
+                },
+            )
+            .await?
+        {
+            Some(player) => {
+                debug!("User {} linked with BL player {}.", user_id, player_id);
+                Ok(player)
+            }
+            None => Err(PersistError::Unknown),
+        }
     }
 }
