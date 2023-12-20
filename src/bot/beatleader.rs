@@ -11,7 +11,7 @@ use crate::BL_CLIENT;
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
 use log::{debug, error, info, trace};
-use poise::serenity_prelude::{AttachmentType, GuildId, UserId};
+use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage, GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
@@ -298,100 +298,138 @@ impl From<BlScore> for Score {
 }
 
 impl Score {
-    pub(crate) fn add_embed(
+    pub(crate) fn add_embed_to_message<'a>(
         &self,
-        reply: &mut CreateReply,
+        message: &mut CreateMessage<'a>,
         player: &Player,
         bl_context: &BlContext,
-        embed_image: Option<Vec<u8>>,
+        embed_image: Option<&'a Vec<u8>>,
     ) {
         let with_embed_image = embed_image.is_some();
 
         if let Some(embed_buffer) = embed_image {
-            reply.attachment(AttachmentType::Bytes {
+            message.add_file(AttachmentType::Bytes {
                 data: Cow::<[u8]>::from(embed_buffer),
                 filename: "embed.png".to_string(),
             });
         }
 
-        reply.embed(|f| {
-            let mut desc = "".to_owned();
-
-            desc.push_str(&format!("**{} / {} / {}", capitalize(&bl_context.to_string()), self.difficulty_name, self.difficulty_status));
-
-            if self.difficulty_stars > 0.0 {
-                desc.push_str(&format!(
-                    " / {:.2}⭐{}",
-                    self.difficulty_stars,
-                    if self.difficulty_stars_modified {
-                        "(M)"
-                    } else {
-                        ""
-                    }
-                ));
-            }
-
-            if !self.modifiers.is_empty() {
-                desc.push_str(&(" / ".to_owned() + &self.modifiers.clone()));
-            }
-
-            desc.push_str("**");
-
-            desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.xyz/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
-
-            f.author(|a| {
-                a.name(player.name.clone())
-                    .icon_url(player.avatar.clone())
-                    .url(format!("https://www.beatleader.xyz/u/{}", player.id))
-            })
-            .title(format!("{} {}", self.song_name, self.song_sub_name,))
-            .description(desc)
-            .url(format!(
-                "https://www.beatleader.xyz/leaderboard/global/{}/1",
-                self.leaderboard_id
-            ))
-            .timestamp(self.timeset);
-
-            if !with_embed_image {
-                f.thumbnail(self.song_cover.clone());
-
-                if self.pp > 0.00 {
-                    if self.full_combo {
-                        f.field("PP", format!("{:.2}", self.pp), true);
-                    } else {
-                        f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
-                    }
-                }
-
-                if self.full_combo {
-                    f.field("Acc", format!("{:.2}%", self.accuracy), true);
-                } else {
-                    f.field(
-                        "Acc",
-                        format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
-                        true,
-                    );
-                }
-
-                f.field("Rank", format!("#{}", self.rank), true)
-                    .field(
-                        "Mistakes",
-                        if self.mistakes == 0 {
-                            "FC".to_string()
-                        } else {
-                            self.mistakes.to_string()
-                        },
-                        true,
-                    )
-                    .field("Acc Left", format!("{:.2}", self.acc_left), true)
-                    .field("Acc Right", format!("{:.2}", self.acc_right), true)
-                    .field("Pauses", self.pauses, true)
-                    .field("Max combo", self.max_combo, true)
-                    .field("Max streak", self.max_streak, true);
-            }
+        message.embed(|f| {
+            self.add_embed(player, bl_context, with_embed_image, f);
 
             f
         });
+    }
+
+    pub(crate) fn add_embed_to_reply<'a>(
+        &self,
+        message: &mut CreateReply<'a>,
+        player: &Player,
+        bl_context: &BlContext,
+        embed_image: Option<&'a Vec<u8>>,
+    ) {
+        let with_embed_image = embed_image.is_some();
+
+        if let Some(embed_buffer) = embed_image {
+            message.attachment(AttachmentType::Bytes {
+                data: Cow::<[u8]>::from(embed_buffer),
+                filename: "embed.png".to_string(),
+            });
+        }
+
+        message.embed(|f| {
+            self.add_embed(player, bl_context, with_embed_image, f);
+
+            f
+        });
+    }
+
+    pub(crate) fn add_embed<'a>(
+        &'a self,
+        player: &Player,
+        bl_context: &BlContext,
+        with_embed_image: bool,
+        f: &'a mut CreateEmbed,
+    ) {
+        let mut desc = "".to_owned();
+
+        desc.push_str(&format!(
+            "**{} / {} / {}",
+            capitalize(&bl_context.to_string()),
+            self.difficulty_name,
+            self.difficulty_status
+        ));
+
+        if self.difficulty_stars > 0.0 {
+            desc.push_str(&format!(
+                " / {:.2}⭐{}",
+                self.difficulty_stars,
+                if self.difficulty_stars_modified {
+                    "(M)"
+                } else {
+                    ""
+                }
+            ));
+        }
+
+        if !self.modifiers.is_empty() {
+            desc.push_str(&(" / ".to_owned() + &self.modifiers.clone()));
+        }
+
+        desc.push_str("**");
+
+        desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.xyz/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
+
+        f.author(|a| {
+            a.name(player.name.clone())
+                .icon_url(player.avatar.clone())
+                .url(format!("https://www.beatleader.xyz/u/{}", player.id))
+        })
+        .title(format!("{} {}", self.song_name, self.song_sub_name,))
+        .description(desc)
+        .url(format!(
+            "https://www.beatleader.xyz/leaderboard/global/{}/1",
+            self.leaderboard_id
+        ))
+        .timestamp(self.timeset);
+
+        if !with_embed_image {
+            f.thumbnail(self.song_cover.clone());
+
+            if self.pp > 0.00 {
+                if self.full_combo {
+                    f.field("PP", format!("{:.2}", self.pp), true);
+                } else {
+                    f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
+                }
+            }
+
+            if self.full_combo {
+                f.field("Acc", format!("{:.2}%", self.accuracy), true);
+            } else {
+                f.field(
+                    "Acc",
+                    format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
+                    true,
+                );
+            }
+
+            f.field("Rank", format!("#{}", self.rank), true)
+                .field(
+                    "Mistakes",
+                    if self.mistakes == 0 {
+                        "FC".to_string()
+                    } else {
+                        self.mistakes.to_string()
+                    },
+                    true,
+                )
+                .field("Acc Left", format!("{:.2}", self.acc_left), true)
+                .field("Acc Right", format!("{:.2}", self.acc_right), true)
+                .field("Pauses", self.pauses, true)
+                .field("Max combo", self.max_combo, true)
+                .field("Max streak", self.max_streak, true);
+        }
     }
 }
 

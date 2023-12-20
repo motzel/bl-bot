@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::From;
 use std::sync::Arc;
 
-use log::{debug, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use poise::serenity_prelude::{
     AttachmentType, CreateComponents, GuildId, MessageComponentInteraction, User, UserId,
 };
@@ -644,17 +644,52 @@ async fn post_replays(
             msg_contents.push_str("FAILED\n");
         }
 
-        ctx.send(|m| {
-            score.add_embed(m, player, bl_context, embed_image);
+        let send_message_result = ctx
+            .channel_id()
+            .send_message(ctx, |m| {
+                score.add_embed_to_message(m, player, bl_context, embed_image.as_ref());
 
-            m.allowed_mentions(|am| {
-                am.parse(serenity::builder::ParseValue::Users)
-                    .parse(serenity::builder::ParseValue::Roles)
+                m.allowed_mentions(|am| {
+                    am.parse(serenity::builder::ParseValue::Users)
+                        .parse(serenity::builder::ParseValue::Roles)
+                })
             })
-            .reply(false)
-            .ephemeral(false)
-        })
-        .await?;
+            .await;
+
+        if send_message_result.is_err() {
+            warn!(
+                "An error occurred while trying to post a replay as a new message: {:?}",
+                send_message_result.err()
+            );
+
+            let reply_result = ctx
+                .send(|m| {
+                    score.add_embed_to_reply(m, player, bl_context, embed_image.as_ref());
+
+                    m.allowed_mentions(|am| {
+                        am.parse(serenity::builder::ParseValue::Users)
+                            .parse(serenity::builder::ParseValue::Roles)
+                    })
+                    .reply(false)
+                    .ephemeral(false)
+                })
+                .await;
+
+            if reply_result.is_err() {
+                error!(
+                    "An error occurred while trying to post a replay as a reply to the command: {:?}",
+                    reply_result.err()
+                );
+
+                msg_contents
+                    .push_str("An error has occurred. No permissions to post to the channel?");
+
+                msg.edit(ctx, |m| m.components(|c| c).content(msg_contents))
+                    .await?;
+
+                return Ok(());
+            }
+        }
     }
 
     msg_contents.push_str("Replay(s) posted. You can dismiss this message.");
