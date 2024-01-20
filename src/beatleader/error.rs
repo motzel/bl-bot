@@ -14,7 +14,7 @@ pub enum Error {
     OAuthStorage,
     Server,
     JsonDecode(reqwest::Error),
-    DbError(String),
+    Db(String),
     Unknown,
 }
 
@@ -28,7 +28,7 @@ impl fmt::Display for Error {
             Error::Client(_) => write!(f, "BL client error"),
             Error::Server => write!(f, "BL server error"),
             Error::JsonDecode(e) => write!(f, "invalid BL response: {}", e),
-            Error::DbError(e) => write!(f, "db error: {}", e),
+            Error::Db(e) => write!(f, "db error: {}", e),
             Error::Unknown => write!(f, "unknown error"),
             Error::OAuth(e) => write!(
                 f,
@@ -54,7 +54,7 @@ impl error::Error for Error {
             | Error::Unauthorized
             | Error::Client(_)
             | Error::Server
-            | Error::DbError(_)
+            | Error::Db(_)
             | Error::OAuth(_)
             | Error::OAuthStorage
             | Error::OAuthExpired(_)
