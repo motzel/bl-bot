@@ -305,6 +305,10 @@ impl PartialOrd<PlayerMetricValue> for RequirementMetricValue {
             }
             RequirementMetricValue::Rank(v) => {
                 if let PlayerMetricValue::Rank(player_metric_value) = other {
+                    if player_metric_value == &0 {
+                        return Some(Ordering::Greater);
+                    }
+
                     RequirementMetricValue::reverse_ordering(v.partial_cmp(player_metric_value))
                 } else {
                     None
@@ -312,6 +316,10 @@ impl PartialOrd<PlayerMetricValue> for RequirementMetricValue {
             }
             RequirementMetricValue::CountryRank(v) => {
                 if let PlayerMetricValue::CountryRank(player_metric_value) = other {
+                    if player_metric_value == &0 {
+                        return Some(Ordering::Greater);
+                    }
+
                     RequirementMetricValue::reverse_ordering(v.partial_cmp(player_metric_value))
                 } else {
                     None
@@ -1308,9 +1316,11 @@ mod tests {
         let requirement_metric = RequirementMetricValue::Rank(100);
         let better = PlayerMetricValue::Rank(99);
         let worse = PlayerMetricValue::Rank(101);
+        let zero = PlayerMetricValue::Rank(0);
 
         assert!(requirement_metric > worse);
         assert!(requirement_metric < better);
+        assert!(requirement_metric > zero);
         assert_eq!(requirement_metric, requirement_metric);
 
         let requirement_metric =
@@ -1354,6 +1364,7 @@ mod tests {
         assert!(requirement.is_fulfilled_for(&PlayerMetricValue::Rank(100)));
         assert!(requirement.is_fulfilled_for(&PlayerMetricValue::Rank(90)));
         assert!(!requirement.is_fulfilled_for(&PlayerMetricValue::Rank(101)));
+        assert!(!requirement.is_fulfilled_for(&PlayerMetricValue::Rank(0)));
 
         let requirement = Requirement {
             condition: Condition::BetterThanOrEqualTo,
@@ -1496,6 +1507,9 @@ mod tests {
 
         assert!(rs_5k.is_fulfilled_for(&player));
         assert!(!rs_10k.is_fulfilled_for(&player));
+
+        player.country_rank = 0;
+        assert!(!rs_5k.is_fulfilled_for(&player));
 
         player.clans = vec!["Other clan".to_string()];
         assert!(!rs_clan.is_fulfilled_for(&player));
