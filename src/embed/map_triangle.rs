@@ -226,9 +226,9 @@ fn draw_stars_at_point<I: DerefMut<Target = Image<Rgba>>>(
     let tech_text_str_width = tech_text_layout.width();
 
     let x_offset_multiplier = match horizontal_anchor {
-        HorizontalAnchor::Left => 4.0,
-        HorizontalAnchor::Center => 3.0,
-        HorizontalAnchor::Right => 2.0,
+        HorizontalAnchor::Left => 8.0,
+        HorizontalAnchor::Center => 6.0,
+        HorizontalAnchor::Right => 5.0,
     };
 
     let y_offset: f32 = match vertical_anchor {
@@ -237,7 +237,7 @@ fn draw_stars_at_point<I: DerefMut<Target = Image<Rgba>>>(
         VerticalAnchor::Bottom => -font_size - 4.0,
     };
 
-    let pos_x = x1 - (tech_text_str_width as f64 * x_offset_multiplier / 6.0) as u32;
+    let pos_x = x1 - (tech_text_str_width as f64 * x_offset_multiplier / 12.0) as u32;
     let pos_y = y1 - y_offset as u32;
     draw_text_segment(
         image,
