@@ -1,21 +1,25 @@
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Display;
+
+use chrono::serde::{ts_seconds, ts_seconds_option};
+use chrono::{DateTime, Utc};
+use log::{debug, info, trace};
+use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage, GuildId, UserId};
+use poise::CreateReply;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
+
 use crate::beatleader::clan::Clan;
 use crate::beatleader::player::{DifficultyStatus, Duration, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, MetaData, SortOrder};
+use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
-use chrono::serde::{ts_seconds, ts_seconds_option};
-use chrono::{DateTime, Utc};
-use log::{debug, error, info, trace};
-use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage, GuildId, UserId};
-use poise::CreateReply;
-use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DefaultOnError, TimestampSeconds};
-use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -228,9 +232,11 @@ pub struct Score {
     pub song_bpm: f32,
     pub song_duration: Duration,
     pub difficulty_name: String,
-    pub difficulty_stars: f64,
-    pub difficulty_stars_modified: bool,
     pub difficulty_nps: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub difficulty_original_rating: MapRating,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub difficulty_rating: MapRating,
     #[serde_as(deserialize_as = "DefaultOnError")]
     #[serde(default)]
     pub difficulty_status: DifficultyStatus,
@@ -243,19 +249,33 @@ pub struct Score {
 
 impl From<BlScore> for Score {
     fn from(bl_score: BlScore) -> Self {
-        let mut modified_stars = false;
-        let mut stars = bl_score.leaderboard.difficulty.stars;
+        let mut map_rating = MapRating::new(
+            MapRatingModifier::None,
+            bl_score.leaderboard.difficulty.stars,
+            bl_score.leaderboard.difficulty.tech_rating,
+            bl_score.leaderboard.difficulty.acc_rating,
+            bl_score.leaderboard.difficulty.pass_rating,
+        );
 
         if let Some(ratings) = bl_score.leaderboard.difficulty.modifiers_rating {
             if bl_score.modifiers.contains("SS") && ratings.ss_stars > 0.00 {
-                modified_stars = true;
-                stars = ratings.ss_stars;
+                map_rating.modifier = MapRatingModifier::SlowerSong;
+                map_rating.stars = ratings.ss_stars;
+                map_rating.tech = ratings.ss_tech_rating;
+                map_rating.acc = ratings.ss_acc_rating;
+                map_rating.pass = ratings.ss_pass_rating;
             } else if bl_score.modifiers.contains("FS") && ratings.fs_stars > 0.00 {
-                modified_stars = true;
-                stars = ratings.fs_stars;
+                map_rating.modifier = MapRatingModifier::FasterSong;
+                map_rating.stars = ratings.fs_stars;
+                map_rating.tech = ratings.fs_tech_rating;
+                map_rating.acc = ratings.fs_acc_rating;
+                map_rating.pass = ratings.fs_pass_rating;
             } else if bl_score.modifiers.contains("SF") && ratings.sf_stars > 0.00 {
-                modified_stars = true;
-                stars = ratings.sf_stars;
+                map_rating.modifier = MapRatingModifier::SuperFastSong;
+                map_rating.stars = ratings.sf_stars;
+                map_rating.tech = ratings.sf_tech_rating;
+                map_rating.acc = ratings.sf_acc_rating;
+                map_rating.pass = ratings.sf_pass_rating;
             }
         }
 
@@ -286,9 +306,15 @@ impl From<BlScore> for Score {
             song_bpm: bl_score.leaderboard.song.bpm,
             song_duration: bl_score.leaderboard.song.duration,
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
-            difficulty_stars: stars,
-            difficulty_stars_modified: modified_stars,
             difficulty_nps: bl_score.leaderboard.difficulty.nps,
+            difficulty_original_rating: MapRating::new(
+                MapRatingModifier::None,
+                bl_score.leaderboard.difficulty.stars,
+                bl_score.leaderboard.difficulty.tech_rating,
+                bl_score.leaderboard.difficulty.acc_rating,
+                bl_score.leaderboard.difficulty.pass_rating,
+            ),
+            difficulty_rating: map_rating,
             difficulty_status: bl_score.leaderboard.difficulty.status,
             mode_name: bl_score.leaderboard.difficulty.mode_name,
             timeset: bl_score.timeset,
@@ -360,16 +386,8 @@ impl Score {
             self.difficulty_status
         ));
 
-        if self.difficulty_stars > 0.0 {
-            desc.push_str(&format!(
-                " / {:.2}⭐{}",
-                self.difficulty_stars,
-                if self.difficulty_stars_modified {
-                    "(M)"
-                } else {
-                    ""
-                }
-            ));
+        if self.difficulty_rating.stars > 0.0 {
+            desc.push_str(&format!(" / {:.2}⭐", self.difficulty_rating.stars));
         }
 
         if !self.modifiers.is_empty() {
@@ -546,8 +564,8 @@ pub(crate) async fn fetch_ranked_scores_stats(
                         continue;
                     }
 
-                    if top_stars < score.difficulty_stars {
-                        top_stars = score.difficulty_stars;
+                    if top_stars < score.difficulty_rating.stars {
+                        top_stars = score.difficulty_rating.stars;
                     }
 
                     if score.pauses > 0
@@ -587,5 +605,84 @@ pub fn capitalize(s: &str) -> String {
     match c.next() {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub enum MapRatingModifier {
+    #[default]
+    None,
+    SlowerSong,
+    FasterSong,
+    SuperFastSong,
+}
+
+impl Display for MapRatingModifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MapRatingModifier::None => write!(f, ""),
+            MapRatingModifier::SlowerSong => write!(f, "SS"),
+            MapRatingModifier::FasterSong => write!(f, "FS"),
+            MapRatingModifier::SuperFastSong => write!(f, "SF"),
+        }
+    }
+}
+
+const DEFAULT_MAX_RATING: f64 = 15.0;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MapRating {
+    pub modifier: MapRatingModifier,
+    pub stars: f64,
+    pub tech: f64,
+    pub acc: f64,
+    pub pass: f64,
+}
+
+impl MapRating {
+    pub fn new(modifier: MapRatingModifier, stars: f64, tech: f64, acc: f64, pass: f64) -> Self {
+        Self {
+            modifier,
+            stars,
+            tech,
+            acc,
+            pass,
+        }
+    }
+
+    pub fn has_individual_rating(&self) -> bool {
+        self.tech > 0.0 || self.acc > 0.0 || self.pass > 0.0
+    }
+
+    pub fn get_max_rating(&self) -> f64 {
+        f64::max(
+            f64::max(f64::max(self.tech, self.acc), self.pass).ceil(),
+            DEFAULT_MAX_RATING,
+        )
+        .ceil()
+    }
+
+    pub fn get_tech_relative(&self) -> f64 {
+        f64::min(self.tech / self.get_max_rating(), 1.0)
+    }
+
+    pub fn get_acc_relative(&self) -> f64 {
+        f64::min(self.acc / self.get_max_rating(), 1.0)
+    }
+
+    pub fn get_pass_relative(&self) -> f64 {
+        f64::min(self.pass / self.get_max_rating(), 1.0)
+    }
+}
+
+impl Default for MapRating {
+    fn default() -> Self {
+        Self {
+            modifier: MapRatingModifier::default(),
+            stars: 0.0,
+            tech: 0.0,
+            acc: 0.0,
+            pass: 0.0,
+        }
     }
 }

@@ -1,17 +1,23 @@
+use relativetime::RelativeTime;
+use ril::prelude::*;
+
+use map_triangle::Vertex;
+
 use crate::beatleader::player::DifficultyStatus;
-use crate::bot::beatleader::{Player, Score};
+use crate::bot::beatleader::{MapRatingModifier, Player, Score};
 use crate::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
 use crate::embed::font::{
     could_be_drawn, draw_multilang_text, draw_text_segment, load_noto_fonts, split_text_by_fonts,
     FontFamily, ROBOTO_FONT_FAMILY,
 };
+use crate::embed::map_triangle::MapTriangle;
 use crate::embed::utils::{draw_rounded_rectangle, Corner};
-use relativetime::RelativeTime;
-use ril::prelude::*;
 
 mod blur;
 mod font;
+mod map_triangle;
+mod triangle;
 mod utils;
 
 pub async fn embed_score(
@@ -138,14 +144,14 @@ pub async fn embed_score(
     image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
 
     let mut difficulty_desc = "".to_owned();
-    if score.difficulty_stars > 0.0 {
+    if score.difficulty_rating.stars > 0.0 {
         let stars = format!(
             "{:.2}*{}",
-            score.difficulty_stars,
-            if score.difficulty_stars_modified {
-                "(M)"
+            score.difficulty_rating.stars,
+            if score.difficulty_rating.modifier != MapRatingModifier::None {
+                format!("({})", score.difficulty_rating.modifier)
             } else {
-                ""
+                "".to_owned()
             }
         );
         difficulty_desc.push_str(&stars);
@@ -268,7 +274,13 @@ pub async fn embed_score(
 
     let stats_width =
         WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 4;
-    let stats_pos_x = avatar_pos_x + AVATAR_SIZE + PADDING * 4;
+    let stats_pos_x = avatar_pos_x
+        + AVATAR_SIZE
+        + if score.difficulty_rating.has_individual_rating() {
+            PADDING
+        } else {
+            PADDING * 4
+        };
     let acc_pos_y = BORDER_SIZE / 2 + BORDER_RADIUS / 2 + (FONT_SIZE * 1.9) as u32;
     draw_text_segment(
         &mut image,
@@ -381,6 +393,12 @@ pub async fn embed_score(
         stats_pos_x,
         stats_width,
     );
+
+    if score.difficulty_rating.has_individual_rating() {
+        let map_triangle = MapTriangle::new(Vertex::new(436, 74), 50)
+            .with_map_rating(score.difficulty_rating.clone());
+        image.draw(&map_triangle);
+    }
 
     let mut buffer = Vec::<u8>::with_capacity(200_000);
     if image
@@ -749,5 +767,16 @@ fn shorten_difficulty_name(name: &str) -> String {
     match name {
         "ExpertPlus" => "Expert+".to_string(),
         _ => name.to_string(),
+    }
+}
+
+pub(crate) fn clamp<T: PartialOrd>(input: T, min: T, max: T) -> T {
+    debug_assert!(min <= max, "min must be less than or equal to max");
+    if input < min {
+        min
+    } else if input > max {
+        max
+    } else {
+        input
     }
 }

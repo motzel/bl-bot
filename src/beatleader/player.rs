@@ -392,7 +392,25 @@ pub struct ModifiersRatings {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub ss_stars: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub ss_tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub ss_acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub ss_pass_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub fs_stars: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fs_tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fs_acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub fs_pass_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub sf_stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub sf_tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub sf_acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub sf_pass_rating: f64,
 }
