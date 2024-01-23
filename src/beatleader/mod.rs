@@ -18,12 +18,14 @@ use serde::Deserialize;
 
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
+use crate::beatleader::rating::RatingsResource;
 
 pub mod clan;
 pub mod error;
 pub mod oauth;
 pub mod player;
 pub mod pp;
+mod rating;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -70,6 +72,10 @@ impl Client {
 
     pub fn clan(&self) -> ClanResource {
         ClanResource::new(self)
+    }
+
+    pub fn ratings(&self) -> RatingsResource {
+        RatingsResource::new(self)
     }
 
     pub fn with_oauth<T: OAuthTokenRepository>(
@@ -189,6 +195,10 @@ impl Client {
 
     pub(crate) fn get_timeout(&self) -> u64 {
         self.timeout
+    }
+
+    pub(crate) fn get_http_client(&self) -> &HttpClient {
+        &self.http_client
     }
 }
 
