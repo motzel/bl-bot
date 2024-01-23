@@ -231,6 +231,7 @@ pub struct Score {
     pub song_cover: String,
     pub song_bpm: f32,
     pub song_duration: Duration,
+    pub song_hash: String,
     pub difficulty_name: String,
     pub difficulty_nps: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -240,7 +241,8 @@ pub struct Score {
     #[serde_as(deserialize_as = "DefaultOnError")]
     #[serde(default)]
     pub difficulty_status: DifficultyStatus,
-    pub mode_name: String,
+    pub difficulty_mode_name: String,
+    pub difficulty_value: u32,
     #[serde_as(as = "TimestampSeconds<String>")]
     pub timeset: DateTime<Utc>,
     #[serde(with = "ts_seconds")]
@@ -305,6 +307,7 @@ impl From<BlScore> for Score {
             song_cover: bl_score.leaderboard.song.cover_image,
             song_bpm: bl_score.leaderboard.song.bpm,
             song_duration: bl_score.leaderboard.song.duration,
+            song_hash: bl_score.leaderboard.song.hash,
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
             difficulty_nps: bl_score.leaderboard.difficulty.nps,
             difficulty_original_rating: MapRating::new(
@@ -316,7 +319,8 @@ impl From<BlScore> for Score {
             ),
             difficulty_rating: map_rating,
             difficulty_status: bl_score.leaderboard.difficulty.status,
-            mode_name: bl_score.leaderboard.difficulty.mode_name,
+            difficulty_mode_name: bl_score.leaderboard.difficulty.mode_name,
+            difficulty_value: bl_score.leaderboard.difficulty.value,
             timeset: bl_score.timeset,
             timepost: bl_score.timepost,
         }
