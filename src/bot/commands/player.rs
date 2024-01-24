@@ -11,8 +11,11 @@ use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use bytes::Bytes;
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
+use crate::beatleader::rating::Ratings;
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
-use crate::bot::beatleader::{fetch_scores, Player as BotPlayer, Player, Score};
+use crate::bot::beatleader::{
+    fetch_rating, fetch_scores, MapRating, MapRatingModifier, Player as BotPlayer, Player, Score,
+};
 use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
@@ -624,6 +627,50 @@ async fn post_replays(
             continue;
         };
 
+        let mut score = score.clone();
+
+        if !score.difficulty_rating.has_individual_rating() {
+            info!("Fetching ratings for {}", &score.song_name);
+
+            msg_contents.push_str(&format!("Fetching ratings for {}...", score.song_name));
+
+            let msg_contents_clone = msg_contents.clone();
+            msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+                .await?;
+
+            let ratings = fetch_rating(
+                &score.song_hash,
+                &score.difficulty_mode_name,
+                score.difficulty_value,
+            )
+            .await;
+
+            match ratings {
+                Ok(ratings) => {
+                    score.difficulty_original_rating =
+                        MapRating::from_ratings_and_modifier(&ratings, MapRatingModifier::None);
+
+                    score.difficulty_rating = MapRating::from_ratings_and_modifier(
+                        &ratings,
+                        score.modifiers.as_str().into(),
+                    );
+
+                    msg_contents.push_str("OK\n");
+                }
+                Err(err) => {
+                    error!(
+                        "Fetching rating for song {} ({}/{}/{}) failed: {}",
+                        &score.song_name,
+                        &score.song_hash,
+                        &score.difficulty_mode_name,
+                        &score.difficulty_value,
+                        err
+                    );
+                    msg_contents.push_str("FAILED\n");
+                }
+            }
+        }
+
         info!("Posting replay for scoreId: {}", score_id);
 
         msg_contents.push_str(&format!("Generating embed for {}...", score.song_name));
@@ -633,7 +680,7 @@ async fn post_replays(
             .await?;
 
         let embed_image = if !player_avatar.is_empty() {
-            embed_score(score, player, player_avatar.as_ref()).await
+            embed_score(&score, player, player_avatar.as_ref()).await
         } else {
             None
         };

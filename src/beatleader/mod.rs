@@ -25,7 +25,7 @@ pub mod error;
 pub mod oauth;
 pub mod player;
 pub mod pp;
-mod rating;
+pub(crate) mod rating;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

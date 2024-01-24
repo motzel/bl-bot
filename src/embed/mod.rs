@@ -149,7 +149,7 @@ pub async fn embed_score(
             "{:.2}*{}",
             score.difficulty_rating.stars,
             if score.difficulty_rating.modifier != MapRatingModifier::None {
-                format!("({})", score.difficulty_rating.modifier)
+                format!(" ({})", score.difficulty_rating.modifier)
             } else {
                 "".to_owned()
             }
