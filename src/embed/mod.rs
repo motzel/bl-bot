@@ -227,13 +227,16 @@ pub async fn embed_score(
         0,
     );
 
+    let speed_multiplier = score.difficulty_rating.modifier.speed_multiplier();
     draw_text_segment(
         &mut image,
         &mut TextSegment::new(
             roboto_font,
             format!(
                 "{} / {:.0} BPM / {:.2} NPS",
-                score.song_duration, score.song_bpm, score.difficulty_nps
+                score.song_duration.with_speed_multiplier(speed_multiplier),
+                score.song_bpm as f64 * speed_multiplier,
+                score.difficulty_nps * speed_multiplier,
             ),
             Rgba::white(),
         )

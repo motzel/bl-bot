@@ -602,6 +602,17 @@ pub enum MapRatingModifier {
     SuperFastSong,
 }
 
+impl MapRatingModifier {
+    pub fn speed_multiplier(&self) -> f64 {
+        match self {
+            MapRatingModifier::None => 1.0,
+            MapRatingModifier::SlowerSong => 0.85,
+            MapRatingModifier::FasterSong => 1.2,
+            MapRatingModifier::SuperFastSong => 1.5,
+        }
+    }
+}
+
 impl From<&str> for MapRatingModifier {
     fn from(value: &str) -> Self {
         if value.contains("SS") {

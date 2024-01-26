@@ -288,6 +288,12 @@ pub struct Leaderboard {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Duration(u32);
 
+impl Duration {
+    pub fn with_speed_multiplier(&self, multiplier: f64) -> Self {
+        Self((self.0 as f64 / multiplier).round() as u32)
+    }
+}
+
 impl std::fmt::Display for Duration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{:02}", self.0 / 60, self.0 % 60)
