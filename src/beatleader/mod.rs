@@ -147,10 +147,15 @@ impl Client {
 
         let base = Url::parse(self.base_url.as_str()).unwrap();
 
-        trace!(
-            "Sending request to {}",
-            base.make_relative(request.url()).unwrap()
-        );
+        let request_url = request.url();
+        let relative_url = if request_url.as_str().starts_with(&self.base_url) {
+            base.make_relative(request_url)
+                .unwrap_or("Unknown URL".to_owned())
+        } else {
+            request_url.to_string()
+        };
+
+        trace!("Sending request to {}", &relative_url);
 
         let response = self.http_client.execute(request).await;
 
@@ -163,7 +168,7 @@ impl Client {
             Ok(response) => {
                 debug!(
                     "Endpoint {} responded with status: {}",
-                    base.make_relative(response.url()).unwrap(),
+                    &relative_url,
                     response.status().as_u16()
                 );
 
