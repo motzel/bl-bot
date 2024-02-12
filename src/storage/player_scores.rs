@@ -1,17 +1,16 @@
-use chrono::Utc;
-use log::{debug, info, trace};
 use std::sync::Arc;
 
+use log::{debug, trace, warn};
 use poise::serenity_prelude::UserId;
 use serde::{Deserialize, Serialize};
 
-use crate::beatleader::player::{MapType, PlayerId, PlayerScoreParam, PlayerScoreSort};
-use crate::beatleader::{BlContext, SortOrder};
-use crate::bot::beatleader::{fetch_scores, Player, Score};
+use crate::beatleader::player::PlayerId;
+use crate::beatleader::BlContext;
+use crate::bot::beatleader::{fetch_all_player_scores, Player, Score};
 use crate::file_storage::PersistInstance;
-use crate::storage::persist::{CachedStorage, ShuttleStorage};
+use crate::storage::persist::ShuttleStorage;
 
-use super::{PersistError, Result, StorageValue};
+use super::{Result, StorageValue};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +28,7 @@ impl StorageValue<PlayerId> for PlayerScores {
 }
 
 pub(crate) struct PlayerScoresRepository {
-    storage: CachedStorage<PlayerId, PlayerScores>,
+    storage: ShuttleStorage<PlayerId, PlayerScores>,
     pub bl_context: BlContext,
 }
 
@@ -39,25 +38,16 @@ impl<'a> PlayerScoresRepository {
         bl_context: BlContext,
     ) -> Result<PlayerScoresRepository> {
         Ok(Self {
-            storage: CachedStorage::new(ShuttleStorage::new(
+            storage: ShuttleStorage::new(
                 format!("player-scores-{}", bl_context.to_string()).as_str(),
                 persist,
-            ))
-            .await?,
+            ),
             bl_context,
         })
     }
 
-    pub(crate) async fn all(&self) -> Vec<PlayerScores> {
-        self.storage.values().await
-    }
-
-    pub(crate) async fn len(&self) -> usize {
-        self.storage.len().await
-    }
-
     pub(crate) async fn get(&self, player_id: &PlayerId) -> Option<PlayerScores> {
-        self.storage.get(player_id).await
+        self.storage.load(player_id).await.ok()
     }
 
     pub(crate) async fn update_player_scores(
@@ -85,50 +75,28 @@ impl<'a> PlayerScoresRepository {
         }
 
         // do not update if fetching is skipped
-        let player_scores = PlayerScoresRepository::fetch_player_scores(
-            player,
-            self.bl_context.clone(),
-            force_scores_download,
-        )
-        .await?;
+        let player_scores =
+            fetch_all_player_scores(player, self.bl_context.clone(), force_scores_download).await?;
         if player_scores.is_none() {
             return Ok(None);
         }
 
         let player_scores = player_scores.unwrap();
-        let player_scores_clone = player_scores.clone();
-
-        let bl_context = self.bl_context.clone();
 
         match self
             .storage
-            .get_and_modify_or_insert(
-                &player.id,
-                move |existing_player_scores| {
-                    **existing_player_scores = PlayerScores {
-                        user_id: player.user_id,
-                        player_id: player.id.clone(),
-                        bl_context,
-                        scores: player_scores,
-                    }
-                },
-                || {
-                    Some(PlayerScores {
-                        user_id: player.user_id,
-                        player_id: player.id.clone(),
-                        bl_context: self.bl_context.clone(),
-                        scores: player_scores_clone,
-                    })
+            .save(
+                player.id.clone(),
+                PlayerScores {
+                    user_id: player.user_id,
+                    player_id: player.id.clone(),
+                    bl_context: self.bl_context.clone(),
+                    scores: player_scores,
                 },
             )
-            .await?
+            .await
         {
-            None => {
-                debug!("User {} not found.", player.user_id);
-
-                Err(PersistError::NotFound("player not found".to_owned()))
-            }
-            Some(scores) => {
+            Ok(scores) => {
                 debug!(
                     "User {} / BL player {} scores updated.",
                     player.user_id, player.name
@@ -136,107 +104,11 @@ impl<'a> PlayerScoresRepository {
 
                 Ok(Some(scores))
             }
-        }
-    }
+            Err(err) => {
+                warn!("Error occurred: {}", err);
 
-    pub(crate) async fn restore(&self, values: Vec<PlayerScores>) -> Result<()> {
-        self.storage.restore(values).await
-    }
-
-    pub(crate) async fn fetch_player_scores(
-        player: &Player,
-        bl_context: BlContext,
-        force: bool,
-    ) -> std::result::Result<Option<Vec<Score>>, crate::beatleader::error::Error> {
-        info!("Fetching all ranked scores of {}...", player.name);
-
-        if !force
-            && player.last_scores_fetch.is_some()
-            && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
-            && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::hours(24)
-        {
-            info!(
-                "No new scores since last fetching ({}), skipping.",
-                player.last_scores_fetch.unwrap()
-            );
-
-            return Ok(None);
-        }
-
-        const ITEMS_PER_PAGE: u32 = 100;
-
-        let time_param: Vec<PlayerScoreParam> = match player.last_scores_fetch {
-            Some(last_scores_fetch) => {
-                if force {
-                    vec![]
-                } else {
-                    vec![PlayerScoreParam::TimeFrom(last_scores_fetch)]
-                }
-            }
-            None => vec![],
-        };
-
-        let mut player_scores = Vec::<Score>::with_capacity(player.ranked_play_count as usize);
-
-        let mut page = 1;
-        let mut page_count = 1;
-        'outer: loop {
-            trace!("Fetching scores page {} / {}...", page, page_count);
-
-            match fetch_scores(
-                &player.id,
-                &[
-                    &[
-                        PlayerScoreParam::Page(page),
-                        PlayerScoreParam::Count(ITEMS_PER_PAGE),
-                        PlayerScoreParam::Sort(PlayerScoreSort::Date),
-                        PlayerScoreParam::Order(SortOrder::Ascending),
-                        PlayerScoreParam::Type(MapType::Ranked),
-                        PlayerScoreParam::Context(bl_context.clone()),
-                    ],
-                    &time_param[..],
-                ]
-                .concat(),
-            )
-            .await
-            {
-                Ok(scores_page) => {
-                    debug!("Scores page #{} fetched.", page);
-
-                    if scores_page.data.is_empty() {
-                        break 'outer;
-                    }
-
-                    page_count = scores_page.total / ITEMS_PER_PAGE
-                        + u32::from(scores_page.total % ITEMS_PER_PAGE != 0);
-
-                    for score in scores_page.data {
-                        if score.modifiers.contains("NF")
-                            || score.modifiers.contains("NB")
-                            || score.modifiers.contains("NO")
-                            || score.modifiers.contains("NA")
-                            || score.modifiers.contains("OP")
-                        {
-                            continue;
-                        }
-
-                        player_scores.push(score);
-                    }
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            };
-
-            page += 1;
-
-            if page > page_count {
-                break;
+                Err(err)
             }
         }
-
-        info!("All ranked scores of {} fetched.", player.name);
-
-        Ok(Some(player_scores))
     }
 }

@@ -174,8 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let player_scores_repository =
                     Arc::new(PlayerScoresRepository::new(persist_arc4, BlContext::General).await.unwrap());
                 info!(
-                    "Players scores repository initialized, length: {}.",
-                    player_scores_repository.len().await
+                    "Players scores repository initialized.",
                 );
 
                 info!("Setting bot status...");

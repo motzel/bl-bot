@@ -443,6 +443,103 @@ impl From<BlList<BlScore>> for BlList<Score> {
     }
 }
 
+pub(crate) async fn fetch_all_player_scores(
+    player: &Player,
+    bl_context: BlContext,
+    force: bool,
+) -> Result<Option<Vec<Score>>, BlError> {
+    info!("Fetching all ranked scores of {}...", player.name);
+
+    if !force
+        && player.last_scores_fetch.is_some()
+        && player.last_scores_fetch.unwrap() > player.last_ranked_score_time
+        && player.last_scores_fetch.unwrap() > Utc::now() - chrono::Duration::hours(24)
+    {
+        info!(
+            "No new scores since last fetching ({}), skipping.",
+            player.last_scores_fetch.unwrap()
+        );
+
+        return Ok(None);
+    }
+
+    const ITEMS_PER_PAGE: u32 = 100;
+
+    let time_param: Vec<PlayerScoreParam> = match player.last_scores_fetch {
+        Some(last_scores_fetch) => {
+            if force {
+                vec![]
+            } else {
+                vec![PlayerScoreParam::TimeFrom(last_scores_fetch)]
+            }
+        }
+        None => vec![],
+    };
+
+    let mut player_scores = Vec::<Score>::with_capacity(player.ranked_play_count as usize);
+
+    let mut page = 1;
+    let mut page_count = 1;
+    'outer: loop {
+        trace!("Fetching scores page {} / {}...", page, page_count);
+
+        match fetch_scores(
+            &player.id,
+            &[
+                &[
+                    PlayerScoreParam::Page(page),
+                    PlayerScoreParam::Count(ITEMS_PER_PAGE),
+                    PlayerScoreParam::Sort(PlayerScoreSort::Date),
+                    PlayerScoreParam::Order(SortOrder::Ascending),
+                    PlayerScoreParam::Type(MapType::Ranked),
+                    PlayerScoreParam::Context(bl_context.clone()),
+                ],
+                &time_param[..],
+            ]
+            .concat(),
+        )
+        .await
+        {
+            Ok(scores_page) => {
+                debug!("Scores page #{} fetched.", page);
+
+                if scores_page.data.is_empty() {
+                    break 'outer;
+                }
+
+                page_count = scores_page.total / ITEMS_PER_PAGE
+                    + u32::from(scores_page.total % ITEMS_PER_PAGE != 0);
+
+                for score in scores_page.data {
+                    if score.modifiers.contains("NF")
+                        || score.modifiers.contains("NB")
+                        || score.modifiers.contains("NO")
+                        || score.modifiers.contains("NA")
+                        || score.modifiers.contains("OP")
+                    {
+                        continue;
+                    }
+
+                    player_scores.push(score);
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        page += 1;
+
+        if page > page_count {
+            break;
+        }
+    }
+
+    info!("All ranked scores of {} fetched.", player.name);
+
+    Ok(Some(player_scores))
+}
+
 pub(crate) async fn fetch_scores(
     player_id: &PlayerId,
     params: &[PlayerScoreParam],
