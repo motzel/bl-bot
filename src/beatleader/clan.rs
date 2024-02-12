@@ -1,15 +1,87 @@
+use chrono::serde::ts_seconds;
+use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::Deserialize;
+use serde_with::{serde_as, DefaultOnNull};
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
-use crate::beatleader::player::{Player as BlPlayer, PlayerId};
+use crate::beatleader::player::{Leaderboard, Player as BlPlayer, PlayerId};
 use crate::beatleader::{
-    BlApiListResponse, BlApiResponse, Client, List, MetaData, QueryParam, Result, SortOrder,
+    BlApiListResponse, BlApiResponse, BlContext, Client, List, MetaData, QueryParam, Result,
+    SortOrder,
 };
 
 pub struct ClanResource<'a> {
     client: &'a Client,
 }
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanScoreSort {
+    Date,
+    Pp,
+    Acc,
+    Rank,
+    ToHold,
+    ToConquer,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanScoreParam {
+    Page(u32),
+    Count(u32),
+    Sort(ClanScoreSort),
+    Order(SortOrder),
+    Context(BlContext),
+}
+
+impl QueryParam for ClanScoreParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            ClanScoreParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanScoreParam::Count(count) => ("count".to_owned(), count.to_string()),
+            ClanScoreParam::Sort(field) => (
+                "sortBy".to_owned(),
+                match field {
+                    ClanScoreSort::Date => "date".to_owned(),
+                    ClanScoreSort::Pp => "pp".to_owned(),
+                    ClanScoreSort::Acc => "acc".to_owned(),
+                    ClanScoreSort::Rank => "rank".to_owned(),
+                    ClanScoreSort::ToHold => "tohold".to_owned(),
+                    ClanScoreSort::ToConquer => "toconquer".to_owned(),
+                },
+            ),
+            ClanScoreParam::Order(order) => ("order".to_owned(), order.to_string()),
+            ClanScoreParam::Context(context) => {
+                ("leaderboardContext".to_owned(), context.to_string())
+            }
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Score {
+    pub id: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub pp: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub rank: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub total_score: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub average_rank: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub average_accuracy: f64,
+    #[serde(with = "ts_seconds")]
+    pub last_update_time: DateTime<Utc>,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub leaderboard: Leaderboard,
+}
+
+impl BlApiResponse for Score {}
 
 impl<'a> ClanResource<'a> {
     pub fn new(client: &'a Client) -> Self {
@@ -32,6 +104,16 @@ impl<'a> ClanResource<'a> {
                 Method::GET,
                 format!("/clan/{}", tag).as_str(),
                 &[ClanParam::Count(0)],
+            )
+            .await
+    }
+
+    pub async fn maps(&self, tag: &str, params: &[ClanScoreParam]) -> Result<List<Score>> {
+        self.client
+            .get_json::<BlApiListResponse<Score>, List<Score>, ClanScoreParam>(
+                Method::GET,
+                &format!("/clan/{}/maps", tag),
+                params,
             )
             .await
     }
