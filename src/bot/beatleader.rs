@@ -17,10 +17,10 @@ use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::rating::{ModifierRating, Ratings};
+use crate::beatleader::rating::Ratings;
 use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
-use crate::storage::player_scores::{PlayerScores, PlayerScoresRepository};
+use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 
@@ -441,6 +441,14 @@ impl From<BlList<BlScore>> for BlList<Score> {
             total: value.total,
         }
     }
+}
+
+pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer, BlError> {
+    BL_CLIENT.player().get(player_id).await
+}
+
+pub(crate) async fn fetch_player_from_bl_by_user_id(user_id: &UserId) -> Result<BlPlayer, BlError> {
+    BL_CLIENT.player().get_by_discord(user_id).await
 }
 
 pub(crate) async fn fetch_all_player_scores(

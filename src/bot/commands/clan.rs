@@ -1,13 +1,15 @@
+use std::sync::Arc;
+
+use poise::serenity_prelude::User;
+
 use crate::beatleader::clan::Clan;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::bot::beatleader::fetch_clan;
+use crate::bot::beatleader::fetch_player_from_bl;
 use crate::bot::commands::guild::get_guild_settings;
 use crate::bot::commands::player::{link_user_if_needed, say_profile_not_linked, say_without_ping};
 use crate::bot::{ClanSettings, GuildOAuthTokenRepository};
-use crate::storage::player::PlayerRepository;
 use crate::{Context, Error, BL_CLIENT};
-use poise::serenity_prelude::User;
-use std::sync::Arc;
 
 /// Set up sending of clan invitations
 #[poise::command(
@@ -316,7 +318,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 return Ok(());
             }
 
-            let bl_player = PlayerRepository::fetch_player_from_bl(&player.id).await;
+            let bl_player = fetch_player_from_bl(&player.id).await;
             if bl_player.is_err() {
                 say_without_ping(
                     ctx,

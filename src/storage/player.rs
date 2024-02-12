@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
-use crate::file_storage::PersistInstance;
 use log::{debug, trace};
 use poise::serenity_prelude::{GuildId, UserId};
+use tokio_util::sync::CancellationToken;
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
-use crate::bot::beatleader::{fetch_ranked_scores_stats, Player as BotPlayer};
+use crate::bot::beatleader::{
+    fetch_player_from_bl, fetch_ranked_scores_stats, Player as BotPlayer,
+};
+use crate::file_storage::PersistInstance;
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
-use crate::BL_CLIENT;
+use crate::storage::player_scores::PlayerScoresRepository;
 
 use super::Result;
-use crate::storage::player_scores::PlayerScoresRepository;
-use tokio_util::sync::CancellationToken;
 
 pub(crate) struct PlayerRepository {
     storage: CachedStorage<UserId, BotPlayer>,
@@ -45,7 +46,7 @@ impl<'a> PlayerRepository {
     ) -> Result<BotPlayer> {
         trace!("Linking user {} with BL player {}...", user_id, player_id);
 
-        let bl_player = PlayerRepository::fetch_player_from_bl(&player_id).await?;
+        let bl_player = fetch_player_from_bl(&player_id).await?;
 
         self.link_player(guild_id, user_id, bl_player, requires_verification)
             .await
@@ -253,7 +254,7 @@ impl<'a> PlayerRepository {
             return Ok(player.clone());
         }
 
-        let bl_player = PlayerRepository::fetch_player_from_bl(&player.id).await?;
+        let bl_player = fetch_player_from_bl(&player.id).await?;
 
         trace!(
             "BL player {} fetched. Player name: {}",
@@ -302,14 +303,6 @@ impl<'a> PlayerRepository {
                 Ok(player)
             }
         }
-    }
-
-    pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer> {
-        Ok(BL_CLIENT.player().get(player_id).await?)
-    }
-
-    pub(crate) async fn fetch_player_from_bl_by_user_id(user_id: &UserId) -> Result<BlPlayer> {
-        Ok(BL_CLIENT.player().get_by_discord(user_id).await?)
     }
 
     pub(crate) async fn restore(&self, values: Vec<BotPlayer>) -> Result<()> {
