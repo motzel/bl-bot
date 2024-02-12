@@ -229,6 +229,7 @@ pub struct PlayerProfileSettings {
 #[serde(rename_all = "camelCase")]
 pub struct Score {
     pub id: u32,
+    pub player_id: String,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub accuracy: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]

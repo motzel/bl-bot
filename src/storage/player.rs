@@ -10,6 +10,7 @@ use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
 use crate::BL_CLIENT;
 
 use super::Result;
+use crate::storage::player_scores::PlayerScoresRepository;
 use tokio_util::sync::CancellationToken;
 
 pub(crate) struct PlayerRepository {
@@ -199,6 +200,7 @@ impl<'a> PlayerRepository {
 
     pub(crate) async fn update_all_players_stats(
         &self,
+        player_scores_repository: &Arc<PlayerScoresRepository>,
         force_scores_download: bool,
         token: Option<CancellationToken>,
     ) -> Result<Vec<BotPlayer>> {
@@ -218,7 +220,7 @@ impl<'a> PlayerRepository {
             }
 
             if let Ok(player) = self
-                .update_player_stats(&player, force_scores_download)
+                .update_player_stats(player_scores_repository, &player, force_scores_download)
                 .await
             {
                 ret.push(player);
@@ -236,6 +238,7 @@ impl<'a> PlayerRepository {
 
     pub(crate) async fn update_player_stats(
         &self,
+        player_scores_repository: &Arc<PlayerScoresRepository>,
         player: &BotPlayer,
         force_scores_download: bool,
     ) -> Result<BotPlayer> {
@@ -258,7 +261,9 @@ impl<'a> PlayerRepository {
             bl_player.name
         );
 
-        let scores_stats = fetch_ranked_scores_stats(player, force_scores_download).await?;
+        let scores_stats =
+            fetch_ranked_scores_stats(player_scores_repository, player, force_scores_download)
+                .await?;
 
         match self
             .storage

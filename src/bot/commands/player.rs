@@ -536,9 +536,10 @@ pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
     say_without_ping(ctx, "Please wait...", true).await?;
 
     let players_repository = &ctx.data().players_repository;
+    let player_scores_repository = &ctx.data().player_scores_repository;
 
     players_repository
-        .update_all_players_stats(true, None)
+        .update_all_players_stats(player_scores_repository, true, None)
         .await?;
 
     say_without_ping(ctx, "All players scores refreshed.", true).await?;
