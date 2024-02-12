@@ -15,10 +15,10 @@ use serenity::{http, model::id::GuildId};
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::{BlContext, Client};
 use crate::bot::commands::{
-    cmd_add_auto_role, cmd_clan_invitation, cmd_export, cmd_import, cmd_link, cmd_profile,
-    cmd_refresh_scores, cmd_register, cmd_remove_auto_role, cmd_replay, cmd_set_clan_invitation,
-    cmd_set_clan_invitation_code, cmd_set_log_channel, cmd_set_profile_verification,
-    cmd_show_settings, cmd_unlink,
+    cmd_add_auto_role, cmd_clan_invitation, cmd_clan_wars_playlist, cmd_export, cmd_import,
+    cmd_link, cmd_profile, cmd_refresh_scores, cmd_register, cmd_remove_auto_role, cmd_replay,
+    cmd_set_clan_invitation, cmd_set_clan_invitation_code, cmd_set_log_channel,
+    cmd_set_profile_verification, cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
 use crate::config::Settings;
@@ -112,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cmd_set_clan_invitation(),
             cmd_set_clan_invitation_code(),
             cmd_clan_invitation(),
+            cmd_clan_wars_playlist(),
             // cmd_invite_player(),
             cmd_register(),
             cmd_export(),

@@ -72,7 +72,7 @@ pub struct Score {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub total_score: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub average_rank: u32,
+    pub average_rank: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub average_accuracy: f64,
     #[serde(with = "ts_seconds")]
