@@ -1,3 +1,4 @@
+#![allow(clippy::blocks_in_conditions)]
 use std::sync::Arc;
 
 use log::{debug, trace};

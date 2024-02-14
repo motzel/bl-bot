@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+#![allow(clippy::blocks_in_conditions)]
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;

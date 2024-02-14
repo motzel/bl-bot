@@ -543,7 +543,7 @@ pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
 fn add_replay_components<'a>(
     c: &'a mut CreateComponents,
     player_scores: &BlList<Score>,
-    selected_ids: &Vec<String>,
+    selected_ids: &[String],
 ) -> &'a mut CreateComponents {
     c.create_action_row(|r| {
         r.create_select_menu(|m| {
