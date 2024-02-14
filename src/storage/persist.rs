@@ -394,7 +394,7 @@ where
         self.name.clone()
     }
 
-    async fn load_index(&self) -> Result<Vec<K>> {
+    pub(super) async fn load_index(&self) -> Result<Vec<K>> {
         let storage_name = self.get_storage_index_name();
 
         trace!(
@@ -424,7 +424,7 @@ where
         }
     }
 
-    async fn save_index(&self, keys: Vec<K>) -> Result<()> {
+    pub(super) async fn save_index(&self, keys: Vec<K>) -> Result<()> {
         let storage_name = self.get_storage_index_name();
 
         trace!(
@@ -451,7 +451,7 @@ where
         }
     }
 
-    async fn load(&self, key: &K) -> Result<V> {
+    pub(super) async fn load(&self, key: &K) -> Result<V> {
         let storage_name = self.get_storage_item_name(key);
 
         trace!(
@@ -485,7 +485,7 @@ where
         }
     }
 
-    async fn save(&self, key: K, value: V) -> Result<V> {
+    pub(super) async fn save(&self, key: K, value: V) -> Result<V> {
         let storage_name = self.get_storage_item_name(&key);
 
         trace!(

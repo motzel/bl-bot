@@ -1,25 +1,20 @@
 use std::borrow::Cow;
 use std::convert::From;
-use std::sync::Arc;
-
-use log::{debug, error, info, trace, warn};
-use poise::serenity_prelude::{
-    AttachmentType, CreateComponents, GuildId, MessageComponentInteraction, User, UserId,
-};
-use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 
 use bytes::Bytes;
+use log::{error, info, trace, warn};
+use poise::serenity_prelude::{AttachmentType, CreateComponents, GuildId, User, UserId};
+use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
-use crate::beatleader::rating::Ratings;
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
 use crate::bot::beatleader::{
-    fetch_rating, fetch_scores, MapRating, MapRatingModifier, Player as BotPlayer, Player, Score,
+    fetch_player_from_bl_by_user_id, fetch_rating, fetch_scores, MapRating, MapRatingModifier,
+    Player as BotPlayer, Player, Score,
 };
 use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::bot::get_binary_file;
 use crate::embed::{embed_profile, embed_score};
-use crate::storage::player::PlayerRepository;
 use crate::storage::PersistError;
 use crate::{Context, Error};
 
@@ -356,9 +351,7 @@ pub(crate) async fn link_user_if_needed(
                 selected_user.id
             );
 
-            if let Ok(bl_player) =
-                PlayerRepository::fetch_player_from_bl_by_user_id(&selected_user.id).await
-            {
+            if let Ok(bl_player) = fetch_player_from_bl_by_user_id(&selected_user.id).await {
                 trace!(
                     "User {} is linked on the BL website, player name: {}. Trying to link...",
                     selected_user.id,
@@ -536,9 +529,10 @@ pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
     say_without_ping(ctx, "Please wait...", true).await?;
 
     let players_repository = &ctx.data().players_repository;
+    let player_scores_repository = &ctx.data().player_scores_repository;
 
     players_repository
-        .update_all_players_stats(true, None)
+        .update_all_players_stats(player_scores_repository, true, None)
         .await?;
 
     say_without_ping(ctx, "All players scores refreshed.", true).await?;

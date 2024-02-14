@@ -4,5 +4,6 @@ pub(crate) mod guild;
 pub(crate) mod persist;
 pub(crate) mod player;
 pub(crate) mod player_oauth_token;
+pub(crate) mod player_scores;
 
 type Result<T> = std::result::Result<T, PersistError>;

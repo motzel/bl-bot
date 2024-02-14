@@ -13,12 +13,12 @@ use poise::serenity_prelude::{AttachmentType, SerenityError};
 use serenity::{http, model::id::GuildId};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
-use crate::beatleader::Client;
+use crate::beatleader::{BlContext, Client};
 use crate::bot::commands::{
-    cmd_add_auto_role, cmd_clan_invitation, cmd_export, cmd_import, cmd_link, cmd_profile,
-    cmd_refresh_scores, cmd_register, cmd_remove_auto_role, cmd_replay, cmd_set_clan_invitation,
-    cmd_set_clan_invitation_code, cmd_set_log_channel, cmd_set_profile_verification,
-    cmd_show_settings, cmd_unlink,
+    cmd_add_auto_role, cmd_clan_invitation, cmd_clan_wars_playlist, cmd_export, cmd_import,
+    cmd_link, cmd_profile, cmd_refresh_scores, cmd_register, cmd_remove_auto_role, cmd_replay,
+    cmd_set_clan_invitation, cmd_set_clan_invitation_code, cmd_set_log_channel,
+    cmd_set_profile_verification, cmd_show_settings, cmd_unlink,
 };
 use crate::bot::{GuildOAuthTokenRepository, GuildSettings, UserRoleChanges};
 use crate::config::Settings;
@@ -28,6 +28,7 @@ use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 
 use crate::bot::commands::player::get_player_embed;
+use crate::storage::player_scores::PlayerScoresRepository;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -49,6 +50,7 @@ lazy_static! {
 pub(crate) struct Data {
     guild_settings_repository: Arc<GuildSettingsRepository>,
     players_repository: Arc<PlayerRepository>,
+    player_scores_repository: Arc<PlayerScoresRepository>,
     player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     oauth_credentials: Option<OAuthAppCredentials>,
 }
@@ -110,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cmd_set_clan_invitation(),
             cmd_set_clan_invitation_code(),
             cmd_clan_invitation(),
+            cmd_clan_wars_playlist(),
             // cmd_invite_player(),
             cmd_register(),
             cmd_export(),
@@ -142,6 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let persist_arc = Arc::new(persist);
                 let persist_arc2 = Arc::clone(&persist_arc);
                 let persist_arc3 = Arc::clone(&persist_arc);
+                let persist_arc4 = Arc::clone(&persist_arc);
 
                 info!("Initializing player OAuth tokens repository...");
                 let player_oauth_token_repository =
@@ -167,6 +171,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     players_repository.len().await
                 );
 
+                info!("Initializing players scores repository...");
+                let player_scores_repository =
+                    Arc::new(PlayerScoresRepository::new(persist_arc4, BlContext::General).await.unwrap());
+                info!(
+                    "Players scores repository initialized.",
+                );
+
                 info!("Setting bot status...");
                 ctx.set_presence(
                     Some(serenity::model::gateway::Activity::playing("Beat Leader")),
@@ -179,6 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let player_oauth_token_repository_worker = Arc::clone(&player_oauth_token_repository);
                 let guild_settings_repository_worker = Arc::clone(&guild_settings_repository);
                 let players_repository_worker = Arc::clone(&players_repository);
+                let player_scores_repository_worker = Arc::clone(&player_scores_repository);
 
                 let oauth_credentials_clone = oauth_credentials.clone();
 
@@ -242,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
 
                         if let Ok(bot_players) =
-                            players_repository_worker.update_all_players_stats(false, Some(cloned_token.clone())).await
+                            players_repository_worker.update_all_players_stats(&player_scores_repository_worker, false, Some(cloned_token.clone())).await
                         {
                             info!("Updating players roles ({})...", bot_players.len());
 
@@ -406,6 +418,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     guild_settings_repository,
                     players_repository,
                     player_oauth_token_repository,
+                    player_scores_repository,
                     oauth_credentials,
                 })
             })

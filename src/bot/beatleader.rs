@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Display;
+use std::sync::Arc;
 
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
@@ -16,9 +17,10 @@ use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
 use crate::beatleader::pp::calculate_pp_boundary;
-use crate::beatleader::rating::{ModifierRating, Ratings};
+use crate::beatleader::rating::Ratings;
 use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
+use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
 
@@ -211,6 +213,7 @@ impl Player {
 #[serde(rename_all = "camelCase")]
 pub struct Score {
     pub id: u32,
+    pub player_id: String,
     pub accuracy: f64,
     pub fc_accuracy: f64,
     pub acc_left: f64,
@@ -256,6 +259,7 @@ impl From<BlScore> for Score {
 
         Score {
             id: bl_score.id,
+            player_id: bl_score.player_id,
             accuracy: bl_score.accuracy * 100.0,
             fc_accuracy: bl_score.fc_accuracy * 100.0,
             acc_left: bl_score.acc_left,
@@ -439,37 +443,19 @@ impl From<BlList<BlScore>> for BlList<Score> {
     }
 }
 
-pub(crate) async fn fetch_scores(
-    player_id: &PlayerId,
-    params: &[PlayerScoreParam],
-) -> Result<BlList<Score>, BlError> {
-    Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
+pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer, BlError> {
+    BL_CLIENT.player().get(player_id).await
 }
 
-pub(crate) async fn fetch_rating(
-    hash: &str,
-    mode_name: &str,
-    value: u32,
-) -> Result<Ratings, BlError> {
-    BL_CLIENT.ratings().get(hash, mode_name, value).await
+pub(crate) async fn fetch_player_from_bl_by_user_id(user_id: &UserId) -> Result<BlPlayer, BlError> {
+    BL_CLIENT.player().get_by_discord(user_id).await
 }
 
-pub(crate) async fn fetch_clan(tag: &str) -> Result<Clan, BlError> {
-    BL_CLIENT.clan().by_tag(tag).await
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct ScoreStats {
-    pub last_scores_fetch: DateTime<Utc>,
-    pub last_ranked_paused_at: Option<DateTime<Utc>>,
-    pub top_stars: f64,
-    pub plus_1pp: f64,
-}
-
-pub(crate) async fn fetch_ranked_scores_stats(
+pub(crate) async fn fetch_all_player_scores(
     player: &Player,
+    bl_context: BlContext,
     force: bool,
-) -> Result<Option<ScoreStats>, BlError> {
+) -> Result<Option<Vec<Score>>, BlError> {
     info!("Fetching all ranked scores of {}...", player.name);
 
     if !force
@@ -498,18 +484,12 @@ pub(crate) async fn fetch_ranked_scores_stats(
         None => vec![],
     };
 
-    let mut player_scores = Vec::<f64>::with_capacity(player.ranked_play_count as usize);
-
-    let mut last_scores_fetch;
-    let mut top_stars = 0.0;
-    let mut last_ranked_paused_at: Option<DateTime<Utc>> = None;
+    let mut player_scores = Vec::<Score>::with_capacity(player.ranked_play_count as usize);
 
     let mut page = 1;
     let mut page_count = 1;
     'outer: loop {
         trace!("Fetching scores page {} / {}...", page, page_count);
-
-        last_scores_fetch = Utc::now();
 
         match fetch_scores(
             &player.id,
@@ -520,6 +500,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
                     PlayerScoreParam::Sort(PlayerScoreSort::Date),
                     PlayerScoreParam::Order(SortOrder::Ascending),
                     PlayerScoreParam::Type(MapType::Ranked),
+                    PlayerScoreParam::Context(bl_context.clone()),
                 ],
                 &time_param[..],
             ]
@@ -538,8 +519,6 @@ pub(crate) async fn fetch_ranked_scores_stats(
                     + u32::from(scores_page.total % ITEMS_PER_PAGE != 0);
 
                 for score in scores_page.data {
-                    player_scores.push(score.pp);
-
                     if score.modifiers.contains("NF")
                         || score.modifiers.contains("NB")
                         || score.modifiers.contains("NO")
@@ -549,16 +528,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
                         continue;
                     }
 
-                    if top_stars < score.difficulty_rating.stars {
-                        top_stars = score.difficulty_rating.stars;
-                    }
-
-                    if score.pauses > 0
-                        && (last_ranked_paused_at.is_none()
-                            || last_ranked_paused_at.unwrap() < score.timepost)
-                    {
-                        last_ranked_paused_at = Some(score.timepost);
-                    }
+                    player_scores.push(score);
                 }
             }
             Err(e) => {
@@ -573,12 +543,89 @@ pub(crate) async fn fetch_ranked_scores_stats(
         }
     }
 
-    let plus_1pp = calculate_pp_boundary(&mut player_scores, 1.0);
-
     info!("All ranked scores of {} fetched.", player.name);
 
+    Ok(Some(player_scores))
+}
+
+pub(crate) async fn fetch_scores(
+    player_id: &PlayerId,
+    params: &[PlayerScoreParam],
+) -> Result<BlList<Score>, BlError> {
+    Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
+}
+
+pub(crate) async fn fetch_rating(
+    hash: &str,
+    mode_name: &str,
+    value: u32,
+) -> Result<Ratings, BlError> {
+    BL_CLIENT.ratings().get(hash, mode_name, value).await
+}
+
+pub(crate) async fn fetch_clan(tag: &str) -> Result<Clan, BlError> {
+    BL_CLIENT.clan().by_tag(tag).await
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ScoreStats {
+    pub last_scores_fetch: DateTime<Utc>,
+    pub last_ranked_paused_at: Option<DateTime<Utc>>,
+    pub top_stars: f64,
+    pub plus_1pp: f64,
+}
+
+pub(crate) async fn fetch_ranked_scores_stats(
+    player_scores_repository: &Arc<PlayerScoresRepository>,
+    player: &Player,
+    force: bool,
+) -> Result<Option<ScoreStats>, BlError> {
+    info!("Updating ranked scores stats of {}...", player.name);
+
+    let player_scores = player_scores_repository
+        .update_player_scores(player, force)
+        .await;
+    if let Err(err) = player_scores {
+        return Err(BlError::Db(err.to_string()));
+    }
+
+    let player_scores = player_scores.unwrap();
+    if player_scores.is_none() {
+        info!("No scores, skipping.",);
+
+        return Ok(None);
+    }
+
+    let player_scores = player_scores.unwrap();
+
+    let mut pps = player_scores
+        .scores
+        .iter()
+        .map(|score| score.pp)
+        .collect::<Vec<f64>>();
+
+    let top_stars = player_scores.scores.iter().fold(0.0, |acc, score| {
+        if acc < score.difficulty_rating.stars {
+            score.difficulty_rating.stars
+        } else {
+            acc
+        }
+    });
+
+    let last_ranked_paused_at = player_scores.scores.iter().fold(None, |acc, score| {
+        if score.pauses > 0 && (acc.is_none() || acc.unwrap() < score.timepost) {
+            Some(score.timepost)
+        } else {
+            acc
+        }
+    });
+
+    let plus_1pp = calculate_pp_boundary(&mut pps, 1.0);
+
+    info!("Ranked scores stats of {} updated.", player.name);
+
     Ok(Some(ScoreStats {
-        last_scores_fetch,
+        last_scores_fetch: Utc::now(),
         top_stars,
         last_ranked_paused_at,
         plus_1pp,

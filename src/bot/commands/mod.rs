@@ -1,6 +1,7 @@
 pub(crate) use backup::{cmd_export, cmd_import};
 pub(crate) use clan::{
-    cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
+    cmd_clan_invitation, cmd_clan_wars_playlist, cmd_invite_player, cmd_set_clan_invitation,
+    cmd_set_clan_invitation_code,
 };
 pub(crate) use guild::{
     cmd_add_auto_role, cmd_remove_auto_role, cmd_set_log_channel, cmd_set_profile_verification,

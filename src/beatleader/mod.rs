@@ -14,7 +14,7 @@ use serde::de::DeserializeOwned;
 
 use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
@@ -232,11 +232,16 @@ impl ToString for SortOrder {
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum BlContext {
+    #[default]
+    #[serde(rename = "general")]
     General,
+    #[serde(rename = "nomods")]
     NoModifiers,
+    #[serde(rename = "nopause")]
     NoPauses,
+    #[serde(rename = "golf")]
     Golf,
 }
 
