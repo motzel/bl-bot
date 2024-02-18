@@ -2,10 +2,10 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::Deserialize;
-use serde_with::{serde_as, DefaultOnNull};
+use serde_with::{serde_as, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
-use crate::beatleader::player::{Leaderboard, Player as BlPlayer, PlayerId};
+use crate::beatleader::player::{Leaderboard, Player, PlayerId};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, BlContext, Client, List, MetaData, QueryParam, Result,
     SortOrder,
@@ -83,6 +83,89 @@ pub struct ClanMap {
 
 impl BlApiResponse for ClanMap {}
 
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanRankingParam {
+    Page(u32),
+    Count(u32),
+}
+
+impl QueryParam for ClanRankingParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            ClanRankingParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanRankingParam::Count(count) => ("count".to_owned(), count.to_string()),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClanPlayer {
+    pub id: PlayerId,
+    pub name: String,
+    pub avatar: String,
+    pub country: String,
+    pub rank: u32,
+    pub country_rank: u32,
+    pub pp: f64,
+}
+
+#[serde_as]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClanRankingScore {
+    pub id: u32,
+    pub player_id: String,
+    pub player: ClanPlayer,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub accuracy: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub pp: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub rank: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub modifiers: String,
+    #[serde_as(as = "TimestampSeconds<String>")]
+    pub timeset: DateTime<Utc>,
+    #[serde(with = "ts_seconds")]
+    pub timepost: DateTime<Utc>,
+}
+
+#[serde_as]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlApiClanRankingResponse {
+    pub id: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub clan: Clan,
+    #[serde(with = "ts_seconds")]
+    pub last_update_time: DateTime<Utc>,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub leaderboard: Leaderboard,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub associated_scores_count: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub associated_scores: Vec<ClanRankingScore>,
+}
+
+impl BlApiResponse for BlApiClanRankingResponse {}
+
+impl From<BlApiClanRankingResponse> for List<ClanRankingScore> {
+    fn from(value: BlApiClanRankingResponse) -> Self {
+        Self {
+            data: value
+                .associated_scores
+                .into_iter()
+                .map(|v| v.into())
+                .collect(),
+            page: 1,
+            items_per_page: 100,
+            total: value.associated_scores_count,
+        }
+    }
+}
+
 impl<'a> ClanResource<'a> {
     pub fn new(client: &'a Client) -> Self {
         Self { client }
@@ -113,6 +196,24 @@ impl<'a> ClanResource<'a> {
             .get_json::<BlApiListResponse<ClanMap>, List<ClanMap>, ClanMapsParam>(
                 Method::GET,
                 &format!("/clan/{}/maps", tag),
+                params,
+            )
+            .await
+    }
+
+    pub async fn scores(
+        &self,
+        leaderboard_id: &str,
+        clan_ranking_id: u32,
+        params: &[ClanRankingParam],
+    ) -> Result<List<ClanRankingScore>> {
+        self.client
+            .get_json::<BlApiClanRankingResponse, List<ClanRankingScore>, ClanRankingParam>(
+                Method::GET,
+                &format!(
+                    "/leaderboard/clanRankings/{}/{}",
+                    leaderboard_id, clan_ranking_id
+                ),
                 params,
             )
             .await
@@ -163,14 +264,14 @@ impl BlApiResponse for BlApiClan {}
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct BlApiClanContainer {
-    pub data: Vec<BlPlayer>,
+    pub data: Vec<Player>,
     pub metadata: MetaData,
     pub container: BlApiClan,
 }
 
 impl BlApiResponse for BlApiClanContainer {}
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Clan {
     pub id: u32,
