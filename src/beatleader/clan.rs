@@ -154,11 +154,7 @@ impl BlApiResponse for BlApiClanRankingResponse {}
 impl From<BlApiClanRankingResponse> for List<ClanRankingScore> {
     fn from(value: BlApiClanRankingResponse) -> Self {
         Self {
-            data: value
-                .associated_scores
-                .into_iter()
-                .map(|v| v.into())
-                .collect(),
+            data: value.associated_scores,
             page: 1,
             items_per_page: 100,
             total: value.associated_scores_count,

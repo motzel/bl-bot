@@ -60,6 +60,42 @@ pub(crate) async fn cmd_set_log_channel(
     }
 }
 
+/// Set or unset clan wars maps channel
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-wars-maps-channel",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only
+)]
+pub(crate) async fn cmd_set_clan_wars_maps_channel(
+    ctx: Context<'_>,
+    #[description = "The channel where the bot will post maps to play within clan wars Leave empty to disable."]
+    channel: Option<ChannelId>,
+) -> Result<(), Error> {
+    let guild_id = get_guild_id(ctx, true).await?;
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_wars_maps_channel(&guild_id, channel)
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
 /// Set profile verification requirement
 #[poise::command(
     slash_command,

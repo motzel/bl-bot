@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 use crate::file_storage::PersistInstance;
@@ -73,6 +74,71 @@ impl<'a> GuildSettingsRepository {
             .await?
         {
             debug!("Bot channel for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn set_clan_wars_maps_channel(
+        &self,
+        guild_id: &GuildId,
+        channel_id: Option<ChannelId>,
+    ) -> Result<GuildSettings> {
+        trace!("Setting clan wars maps channel for guild {}...", guild_id);
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.set_clan_wars_maps_channel(channel_id),
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.set_clan_wars_maps_channel(channel_id);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            debug!("Clan wars maps channel for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(PersistError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub async fn set_clan_wars_posted_at(
+        &self,
+        guild_id: &GuildId,
+        posted_at: DateTime<Utc>,
+    ) -> Result<GuildSettings> {
+        trace!(
+            "Setting clan wars maps posted time for guild {}...",
+            guild_id
+        );
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.set_clan_wars_posted_at(posted_at),
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.set_clan_wars_posted_at(posted_at);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            debug!("Clan wars maps posted time for guild {} set.", guild_id);
 
             Ok(guild_settings)
         } else {
