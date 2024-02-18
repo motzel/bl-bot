@@ -17,7 +17,7 @@ pub struct ClanResource<'a> {
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub enum ClanScoreSort {
+pub enum ClanMapsSort {
     Date,
     Pp,
     Acc,
@@ -28,32 +28,32 @@ pub enum ClanScoreSort {
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub enum ClanScoreParam {
+pub enum ClanMapsParam {
     Page(u32),
     Count(u32),
-    Sort(ClanScoreSort),
+    Sort(ClanMapsSort),
     Order(SortOrder),
     Context(BlContext),
 }
 
-impl QueryParam for ClanScoreParam {
+impl QueryParam for ClanMapsParam {
     fn as_query_param(&self) -> (String, String) {
         match self {
-            ClanScoreParam::Page(page) => ("page".to_owned(), page.to_string()),
-            ClanScoreParam::Count(count) => ("count".to_owned(), count.to_string()),
-            ClanScoreParam::Sort(field) => (
+            ClanMapsParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanMapsParam::Count(count) => ("count".to_owned(), count.to_string()),
+            ClanMapsParam::Sort(field) => (
                 "sortBy".to_owned(),
                 match field {
-                    ClanScoreSort::Date => "date".to_owned(),
-                    ClanScoreSort::Pp => "pp".to_owned(),
-                    ClanScoreSort::Acc => "acc".to_owned(),
-                    ClanScoreSort::Rank => "rank".to_owned(),
-                    ClanScoreSort::ToHold => "tohold".to_owned(),
-                    ClanScoreSort::ToConquer => "toconquer".to_owned(),
+                    ClanMapsSort::Date => "date".to_owned(),
+                    ClanMapsSort::Pp => "pp".to_owned(),
+                    ClanMapsSort::Acc => "acc".to_owned(),
+                    ClanMapsSort::Rank => "rank".to_owned(),
+                    ClanMapsSort::ToHold => "tohold".to_owned(),
+                    ClanMapsSort::ToConquer => "toconquer".to_owned(),
                 },
             ),
-            ClanScoreParam::Order(order) => ("order".to_owned(), order.to_string()),
-            ClanScoreParam::Context(context) => {
+            ClanMapsParam::Order(order) => ("order".to_owned(), order.to_string()),
+            ClanMapsParam::Context(context) => {
                 ("leaderboardContext".to_owned(), context.to_string())
             }
         }
@@ -63,7 +63,7 @@ impl QueryParam for ClanScoreParam {
 #[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Score {
+pub struct ClanMap {
     pub id: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub pp: f64,
@@ -81,7 +81,7 @@ pub struct Score {
     pub leaderboard: Leaderboard,
 }
 
-impl BlApiResponse for Score {}
+impl BlApiResponse for ClanMap {}
 
 impl<'a> ClanResource<'a> {
     pub fn new(client: &'a Client) -> Self {
@@ -108,9 +108,9 @@ impl<'a> ClanResource<'a> {
             .await
     }
 
-    pub async fn maps(&self, tag: &str, params: &[ClanScoreParam]) -> Result<List<Score>> {
+    pub async fn maps(&self, tag: &str, params: &[ClanMapsParam]) -> Result<List<ClanMap>> {
         self.client
-            .get_json::<BlApiListResponse<Score>, List<Score>, ClanScoreParam>(
+            .get_json::<BlApiListResponse<ClanMap>, List<ClanMap>, ClanMapsParam>(
                 Method::GET,
                 &format!("/clan/{}/maps", tag),
                 params,

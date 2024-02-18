@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::clan::Clan;
-use crate::beatleader::player::{DifficultyStatus, Duration, MapType, PlayerId};
+use crate::beatleader::player::{DifficultyStatus, Duration, LeaderboardId, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
@@ -227,7 +227,7 @@ pub struct Score {
     pub pauses: u32,
     pub full_combo: bool,
     pub modifiers: String,
-    pub leaderboard_id: String,
+    pub leaderboard_id: LeaderboardId,
     pub song_name: String,
     pub song_sub_name: String,
     pub song_mapper: String,
