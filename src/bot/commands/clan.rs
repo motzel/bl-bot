@@ -7,7 +7,7 @@ use std::sync::Arc;
 use poise::serenity_prelude::{AttachmentType, User};
 use serde::{Deserialize, Serialize};
 
-use crate::beatleader::clan::{Clan, ClanScoreParam, ClanScoreSort, Score};
+use crate::beatleader::clan::{Clan, ClanMap, ClanMapsParam, ClanMapsSort};
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::{BlContext, SortOrder};
 use crate::bot::beatleader::fetch_clan;
@@ -289,7 +289,7 @@ impl From<BlCommandPlayDate> for Option<DateTime<Utc>> {
 }
 
 #[derive(Debug, poise::ChoiceParameter, Clone, Default)]
-pub(crate) enum BlCommandClanSortParam {
+pub(crate) enum BlCommandClanMapSortParam {
     #[default]
     #[name = "To Conquer"]
     ToConquer,
@@ -297,20 +297,20 @@ pub(crate) enum BlCommandClanSortParam {
     ToHold,
 }
 
-impl From<BlCommandClanSortParam> for ClanScoreParam {
-    fn from(value: BlCommandClanSortParam) -> Self {
+impl From<BlCommandClanMapSortParam> for ClanMapsParam {
+    fn from(value: BlCommandClanMapSortParam) -> Self {
         match value {
-            BlCommandClanSortParam::ToConquer => ClanScoreParam::Sort(ClanScoreSort::ToConquer),
-            BlCommandClanSortParam::ToHold => ClanScoreParam::Sort(ClanScoreSort::ToHold),
+            BlCommandClanMapSortParam::ToConquer => ClanMapsParam::Sort(ClanMapsSort::ToConquer),
+            BlCommandClanMapSortParam::ToHold => ClanMapsParam::Sort(ClanMapsSort::ToHold),
         }
     }
 }
 
-impl BlCommandClanSortParam {
+impl BlCommandClanMapSortParam {
     fn to_playlist_type_name(&self) -> String {
         match self {
-            BlCommandClanSortParam::ToConquer => "to conquer".to_owned(),
-            BlCommandClanSortParam::ToHold => "to hold".to_owned(),
+            BlCommandClanMapSortParam::ToConquer => "to conquer".to_owned(),
+            BlCommandClanMapSortParam::ToHold => "to hold".to_owned(),
         }
     }
 }
@@ -341,7 +341,7 @@ pub(crate) struct Playlist {
 }
 
 impl Playlist {
-    pub fn songs_from_scores(scores: Vec<Score>) -> Vec<PlaylistItem> {
+    pub fn songs_from_scores(scores: Vec<ClanMap>) -> Vec<PlaylistItem> {
         scores
             .into_iter()
             .fold(
@@ -393,14 +393,14 @@ impl Default for Playlist {
 pub(crate) async fn cmd_clan_wars_playlist(
     ctx: Context<'_>,
     #[description = "Playlist type (default: To Conquer)"] playlist_type: Option<
-        BlCommandClanSortParam,
+        BlCommandClanMapSortParam,
     >,
     #[description = "Last played (default: Never)"] played: Option<BlCommandPlayDate>,
     #[description = "Maps count (max: 100, default: 100)"] count: Option<u8>,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let playlist_type_filter = playlist_type.unwrap_or(BlCommandClanSortParam::ToConquer);
+    let playlist_type_filter = playlist_type.unwrap_or(BlCommandClanMapSortParam::ToConquer);
     let played_filter: Option<DateTime<Utc>> = played.unwrap_or(BlCommandPlayDate::Never).into();
     let count = match count {
         None => 100,
@@ -494,10 +494,10 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 .maps(
                     "GENX",
                     &[
-                        ClanScoreParam::Count(100),
-                        ClanScoreParam::Page(1),
-                        ClanScoreParam::Order(SortOrder::Descending),
-                        ClanScoreParam::Context(BlContext::General),
+                        ClanMapsParam::Count(100),
+                        ClanMapsParam::Page(1),
+                        ClanMapsParam::Order(SortOrder::Descending),
+                        ClanMapsParam::Context(BlContext::General),
                         playlist_type_filter.clone().into(),
                     ],
                 )

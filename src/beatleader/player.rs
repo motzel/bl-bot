@@ -274,12 +274,14 @@ pub struct Score {
 
 impl BlApiResponse for Score {}
 
+pub type LeaderboardId = String;
+
 #[serde_as]
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Leaderboard {
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub id: String,
+    pub id: LeaderboardId,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub song: Song,
     #[serde_as(deserialize_as = "DefaultOnNull")]

@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::clan::Clan;
-use crate::beatleader::player::{DifficultyStatus, Duration, MapType, PlayerId};
+use crate::beatleader::player::{DifficultyStatus, Duration, LeaderboardId, MapType, PlayerId};
 use crate::beatleader::player::{
     Player as BlPlayer, PlayerScoreParam, PlayerScoreSort, Score as BlScore,
 };
-use crate::beatleader::pp::calculate_pp_boundary;
+use crate::beatleader::pp::{calculate_pp_boundary, WEIGHT_COEFFICIENT};
 use crate::beatleader::rating::Ratings;
 use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
 use crate::bot::{Metric, PlayerMetricValue};
@@ -227,7 +227,7 @@ pub struct Score {
     pub pauses: u32,
     pub full_combo: bool,
     pub modifiers: String,
-    pub leaderboard_id: String,
+    pub leaderboard_id: LeaderboardId,
     pub song_name: String,
     pub song_sub_name: String,
     pub song_mapper: String,
@@ -620,7 +620,7 @@ pub(crate) async fn fetch_ranked_scores_stats(
         }
     });
 
-    let plus_1pp = calculate_pp_boundary(&mut pps, 1.0);
+    let plus_1pp = calculate_pp_boundary(WEIGHT_COEFFICIENT, &mut pps, 1.0);
 
     info!("Ranked scores stats of {} updated.", player.name);
 
