@@ -33,7 +33,7 @@ pub(crate) async fn cmd_set_clan_invitation(
     ctx: Context<'_>,
     // #[description = "Allow users to self-invite. Default: true"] self_invite: Option<bool>,
 ) -> Result<(), Error> {
-    if ctx.data().oauth_credentials.is_none() {
+    if ctx.data().oauth_credentials().is_none() {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
         return Ok(());
     }
@@ -144,7 +144,7 @@ pub(crate) async fn cmd_set_clan_invitation(
     );
 
     let oauth_client = BL_CLIENT.with_oauth(
-        ctx.data().oauth_credentials.as_ref().unwrap().clone(),
+        ctx.data().oauth_credentials().as_ref().unwrap().clone(),
         guild_oauth_token_repository,
     );
 
@@ -170,7 +170,7 @@ pub(crate) async fn cmd_set_clan_invitation_code(
     ctx: Context<'_>,
     #[description = "BL authorization code"] auth_code: String,
 ) -> Result<(), Error> {
-    if ctx.data().oauth_credentials.is_none() {
+    if ctx.data().oauth_credentials().is_none() {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
         return Ok(());
     }
@@ -204,7 +204,7 @@ pub(crate) async fn cmd_set_clan_invitation_code(
         Arc::clone(&ctx.data().player_oauth_token_repository),
     );
     let oauth_client = BL_CLIENT.with_oauth(
-        ctx.data().oauth_credentials.as_ref().unwrap().clone(),
+        ctx.data().oauth_credentials().unwrap().clone(),
         guild_oauth_token_repository,
     );
 
@@ -604,7 +604,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
 pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
 
-    if ctx.data().oauth_credentials.is_none() {
+    if ctx.data().oauth_credentials().is_none() {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
         return Ok(());
     }
@@ -713,7 +713,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 Arc::clone(&ctx.data().player_oauth_token_repository),
             );
             let oauth_client = BL_CLIENT.with_oauth(
-                ctx.data().oauth_credentials.as_ref().unwrap().clone(),
+                ctx.data().oauth_credentials().unwrap().clone(),
                 guild_oauth_token_repository,
             );
 

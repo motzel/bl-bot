@@ -27,6 +27,7 @@ pub(crate) struct Settings {
     pub refresh_interval: u64,
     pub storage_path: String,
     pub clan_wars_interval: u64,
+    pub clan_wars_maps_count: u16,
     pub oauth: Option<OAuthSettings>,
 }
 
@@ -38,6 +39,7 @@ impl Settings {
             .set_default("refresh_interval", 600)?
             .set_default("storage_path", "./.storage")?
             .set_default("clan_wars_interval", 360)?
+            .set_default("clan_wars_maps_count", 30)?
             .add_source(File::with_name("config").required(false))
             .add_source(File::with_name("config.dev").required(false))
             .add_source(Environment::with_prefix("BLBOT"))
@@ -54,6 +56,12 @@ impl Settings {
                 if config.clan_wars_interval < 30 {
                     return Err(ConfigError::Message(
                         "CLAN_WARS_INTERVAL should be at least 30 minutes".to_owned(),
+                    ));
+                }
+
+                if config.clan_wars_maps_count > 100 {
+                    return Err(ConfigError::Message(
+                        "CLAN_WARS_MAPS_COUNT should not be greater than 100".to_owned(),
                     ));
                 }
 

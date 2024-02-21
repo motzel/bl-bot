@@ -29,5 +29,7 @@ impl RamReporter {
                 _ = tokio::time::sleep(interval) => {}
             }
         }
+
+        warn!("RAM reporter task shut down.");
     }
 }

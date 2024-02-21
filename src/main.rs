@@ -60,7 +60,7 @@ async fn main() -> Result<(), Error> {
             .await
             .shutdown_all()
             .await;
-        info!("Discord client shut down.");
+        warn!("Discord client shut down.");
     });
 
     #[cfg(unix)]
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Error> {
                     .await
                     .shutdown_all()
                     .await;
-                info!("Discord client shut down.");
+                warn!("Discord client shut down.");
             }
             _ = sighup.recv() => {
                 warn!("SIGHUP received, shutting down...");
@@ -92,7 +92,7 @@ async fn main() -> Result<(), Error> {
                     .await
                     .shutdown_all()
                     .await;
-                info!("Discord client shut down.");
+                warn!("Discord client shut down.");
             }
             _ = sigterm.recv() => {
                 warn!("SIGTERM received, shutting down...");
@@ -104,7 +104,7 @@ async fn main() -> Result<(), Error> {
                     .await
                     .shutdown_all()
                     .await;
-                info!("Discord client shut down.");
+                warn!("Discord client shut down.");
             }
         }
     });

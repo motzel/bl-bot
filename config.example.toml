@@ -2,6 +2,7 @@ discord_token = "the contents of my discord token"
 refresh_interval = 600 # seconds
 storage_path = "./.storage"
 clan_wars_interval = 360 # minutes
+clan_wars_maps_count = 30
 
 # uncomment to enable oauth features (clan invites for now)
 #[oauth]
