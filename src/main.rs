@@ -2,9 +2,10 @@
 #![allow(clippy::blocks_in_conditions)]
 
 use lazy_static::lazy_static;
-use log::{info, warn};
+use tracing::{info, warn};
 
 use crate::beatleader::Client;
+use crate::config::Settings;
 use crate::other::RamReporter;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
@@ -14,23 +15,26 @@ mod beatleader;
 mod config;
 mod discord;
 mod embed;
+mod log;
 mod other;
+mod persist;
 mod storage;
 
 lazy_static! {
     static ref BL_CLIENT: Client = Client::default();
 }
+
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync>;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("bl_bot=info"))
-        .target(env_logger::Target::Stdout)
-        .init();
+    let settings = Settings::new().unwrap();
+
+    let _tracing_guard = log::init(settings.tracing.clone());
 
     info!("Starting up...");
 
-    let common_data = config::init().await;
+    let common_data = persist::init(settings).await;
 
     let tracker = TaskTracker::new();
     let token = CancellationToken::new();

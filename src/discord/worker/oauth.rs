@@ -4,9 +4,9 @@ use crate::discord::BotData;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::BL_CLIENT;
-use log::{error, info, warn};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+use tracing::{error, info, warn};
 
 pub struct BlOauthTokenRefreshWorker {
     guild_settings_repository: Arc<GuildSettingsRepository>,

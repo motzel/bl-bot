@@ -5,9 +5,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{error, fmt};
 
-use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+use tracing::{debug, error, trace, warn};
 
 use crate::storage::persist::{PersistError, PersistInstance};
 

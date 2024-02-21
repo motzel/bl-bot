@@ -10,8 +10,6 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-env_logger = { version = "^0.10.1" , features = ["auto-color","color"]}
-log = "^0.4"
 reqwest = { version = "^0.11.22", features = ["json", "rustls-tls", "gzip", "brotli"] }
 serde = { version = "^1.0.193", features = ["derive"] }
 serde_json = "^1.0.108"
@@ -39,3 +37,7 @@ http-cache-reqwest = { version = "^0.12.0", features = ["manager-cacache"] }
 cacache = { version = "^12.0.0", default-features = false, features = ["tokio-runtime", "mmap"] }
 reqwest-middleware = "^0.2.4"
 colorgrad = "^0.6.2"
+tracing = "0.1.40"
+tracing-appender = "0.2.2"
+tracing-futures = { version = "0.2.5", features = ["tokio"] }
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }

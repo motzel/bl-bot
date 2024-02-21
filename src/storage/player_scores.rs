@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use log::{debug, trace, warn};
 use poise::serenity_prelude::UserId;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, trace, warn};
 
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::BlContext;

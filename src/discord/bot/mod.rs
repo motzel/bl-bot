@@ -9,7 +9,6 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{debug, error, info, trace};
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
@@ -19,6 +18,7 @@ use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use std::time::Duration as TimeDuration;
+use tracing::{debug, error, info, trace};
 
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 

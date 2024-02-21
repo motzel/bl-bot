@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
-use log::{info, warn};
 pub(crate) use poise::serenity_prelude as serenity;
 use poise::Framework;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
+use tracing::{info, warn};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
-use crate::config::{CommonData, Settings};
+use crate::config::Settings;
 use crate::discord::worker::clan_wars::BlClanWarsMapsWorker;
 use crate::discord::worker::player_stats::BlPlayersStatsWorker;
 use crate::discord::worker::user_roles::UserRolesWorker;
+use crate::persist::CommonData;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;

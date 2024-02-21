@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
-use log::{debug, info, trace};
 use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage, GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
+use tracing::{debug, info, trace};
 
 use crate::beatleader::clan::Clan;
 use crate::beatleader::player::{DifficultyStatus, Duration, LeaderboardId, MapType, PlayerId};

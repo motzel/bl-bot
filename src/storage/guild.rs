@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 use crate::storage::persist::PersistInstance;
-use log::{debug, trace};
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use tokio::sync::MutexGuard;
+use tracing::{debug, trace};
 
 use crate::discord::bot::{
     ClanSettings, Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings,

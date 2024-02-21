@@ -1,9 +1,9 @@
 #![allow(clippy::blocks_in_conditions)]
 use std::sync::Arc;
 
-use log::{debug, trace};
 use poise::serenity_prelude::{GuildId, UserId};
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, trace};
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::discord::bot::beatleader::{

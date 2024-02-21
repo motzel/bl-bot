@@ -9,11 +9,11 @@ use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::BL_CLIENT;
 use chrono::Utc;
-use log::{error, info};
 use poise::serenity_prelude::ChannelId;
 use std::cmp::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+use tracing::{error, info};
 
 pub struct BlClanWarsMapsWorker {
     context: serenity::Context,

@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{debug, error, trace};
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse, Url};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, trace};
 
 use crate::beatleader::clan::{ClanAuthResource, ClanResource};
 use crate::beatleader::error::Error;

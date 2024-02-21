@@ -9,3 +9,16 @@ clan_wars_maps_count = 30
 #client_id = "your bl oauth app id"
 #client_secret = "your bl oauth app secret"
 #redirect_uri = "your bl oauth app redirect uri"
+
+[tracing]
+stdout_enabled = true
+stdout_target = false
+stdout_default_level = "warn"
+stdout_level = "debug"
+stdout_format = "compact" # compact, pretty or json
+log_enabled = false
+log_target = false
+log_dir = "./logs"
+log_default_level = "warn"
+log_level = "debug"
+log_format = "json" # compact, pretty or json

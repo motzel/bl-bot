@@ -1,6 +1,6 @@
-use log::{info, warn};
 use peak_alloc::PeakAlloc;
 use tokio_util::sync::CancellationToken;
+use tracing::{info, warn};
 
 #[global_allocator]
 static PEAK_ALLOC: PeakAlloc = PeakAlloc;

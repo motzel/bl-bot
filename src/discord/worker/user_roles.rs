@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use log::{debug, error, info, warn};
 use poise::serenity_prelude::{http, AttachmentType, GuildId, SerenityError};
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info, warn};
 
 use crate::discord::bot::beatleader::Player;
 use crate::discord::bot::commands::player::get_player_embed;

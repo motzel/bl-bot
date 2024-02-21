@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::convert::From;
 
 use bytes::Bytes;
-use log::{error, info, trace, warn};
 use poise::serenity_prelude::{AttachmentType, CreateComponents, GuildId, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
+use tracing::{error, info, trace, warn};
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
