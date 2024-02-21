@@ -6,7 +6,7 @@ use log::{debug, trace};
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use tokio::sync::MutexGuard;
 
-use crate::bot::{
+use crate::discord::bot::{
     ClanSettings, Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings,
 };
 use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};

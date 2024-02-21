@@ -27,10 +27,10 @@ use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::APP_USER_AGENT;
-use crate::bot::beatleader::{fetch_scores, Player};
+use crate::discord::bot::beatleader::{fetch_scores, Player};
+use crate::discord::Context;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
-use crate::Context;
 use crate::Error;
 
 pub(crate) mod beatleader;
@@ -1229,7 +1229,7 @@ mod tests {
     use chrono::{DateTime, Duration, Utc};
     use poise::serenity_prelude::UserId;
 
-    use crate::bot::{
+    use crate::discord::bot::{
         Condition, GuildId, GuildSettings, Metric, Player, PlayerMetricValue, Requirement,
         RequirementMetricValue, RoleId, RoleRequirementId, RoleSettings,
     };

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::BlContext;
-use crate::bot::beatleader::{fetch_all_player_scores, Player, Score};
+use crate::discord::bot::beatleader::{fetch_all_player_scores, Player, Score};
 use crate::file_storage::PersistInstance;
 use crate::storage::persist::ShuttleStorage;
 

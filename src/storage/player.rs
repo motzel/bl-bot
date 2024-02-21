@@ -6,7 +6,7 @@ use poise::serenity_prelude::{GuildId, UserId};
 use tokio_util::sync::CancellationToken;
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
-use crate::bot::beatleader::{
+use crate::discord::bot::beatleader::{
     fetch_player_from_bl, fetch_ranked_scores_stats, Player as BotPlayer,
 };
 use crate::file_storage::PersistInstance;

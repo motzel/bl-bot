@@ -19,7 +19,7 @@ use crate::beatleader::player::{
 use crate::beatleader::pp::{calculate_pp_boundary, WEIGHT_COEFFICIENT};
 use crate::beatleader::rating::Ratings;
 use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
-use crate::bot::{Metric, PlayerMetricValue};
+use crate::discord::bot::{Metric, PlayerMetricValue};
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;

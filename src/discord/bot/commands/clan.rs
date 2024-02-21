@@ -1,5 +1,4 @@
 use chrono::{DateTime, Duration, Utc};
-use log::error;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,13 +9,15 @@ use serde::{Deserialize, Serialize};
 use crate::beatleader::clan::{Clan, ClanMap, ClanMapsParam, ClanMapsSort};
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::{BlContext, SortOrder};
-use crate::bot::beatleader::fetch_clan;
-use crate::bot::beatleader::fetch_player_from_bl;
-use crate::bot::commands::guild::get_guild_settings;
-use crate::bot::commands::player::{link_user_if_needed, say_profile_not_linked, say_without_ping};
-use crate::bot::{ClanSettings, GuildOAuthTokenRepository};
-use crate::storage::player_scores::PlayerScores;
-use crate::{Context, Error, BL_CLIENT};
+use crate::discord::bot::beatleader::fetch_clan;
+use crate::discord::bot::beatleader::fetch_player_from_bl;
+use crate::discord::bot::commands::guild::get_guild_settings;
+use crate::discord::bot::commands::player::{
+    link_user_if_needed, say_profile_not_linked, say_without_ping,
+};
+use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
+use crate::discord::Context;
+use crate::{Error, BL_CLIENT};
 
 /// Set up sending of clan invitations
 #[poise::command(
