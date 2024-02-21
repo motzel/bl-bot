@@ -1,5 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Serialize};
+use std::net::Ipv4Addr;
 use tracing::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +62,13 @@ pub(crate) struct OAuthSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(unused)]
+pub(crate) struct ServerSettings {
+    pub ip: Ipv4Addr,
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(unused)]
 pub(crate) struct Settings {
     pub discord_token: String,
     pub refresh_interval: u64,
@@ -68,6 +76,7 @@ pub(crate) struct Settings {
     pub clan_wars_interval: u64,
     pub clan_wars_maps_count: u16,
     pub oauth: Option<OAuthSettings>,
+    pub server: ServerSettings,
     pub tracing: TracingSettings,
 }
 

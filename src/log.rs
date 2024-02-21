@@ -1,5 +1,8 @@
 use std::io::IsTerminal;
 
+use axum::body::Body;
+use axum::http::Request;
+use tracing::Span;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -57,6 +60,7 @@ pub(crate) fn init(tracing_settings: TracingSettings) -> Option<WorkerGuard> {
                     .with_filter(
                         filter::Targets::new()
                             .with_default(log_default_level)
+                            .with_target("tower_http::trace", tracing::Level::INFO)
                             .with_target(app_name.clone(), log_level),
                     ),
                 ),
@@ -81,6 +85,7 @@ pub(crate) fn init(tracing_settings: TracingSettings) -> Option<WorkerGuard> {
                 .with_filter(
                     filter::Targets::new()
                         .with_default(stdout_default_level)
+                        .with_target("tower_http::trace", tracing::Level::INFO)
                         .with_target(app_name, stdout_level),
                 ),
             )
@@ -94,4 +99,28 @@ pub(crate) fn init(tracing_settings: TracingSettings) -> Option<WorkerGuard> {
         .init();
 
     guard
+}
+
+pub(crate) fn make_span_with(request: &Request<Body>) -> Span {
+    tracing::info_span!("request",
+        app_name = env!("CARGO_PKG_NAME"),
+        app_version = env!("CARGO_PKG_VERSION"),
+        hostname = hostname::get()
+                .unwrap_or(std::ffi::OsString::from("<uknown>"))
+                .into_string()
+                .unwrap_or(String::from("<unknown>")),
+
+        request_id = uuid::Uuid::new_v4().hyphenated().encode_lower(&mut uuid::Uuid::encode_buffer()),
+        method = %request.method(),
+        uri = %request.uri(),
+        user_agent = match request.headers().get("User-Agent").map(|h| h.as_bytes()) {
+            None => "<unknown>",
+            Some(h) => std::str::from_utf8(h).unwrap_or("<unknown>"),
+        },
+
+        // Fields must be defined to be used, define them as empty if they populate later
+        status = tracing::field::Empty,
+        latency = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+    )
 }

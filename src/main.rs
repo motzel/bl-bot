@@ -7,6 +7,7 @@ use tracing::{info, warn};
 use crate::beatleader::Client;
 use crate::config::Settings;
 use crate::other::RamReporter;
+use crate::webserver::WebServer;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -19,6 +20,7 @@ mod log;
 mod other;
 mod persist;
 mod storage;
+mod webserver;
 
 lazy_static! {
     static ref BL_CLIENT: Client = Client::default();
@@ -40,6 +42,7 @@ async fn main() -> Result<(), Error> {
     let token = CancellationToken::new();
 
     let ram_reporter = RamReporter::new(token.clone());
+    let webserver = WebServer::new(common_data.clone(), token.clone());
 
     let discord_framework =
         discord::init(common_data.clone(), tracker.clone(), token.clone()).await?;
@@ -114,6 +117,7 @@ async fn main() -> Result<(), Error> {
 
     tracker.spawn(discord_framework.start());
     tracker.spawn(ram_reporter.start());
+    tracker.spawn(webserver.start());
 
     tracker.close();
 
