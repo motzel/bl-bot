@@ -5,6 +5,7 @@ use lazy_static::lazy_static;
 use log::{info, warn};
 
 use crate::beatleader::Client;
+use crate::other::RamReporter;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -14,6 +15,7 @@ mod config;
 mod discord;
 mod embed;
 mod file_storage;
+mod other;
 mod storage;
 
 lazy_static! {
@@ -33,6 +35,8 @@ async fn main() -> Result<(), Error> {
 
     let tracker = TaskTracker::new();
     let token = CancellationToken::new();
+
+    let ram_reporter = RamReporter::new(token.clone());
 
     let discord_framework =
         discord::init(common_data.clone(), tracker.clone(), token.clone()).await?;
@@ -106,6 +110,7 @@ async fn main() -> Result<(), Error> {
     });
 
     tracker.spawn(discord_framework.start());
+    tracker.spawn(ram_reporter.start());
 
     tracker.close();
 

@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use log::{debug, error, info, warn};
-use peak_alloc::PeakAlloc;
 pub(crate) use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{AttachmentType, ChannelId, SerenityError};
 use poise::Framework;
@@ -36,9 +35,6 @@ use crate::storage::player_scores::PlayerScoresRepository;
 use crate::BL_CLIENT;
 
 pub mod bot;
-
-#[global_allocator]
-static PEAK_ALLOC: PeakAlloc = PeakAlloc;
 
 pub(crate) struct Data {
     pub guild_settings_repository: Arc<GuildSettingsRepository>,
@@ -162,9 +158,6 @@ pub(crate) async fn init(
                     info!("Run a task that updates data every {:?}", interval);
 
                     'outer: loop {
-                        info!("RAM usage: {} MB", PEAK_ALLOC.current_usage_as_mb());
-                        info!("Peak RAM usage: {} MB", PEAK_ALLOC.peak_usage_as_mb());
-
                         info!("Refreshing expired OAuth tokens...");
 
                         if let Some(ref oauth_credentials) = oauth_credentials_clone {
