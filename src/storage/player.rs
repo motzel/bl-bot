@@ -9,9 +9,9 @@ use crate::beatleader::player::{Player as BlPlayer, PlayerId};
 use crate::discord::bot::beatleader::{
     fetch_player_from_bl, fetch_ranked_scores_stats, Player as BotPlayer,
 };
-use crate::file_storage::PersistInstance;
-use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
+use crate::storage::persist::PersistInstance;
 use crate::storage::player_scores::PlayerScoresRepository;
+use crate::storage::{CachedStorage, Storage, StorageError};
 
 use super::Result;
 
@@ -22,7 +22,7 @@ pub(crate) struct PlayerRepository {
 impl<'a> PlayerRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerRepository> {
         Ok(Self {
-            storage: CachedStorage::new(ShuttleStorage::new("players", persist)).await?,
+            storage: CachedStorage::new(Storage::new("players", persist)).await?,
         })
     }
 
@@ -81,13 +81,13 @@ impl<'a> PlayerRepository {
                 } else {
                     debug!("User {} does not exists", user_id);
 
-                    Err(PersistError::NotFound("user does not exists".to_owned()))
+                    Err(StorageError::NotFound("user does not exists".to_owned()))
                 }
             }
             None => {
                 debug!("User {} does not exists.", user_id);
 
-                Err(PersistError::NotFound("user does not exists".to_owned()))
+                Err(StorageError::NotFound("user does not exists".to_owned()))
             }
         }
     }
@@ -121,13 +121,13 @@ impl<'a> PlayerRepository {
                 } else {
                     debug!("User {} is not linked to guild {}.", user_id, guild_id);
 
-                    Err(PersistError::NotFound("user is not linked".to_owned()))
+                    Err(StorageError::NotFound("user is not linked".to_owned()))
                 }
             }
             None => {
                 debug!("User {} is not linked to guild {}.", user_id, guild_id);
 
-                Err(PersistError::NotFound("user is not linked".to_owned()))
+                Err(StorageError::NotFound("user is not linked".to_owned()))
             }
         }
     }
@@ -182,7 +182,7 @@ impl<'a> PlayerRepository {
                         user_id, &guilds_to_unlink
                     );
 
-                    Err(PersistError::NotFound(
+                    Err(StorageError::NotFound(
                         "user is not linked to any of the passed guilds".to_owned(),
                     ))
                 }
@@ -193,7 +193,7 @@ impl<'a> PlayerRepository {
                     user_id, &guilds_to_unlink
                 );
 
-                Err(PersistError::NotFound(
+                Err(StorageError::NotFound(
                     "user is not linked to any of the passed guilds".to_owned(),
                 ))
             }
@@ -229,7 +229,7 @@ impl<'a> PlayerRepository {
             }
 
             if token.is_some() && token.as_ref().unwrap().is_cancelled() {
-                return Err(PersistError::Cancelled);
+                return Err(StorageError::Cancelled);
             }
         }
 
@@ -293,7 +293,7 @@ impl<'a> PlayerRepository {
             None => {
                 debug!("User {} not found.", player.user_id);
 
-                Err(PersistError::NotFound("player not found".to_owned()))
+                Err(StorageError::NotFound("player not found".to_owned()))
             }
             Some(player) => {
                 debug!(
@@ -323,7 +323,7 @@ impl<'a> PlayerRepository {
                 .iter()
                 .any(|social| social.service == "Discord" && social.user_id == user_id.to_string())
         {
-            return Err(PersistError::ProfileNotVerified);
+            return Err(StorageError::ProfileNotVerified);
         }
 
         let bl_player_clone = bl_player.clone();
@@ -371,7 +371,7 @@ impl<'a> PlayerRepository {
                 debug!("User {} linked with BL player {}.", user_id, player_id);
                 Ok(player)
             }
-            None => Err(PersistError::Unknown),
+            None => Err(StorageError::Unknown),
         }
     }
 }

@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 use crate::discord::BotData;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
-use crate::storage::PersistError;
+use crate::storage::StorageError;
 
 pub struct BlPlayersStatsWorker {
     players_repository: Arc<PlayerRepository>,
@@ -23,7 +23,7 @@ impl BlPlayersStatsWorker {
         }
     }
 
-    pub async fn run(&self) -> Result<Vec<Player>, PersistError> {
+    pub async fn run(&self) -> Result<Vec<Player>, StorageError> {
         self.players_repository
             .update_all_players_stats(
                 &self.player_scores_repository,

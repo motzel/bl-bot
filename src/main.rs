@@ -14,7 +14,6 @@ mod beatleader;
 mod config;
 mod discord;
 mod embed;
-mod file_storage;
 mod other;
 mod storage;
 

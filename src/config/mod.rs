@@ -6,8 +6,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::beatleader::BlContext;
-use crate::file_storage::PersistInstance;
 use crate::storage::guild::GuildSettingsRepository;
+use crate::storage::persist::PersistInstance;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::player_scores::PlayerScoresRepository;

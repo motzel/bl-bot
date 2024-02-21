@@ -16,7 +16,7 @@ use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::get_binary_file;
 use crate::discord::Context;
 use crate::embed::{embed_profile, embed_score};
-use crate::storage::PersistError;
+use crate::storage::StorageError;
 use crate::Error;
 
 #[derive(Debug, poise::ChoiceParameter, Default)]
@@ -237,7 +237,7 @@ pub(crate) async fn cmd_unlink(
             Ok(())
         }
         Err(e) => match e {
-            PersistError::NotFound(_) => {
+            StorageError::NotFound(_) => {
                 say_profile_not_linked(ctx, &selected_user_id).await?;
 
                 Ok(())

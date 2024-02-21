@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::BlContext;
 use crate::discord::bot::beatleader::{fetch_all_player_scores, Player, Score};
-use crate::file_storage::PersistInstance;
-use crate::storage::persist::ShuttleStorage;
+use crate::storage::persist::PersistInstance;
+use crate::storage::Storage;
 
 use super::{Result, StorageValue};
 
@@ -28,7 +28,7 @@ impl StorageValue<PlayerId> for PlayerScores {
 }
 
 pub(crate) struct PlayerScoresRepository {
-    storage: ShuttleStorage<PlayerId, PlayerScores>,
+    storage: Storage<PlayerId, PlayerScores>,
     pub bl_context: BlContext,
 }
 
@@ -38,7 +38,7 @@ impl<'a> PlayerScoresRepository {
         bl_context: BlContext,
     ) -> Result<PlayerScoresRepository> {
         Ok(Self {
-            storage: ShuttleStorage::new(
+            storage: Storage::new(
                 format!("player-scores-{}", bl_context.to_string()).as_str(),
                 persist,
             ),
