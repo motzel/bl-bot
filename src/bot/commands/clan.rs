@@ -274,6 +274,8 @@ pub(crate) enum BlCommandPlayDate {
     SixMonths,
     #[name = "Never or more than a year ago"]
     Year,
+    #[name = "No matter if played"]
+    NoMatter,
 }
 
 impl From<BlCommandPlayDate> for Option<DateTime<Utc>> {
@@ -284,6 +286,7 @@ impl From<BlCommandPlayDate> for Option<DateTime<Utc>> {
             BlCommandPlayDate::ThreeMonths => Some(Utc::now() - Duration::days(90)),
             BlCommandPlayDate::SixMonths => Some(Utc::now() - Duration::days(180)),
             BlCommandPlayDate::Year => Some(Utc::now() - Duration::days(365)),
+            BlCommandPlayDate::NoMatter => Some(Utc::now()),
         }
     }
 }
