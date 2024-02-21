@@ -2,6 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::{self, TraceLayer};
 use tower_http::LatencyUnit;
 use tracing::{info, warn};
@@ -42,7 +43,7 @@ impl WebServer {
             settings: self.settings,
         };
 
-        let app_router = app_router(state).layer(
+        let app_router = app_router(state).layer((
             TraceLayer::new_for_http()
                 .make_span_with(crate::log::make_span_with)
                 .on_response(
@@ -50,17 +51,23 @@ impl WebServer {
                         .latency_unit(LatencyUnit::Millis)
                         .level(tracing::Level::INFO),
                 ),
-        );
+            // Graceful shutdown will wait for outstanding requests to complete. Add a timeout so
+            // requests don't hang forever.
+            // TODO: add timeout to settings
+            TimeoutLayer::new(std::time::Duration::from_secs(3)),
+        ));
 
-        axum::Server::bind(&addr)
-            .serve(app_router.into_make_service_with_connect_info::<SocketAddr>())
-            .with_graceful_shutdown(async move {
-                self.token.cancelled().await;
+        axum::serve(
+            tokio::net::TcpListener::bind(&addr).await.unwrap(),
+            app_router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            self.token.cancelled().await;
 
-                warn!("Web server is shutting down...");
-            })
-            .await
-            .unwrap();
+            warn!("Web server is shutting down...");
+        })
+        .await
+        .unwrap();
 
         warn!("Web server shut down.");
     }

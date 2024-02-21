@@ -113,10 +113,18 @@ pub(crate) fn make_span_with(request: &Request<Body>) -> Span {
         request_id = uuid::Uuid::new_v4().hyphenated().encode_lower(&mut uuid::Uuid::encode_buffer()),
         method = %request.method(),
         uri = %request.uri(),
-        user_agent = match request.headers().get("User-Agent").map(|h| h.as_bytes()) {
-            None => "<unknown>",
-            Some(h) => std::str::from_utf8(h).unwrap_or("<unknown>"),
-        },
+        // TODO: Change this if deploy is behind a proxy (eg the `X-forwarded-for` header)
+        // client_ip = request.extensions()
+        //     .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        //     .map(|connect_info|
+        //         tracing::field::display(connect_info.ip().to_string()),
+        //     ).unwrap_or_else(||
+        //         tracing::field::display(String::from("<unknown>"))
+        //     ),
+        // user_agent = match request.headers().get("User-Agent").map(|h| h.as_bytes()) {
+        //     None => "<unknown>",
+        //     Some(h) => std::str::from_utf8(h).unwrap_or("<unknown>"),
+        // },
 
         // Fields must be defined to be used, define them as empty if they populate later
         status = tracing::field::Empty,

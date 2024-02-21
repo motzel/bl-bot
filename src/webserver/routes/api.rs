@@ -1,12 +1,13 @@
-use crate::webserver::AppState;
+use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::headers::HeaderMap;
-use axum::http::StatusCode;
+use axum::http::{header, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+
+use crate::webserver::AppState;
 
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
@@ -22,13 +23,13 @@ struct Test {
     accept_header: Option<String>,
 }
 
-#[tracing::instrument(skip(_settings, headers), level=tracing::Level::INFO, name="webserver:api:some_handler")]
+#[tracing::instrument(skip(_state, req), level=tracing::Level::INFO, name="webserver:api:some_handler")]
 async fn json_handler(
-    State(_settings): State<AppState>,
-    headers: HeaderMap,
+    State(_state): State<AppState>,
     Path(id): Path<u32>,
+    req: Request<Body>,
 ) -> (StatusCode, impl IntoResponse) {
-    let accept_header = match headers.get("Accept").map(|h| h.as_bytes()) {
+    let accept_header = match req.headers().get(header::ACCEPT).map(|h| h.as_bytes()) {
         None => "None",
         Some(h) => std::str::from_utf8(h).unwrap(),
     };
