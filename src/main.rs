@@ -425,7 +425,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     );
 
-                                    if last_posted_at.is_none() || last_posted_at.unwrap().le(&(Utc::now() - chrono::Duration::hours(12))) {
+                                    if last_posted_at.is_none() || last_posted_at.unwrap().le(&(Utc::now() - chrono::Duration::minutes(settings.clan_wars_interval as i64))) {
                                         match guild_settings_repository_worker
                                             .set_clan_wars_posted_at(&guild.get_key(), Utc::now())
                                             .await
