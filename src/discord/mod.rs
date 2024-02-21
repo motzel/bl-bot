@@ -36,15 +36,28 @@ use crate::BL_CLIENT;
 
 pub mod bot;
 
-pub(crate) struct Data {
+pub(crate) struct BotData {
     pub guild_settings_repository: Arc<GuildSettingsRepository>,
     pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
-    pub oauth_credentials: Option<OAuthAppCredentials>,
+    pub settings: Settings,
 }
 
-impl From<CommonData> for Data {
+impl BotData {
+    fn oauth_credentials(&self) -> Option<OAuthAppCredentials> {
+        self.settings
+            .oauth
+            .as_ref()
+            .map(|oauth_settings| OAuthAppCredentials {
+                client_id: oauth_settings.client_id.clone(),
+                client_secret: oauth_settings.client_secret.clone(),
+                redirect_uri: oauth_settings.redirect_uri.clone(),
+            })
+    }
+}
+
+impl From<CommonData> for BotData {
     fn from(value: CommonData) -> Self {
         let oauth_credentials =
             value
@@ -62,57 +75,23 @@ impl From<CommonData> for Data {
             players_repository: value.players_repository,
             player_scores_repository: value.player_scores_repository,
             player_oauth_token_repository: value.player_oauth_token_repository,
-            oauth_credentials,
+            settings: value.settings,
         }
     }
 }
 
-pub(crate) type Context<'a> = poise::Context<'a, Data, crate::Error>;
-
-async fn on_error(error: poise::FrameworkError<'_, Data, crate::Error>) {
-    match error {
-        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
-        poise::FrameworkError::Command { error, ctx } => {
-            info!("Error in command `{}`: {:?}", ctx.command().name, error,);
-        }
-        error => {
-            if let Err(e) = poise::builtins::on_error(error).await {
-                info!("Error while handling error: {}", e)
-            }
-        }
-    }
-}
+pub(crate) type Context<'a> = poise::Context<'a, BotData, crate::Error>;
 
 pub(crate) async fn init(
     data: CommonData,
     tracker: TaskTracker,
     token: CancellationToken,
-) -> Result<Arc<Framework<Data, crate::Error>>, serenity::Error> {
+) -> Result<Arc<Framework<BotData, crate::Error>>, serenity::Error> {
     let settings = data.settings.clone();
     let data: Data = data.into();
 
     let options = poise::FrameworkOptions {
-        commands: vec![
-            cmd_replay(),
-            cmd_profile(),
-            cmd_link(),
-            cmd_unlink(),
-            cmd_show_settings(),
-            cmd_add_auto_role(),
-            cmd_remove_auto_role(),
-            cmd_set_log_channel(),
-            cmd_set_profile_verification(),
-            cmd_set_clan_invitation(),
-            cmd_set_clan_invitation_code(),
-            cmd_clan_invitation(),
-            cmd_clan_wars_playlist(),
-            cmd_set_clan_wars_maps_channel(),
-            // cmd_invite_player(),
-            cmd_register(),
-            cmd_export(),
-            cmd_import(),
-            cmd_refresh_scores(),
-        ],
+        commands: bot::commands(),
         pre_command: |ctx| {
             Box::pin(async move {
                 info!("Executing command {}...", ctx.command().qualified_name);
@@ -124,7 +103,23 @@ pub(crate) async fn init(
                 info!("Executed command {}!", ctx.command().qualified_name);
             })
         },
-        on_error: |error| Box::pin(on_error(error)),
+        on_error: |error| {
+            Box::pin(async move {
+                match error {
+                    poise::FrameworkError::Setup { error, .. } => {
+                        panic!("Failed to start bot: {:?}", error)
+                    }
+                    poise::FrameworkError::Command { error, ctx } => {
+                        info!("Error in command `{}`: {:?}", ctx.command().name, error,);
+                    }
+                    error => {
+                        if let Err(e) = poise::builtins::on_error(error).await {
+                            info!("Error while handling error: {}", e)
+                        }
+                    }
+                };
+            })
+        },
         ..Default::default()
     };
 

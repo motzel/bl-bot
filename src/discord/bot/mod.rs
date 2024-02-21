@@ -33,6 +33,8 @@ use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::Error;
 
+pub(crate) use commands::commands;
+
 pub(crate) mod beatleader;
 pub(crate) mod commands;
 
