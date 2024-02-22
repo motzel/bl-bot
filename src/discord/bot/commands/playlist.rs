@@ -1,11 +1,13 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use poise::serenity_prelude::{AttachmentType, UserId};
 use serde::{Deserialize, Serialize};
 
 use crate::beatleader::clan::{ClanMap, ClanMapsParam, ClanMapsSort, ClanTag};
+use crate::beatleader::player::PlayerId;
 use crate::beatleader::{BlContext, SortOrder};
 use crate::discord::bot::beatleader::fetch_player_from_bl;
 use crate::discord::bot::commands::guild::get_guild_settings;
@@ -13,6 +15,7 @@ use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
 };
 use crate::discord::Context;
+use crate::storage::player_scores::PlayerScoresRepository;
 use crate::{Error, BL_CLIENT};
 
 #[derive(Debug, poise::ChoiceParameter, Default, Clone, Serialize, Deserialize)]
@@ -45,7 +48,7 @@ impl From<BlCommandPlayDate> for Option<DateTime<Utc>> {
     }
 }
 
-#[derive(Debug, poise::ChoiceParameter, Clone, Default)]
+#[derive(Debug, poise::ChoiceParameter, Serialize, Deserialize, Clone, Default)]
 pub(crate) enum BlCommandClanMapSortParam {
     #[default]
     #[name = "To Conquer"]
@@ -89,22 +92,24 @@ pub(crate) struct PlaylistItem {
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PlaylistCustomData {
-    id: String,
     #[serde(rename = "syncURL")]
     sync_url: String,
     owner: String,
-    user_id: UserId,
     hash: String,
     shared: bool,
     clan_tag: ClanTag,
-    playlist_type: ClanMapsSort,
+    player_id: PlayerId,
+    playlist_type: BlCommandClanMapSortParam,
     last_played: BlCommandPlayDate,
     count: u32,
 }
 
+pub(crate) type PlaylistId = String;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Playlist {
+    id: PlaylistId,
     allow_duplicates: bool,
     playlist_title: String,
     playlist_author: String,
@@ -116,6 +121,102 @@ pub(crate) struct Playlist {
 }
 
 impl Playlist {
+    pub async fn for_clan_player(
+        player_scores_repository: &Arc<PlayerScoresRepository>,
+        server_url: &str,
+        clan_tag: ClanTag,
+        player_id: PlayerId,
+        playlist_type: BlCommandClanMapSortParam,
+        last_played: BlCommandPlayDate,
+        count: u32,
+    ) -> Result<Self, String> {
+        let maps_list = BL_CLIENT
+            .clan()
+            .maps(
+                clan_tag.as_str(),
+                &[
+                    ClanMapsParam::Count(100),
+                    ClanMapsParam::Page(1),
+                    ClanMapsParam::Order(SortOrder::Descending),
+                    ClanMapsParam::Context(BlContext::General),
+                    playlist_type.clone().into(),
+                ],
+            )
+            .await;
+
+        if let Err(err) = maps_list {
+            return Err(format!("Map list download error: {}", err));
+        }
+
+        let maps_list = maps_list.unwrap();
+
+        if maps_list.data.is_empty() {
+            return Err("No maps of the selected type".to_string());
+        }
+
+        let player_leaderboard_ids = player_scores_repository
+            .get(&player_id)
+            .await
+            .unwrap_or_default()
+            .scores
+            .into_iter()
+            .map(|score| (score.leaderboard_id, score.timepost))
+            .collect::<HashMap<String, DateTime<Utc>>>();
+
+        let played_filter: Option<DateTime<Utc>> = last_played.clone().into();
+
+        let playlist_maps = maps_list
+            .data
+            .into_iter()
+            .filter(|score| {
+                let score_timepost = player_leaderboard_ids.get(&score.leaderboard.id);
+
+                score_timepost.is_none()
+                    || (played_filter.is_some()
+                        && played_filter.unwrap() > *score_timepost.unwrap())
+            })
+            .take(count as usize)
+            .collect::<Vec<_>>();
+
+        if playlist_maps.is_empty() {
+            return Err("No maps meeting the criteria".to_string());
+        }
+
+        let playlist_title = format!(
+            "{}-clan wars-{}",
+            clan_tag,
+            playlist_type.to_playlist_type_name()
+        );
+        let id = Playlist::generate_id();
+
+        Ok(Playlist {
+            id: id.clone(),
+            playlist_title: playlist_title.clone(),
+            songs: Playlist::songs_from_scores(
+                playlist_maps.into_iter().take(count as usize).collect(),
+            ),
+            custom_data: Some(PlaylistCustomData {
+                sync_url: format!("{}/playlist/{}/{}", server_url, player_id, id.clone()),
+                owner: format!("{}/{}", clan_tag, player_id),
+                hash: format!("{}-{}", id, Utc::now().timestamp()),
+                shared: false,
+                clan_tag,
+                player_id,
+                playlist_type,
+                last_played,
+                count,
+            }),
+            ..Playlist::default()
+        })
+    }
+
+    pub fn generate_id() -> PlaylistId {
+        uuid::Uuid::new_v4()
+            .hyphenated()
+            .encode_lower(&mut uuid::Uuid::encode_buffer())
+            .to_owned()
+    }
+
     pub fn songs_from_scores(scores: Vec<ClanMap>) -> Vec<PlaylistItem> {
         scores
             .into_iter()
@@ -153,6 +254,7 @@ impl Playlist {
 impl Default for Playlist {
     fn default() -> Self {
         Playlist {
+            id: Playlist::generate_id(),
             allow_duplicates: true,
             playlist_title: "Clan wars".to_string(),
             playlist_author: "xor eax eax".to_string(),
@@ -177,7 +279,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
     ctx.defer().await?;
 
     let playlist_type_filter = playlist_type.unwrap_or(BlCommandClanMapSortParam::ToConquer);
-    let played_filter: Option<DateTime<Utc>> = played.unwrap_or(BlCommandPlayDate::Never).into();
+    let played_filter = played.unwrap_or(BlCommandPlayDate::Never);
     let count = match count {
         None => 100,
         Some(v) if v > 0 && v <= 100 => v,
@@ -262,106 +364,45 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 )
                 .await?;
 
-                return Ok(());
-            }
-
-            let maps_list = BL_CLIENT
-                .clan()
-                .maps(
-                    "GENX",
-                    &[
-                        ClanMapsParam::Count(100),
-                        ClanMapsParam::Page(1),
-                        ClanMapsParam::Order(SortOrder::Descending),
-                        ClanMapsParam::Context(BlContext::General),
-                        playlist_type_filter.clone().into(),
-                    ],
-                )
-                .await;
-
-            if let Err(err) = maps_list {
-                say_without_ping(
-                    ctx,
-                    format!("Map list download error: {}", err).as_str(),
-                    false,
-                )
-                .await?;
-
-                return Ok(());
-            }
-
-            let maps_list = maps_list.unwrap();
-
-            if maps_list.data.is_empty() {
-                say_without_ping(ctx, "No maps of the selected type", false).await?;
-
-                return Ok(());
-            }
-
-            let player_leaderboard_ids = ctx
-                .data()
-                .player_scores_repository
-                .get(&player.id)
-                .await
-                .unwrap_or_default()
-                .scores
-                .into_iter()
-                .map(|score| (score.leaderboard_id, score.timepost))
-                .collect::<HashMap<String, DateTime<Utc>>>();
-
-            let playlist_maps = maps_list
-                .data
-                .into_iter()
-                .filter(|score| {
-                    let score_timepost = player_leaderboard_ids.get(&score.leaderboard.id);
-
-                    score_timepost.is_none()
-                        || (played_filter.is_some()
-                            && played_filter.unwrap() > *score_timepost.unwrap())
-                })
-                .take(count as usize)
-                .collect::<Vec<_>>();
-
-            if playlist_maps.is_empty() {
-                say_without_ping(ctx, "No maps meeting the criteria ☹️", false).await?;
-
-                return Ok(());
-            }
-
-            let playlist = Playlist {
-                playlist_title: format!(
-                    "{} - clan wars - {}",
-                    clan_tag,
-                    playlist_type_filter.to_playlist_type_name()
-                ),
-                songs: Playlist::songs_from_scores(
-                    playlist_maps.into_iter().take(count as usize).collect(),
-                ),
-                ..Playlist::default()
-            };
-
-            match serde_json::to_string::<Playlist>(&playlist) {
-                Ok(data_json) => {
-                    ctx.send(|f| {
-                        f.content("Here's your personalized playlist:")
-                            .attachment(AttachmentType::Bytes {
-                                data: Cow::from(data_json.into_bytes()),
-                                filename: format!(
-                                    "{}_clan_wars_{}.json",
-                                    clan_tag.to_lowercase(),
-                                    playlist_type_filter.to_playlist_type_name()
-                                ),
+            match Playlist::for_clan_player(
+                &ctx.data().player_scores_repository.clone(),
+                &ctx.data().settings.server.url.clone(),
+                clan_tag,
+                player.id,
+                playlist_type_filter,
+                played_filter,
+                count as u32,
+            )
+            .await
+            {
+                Ok(playlist) => {
+                    match serde_json::to_string::<Playlist>(&playlist) {
+                        Ok(data_json) => {
+                            ctx.send(|f| {
+                                f.content("Here's your personalized playlist:")
+                                    .attachment(AttachmentType::Bytes {
+                                        data: Cow::from(data_json.into_bytes()),
+                                        filename: format!(
+                                            "{}.json",
+                                            playlist.playlist_title.replace([' ', '-'], "_")
+                                        ),
+                                    })
+                                    .ephemeral(true)
                             })
-                            .ephemeral(true)
-                    })
-                    .await?;
+                            .await?;
+                        }
+                        Err(err) => {
+                            ctx.say(format!("An error occurred: {}", err)).await?;
+                        }
+                    };
+                    Ok(())
                 }
                 Err(err) => {
-                    ctx.say(format!("An error occurred: {}", err)).await?;
-                }
-            };
+                    say_without_ping(ctx, err.as_str(), false).await?;
 
-            Ok(())
+                    Ok(())
+                }
+            }
         }
         None => {
             say_profile_not_linked(ctx, &current_user.id).await?;

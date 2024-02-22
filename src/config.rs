@@ -66,6 +66,7 @@ pub(crate) struct ServerSettings {
     pub ip: Ipv4Addr,
     pub port: u16,
     pub timeout: u32,
+    pub url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
