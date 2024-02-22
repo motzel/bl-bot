@@ -4,9 +4,9 @@
 
 ## What is this project?
 
-A simple Discord bot providing the following commands:
+A (not so) simple Discord bot providing the following commands:
 
-- ``/bl-link`` / ``/bl-unlink``, allowing to link user account to Beat Leader profile  
+- ``/bl-link`` / ``/bl-unlink``, allowing to link user account to Beat Leader profile. Not required if user has linked Discord account on BeatLeader website.  
 - ``/bl-replay``, allowing to post replay according to set criteria along with links to BL replay and ArcViewer ![](docs/bl-replay.gif)
 - ``/bl-profile``, allowing to post user profile ![](docs/bl-profile.gif)
 - ``/bl-add-auto-role`` / ``/bl-remove-auto-role``, allowing a user (role management permission required) to configure the automatic setting of selected roles to server users based on their BL profile. The roles to be set up are grouped, and each role can be assigned a set of multiple conditions that must be met for it to be given. ![](docs/bl-role.gif)
@@ -14,6 +14,10 @@ A simple Discord bot providing the following commands:
 - ``/bl-set-profile-verification``, allowing to set the profile verification requirement when linking a player's profile
 - ``/bl-set-clan-invitation`` / ``/bl-set-clan-invitation-code``, allowing to set up self-sending by the user invitations to the clan without the involvement of the clan owner (**NOTE**: requires contacting NSGolova on BeatLeader discord to get OAuth application id and secret)
 - ``/bl-clan-invitation``, allowing a user to send an invitation to join a clan on their own
+- ``/bl-clan-wars-playlist``, allowing a user to generate personalized playlist of clan wars maps
+- ![](docs/clan-wars-playlist.png)
+- ``/bl-set-clan-wars-maps-channel``, allowing to set the channel on which top 30 clan wars maps will be posted 
+- ![](docs/clan-wars-maps.png)
 - ``/bl-show-settings``, showing current server settings ![](docs/bl-show.gif)
 - ``/bl-export`` / ``/bl-import``, allowing to export and import all bot data (bot owner only)
 
@@ -30,7 +34,44 @@ All of the following commands require a Rust environment installed on your compu
 3. Invite a bot to your server (**replace ``<APP_ID>`` with your application ID**, you can find it on General Information tab in Discord Developer Portal)
 ``https://discord.com/oauth2/authorize?client_id=<APP_ID>&scope=bot&permissions=2415937536``
    (required permissions: Manage roles, Embed links, Send Messages, Use Application Commands)
-4. Either download the latest version for your server architecture from the [Releases](https://github.com/motzel/bl-bot/releases) page and run it, or build from source as described below. Make sure that the directory from which you run the bot includes the ``config.toml`` file, the ``assets`` directory from this repository, and empty ``.logs``, ``.storage`` and ``.http-cache`` directories.
+4. Either download the latest version for your server architecture from the [Releases](https://github.com/motzel/bl-bot/releases) page and run it, or build from source as described below. Make sure that the directory from which you run the bot includes the ``config.toml`` file, the ``assets`` and ``static`` directories from this repository, and empty ``.logs``, ``.storage`` and ``.http-cache`` directories.
+5. The bot's built-in web server uses the HTTP protocol (defaults to port 3000, you can change this in ``config.toml``), so you probably need a SSL termination reverse proxy, such as nginx. Example nginx configuration (using Let's encrypt SSL certificate):
+```
+server {
+   server_name your-domain.com;
+
+   location / {
+      proxy_set_header Host $http_host;
+      proxy_set_header  X-Real-IP         $remote_addr;
+      proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
+      proxy_set_header  X-Forwarded-Proto $scheme;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_pass http://localhost:3000/;
+   }
+
+   access_log /var/log/nginx/your-domain.com-access.log;
+   error_log /var/log/nginx/your-domain.com-error.log;
+
+   listen 443 ssl;
+   ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+   ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+   include /etc/letsencrypt/options-ssl-nginx.conf;
+   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+   if ($host = your-domain.com) {
+      return 301 https://$host$request_uri;
+   }
+   
+   listen 80;
+
+   server_name your-domain.com;
+   return 404;
+}
+```
+
 
 ## Build and run
 ```bash
@@ -125,6 +166,6 @@ and copy public key contents to ``/home/deploy/.ssh/authorized_keys`` on your se
 - ``SSH_USER`` - set it to ``deploy``
 - ``DEPLOY_PATH`` - set it to ``/home/deploy/deployments``
 
-10. Create ``/home/deployments/YOUR-PROGRAM-NAME/.http-cache``, ``/home/deployments/YOUR-PROGRAM-NAME/.logs`` and ``/home/deploy/deployments/YOUR-PROGRAM-NAME/.storage`` directories. Copy ``assets`` folder as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/assets``. Copy ``config.example.toml`` as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/config.toml`` and set it up.
+10. Create ``/home/deployments/YOUR-PROGRAM-NAME/.http-cache``, ``/home/deployments/YOUR-PROGRAM-NAME/.logs`` and ``/home/deploy/deployments/YOUR-PROGRAM-NAME/.storage`` directories. Copy ``assets`` folder as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/assets``. Copy ``static`` folder as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/static``. Copy ``config.example.toml`` as ``/home/deploy/deployments/YOUR-PROGRAM-NAME/config.toml`` and set it up.
  
 Every time you want to deploy a new version, just add the ``vX.Y.Z`` (e.g. ``v0.1.1``) tag to your commit and push the code to the repository.
