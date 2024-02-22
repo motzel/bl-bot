@@ -8,10 +8,11 @@ use super::Result;
 
 impl StorageValue<PlaylistId> for Playlist {
     fn get_key(&self) -> PlaylistId {
-        self.id.clone()
+        self.get_id().clone()
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PlaylistRepository {
     storage: CachedStorage<PlaylistId, Playlist>,
 }
@@ -35,8 +36,13 @@ impl<'a> PlaylistRepository {
         self.storage.get(playlist_id).await
     }
 
-    pub(crate) async fn save(&self, playlist: Playlist) -> Result<Playlist> {
-        let playlist = self.storage.set(&playlist.id.clone(), playlist).await?;
+    pub(crate) async fn save(&self, mut playlist: Playlist) -> Result<Playlist> {
+        playlist.set_image("".to_owned());
+
+        let playlist = self
+            .storage
+            .set(&playlist.get_id().clone(), playlist)
+            .await?;
 
         self.storage.update_index().await?;
 

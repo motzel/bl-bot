@@ -27,6 +27,7 @@ impl StorageValue<PlayerId> for PlayerScores {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PlayerScoresRepository {
     storage: Storage<PlayerId, PlayerScores>,
     pub bl_context: BlContext,

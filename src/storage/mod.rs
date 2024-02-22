@@ -72,6 +72,7 @@ pub(crate) trait StorageValue<K: StorageKey>:
     fn get_key(&self) -> K;
 }
 
+#[derive(Debug)]
 pub(super) struct CachedStorage<K, V>
 where
     K: StorageKey,
@@ -373,6 +374,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub(super) struct Storage<K, V>
 where
     K: StorageKey,

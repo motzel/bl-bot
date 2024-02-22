@@ -2,16 +2,17 @@ use std::time::Duration;
 use std::{fmt, str::FromStr};
 
 use axum::extract::Path;
-use axum::http::{header, Request, Response, StatusCode};
+use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
-use axum::{extract::Query, extract::State, routing::get, Router};
+use axum::{extract::Query, extract::State, http::header, routing::get, Json, Router};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
-
 use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorError, GovernorLayer};
 
+use crate::discord::bot::commands::playlist::Playlist;
 use crate::webserver::AppState;
 
 mod api;
@@ -94,27 +95,77 @@ pub(crate) fn app_router(
         .with_state(state)
 }
 
-#[tracing::instrument(skip(_state), level=tracing::Level::INFO, name="webserver:playlist")]
+#[tracing::instrument(skip(state), level=tracing::Level::INFO, name="webserver:playlist")]
 async fn playlist(
-    State(_state): State<AppState>,
-    Path((user, id)): Path<(String, String)>,
+    State(state): State<AppState>,
+    Path((player_id, playlist_id)): Path<(String, String)>,
 ) -> (StatusCode, impl IntoResponse) {
-    (StatusCode::OK, {
-        let mut response = Response::new("this is a playlist contents".to_string());
+    match state.playlists_repository.get(&playlist_id).await {
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "not_found", "message": "Playlist not found"}})).into_response(),
+        ),
+        Some(ref repository_playlist) => match repository_playlist.custom_data {
+            None => (
+                StatusCode::BAD_REQUEST,
+                Json(
+                    json!({"error": {"code": "not_sync", "message": "Playlist cannot be synchronized"}}),
+                ).into_response(),
+            ),
+            Some(ref custom_data) => {
+                if custom_data.player_id != player_id {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(
+                            json!({"error": {"code": "forbidden", "message": "Playlist belongs to another player"}}),
+                        ).into_response(),
+                    );
+                }
 
-        response
-            .headers_mut()
-            .insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+                match Playlist::for_clan_player(
+                    &state.player_scores_repository,
+                    state.settings.server.url.as_str(),
+                    custom_data.clan_tag.clone(),
+                    custom_data.player_id.clone(),
+                    custom_data.playlist_type.clone(),
+                    custom_data.last_played.clone(),
+                    custom_data.count,
+                )
+                .await
+                {
+                    Ok(mut refreshed_playlist) => {
+                        refreshed_playlist.set_id(repository_playlist.get_id().clone());
 
-        response.headers_mut().insert(
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=\"playlist.bplist\"".parse().unwrap(),
-        );
+                        let _ = &state
+                            .playlists_repository
+                            .save(refreshed_playlist.clone())
+                            .await;
 
-        response
-    })
+                        let mut response = Json(json!(
+                            refreshed_playlist.set_image(Playlist::default_image())
+                        ))
+                        .into_response();
 
-    // (StatusCode::OK, format!("user: {}, id: {}", user, id))
+                        response.headers_mut().insert(
+                            header::CONTENT_DISPOSITION,
+                            format!(
+                                "attachment; filename=\"{}.json",
+                                refreshed_playlist.get_title().replace([' ', '-'], "_")
+                            ).parse().unwrap(),
+                        );
+
+                        (StatusCode::OK, response)
+                    }
+                    Err(err) => (
+                        StatusCode::BAD_GATEWAY,
+                        Json(
+                            json!({"error": {"code": "bl_error", "message": format!("Playlist generating error: {}", err)}}),
+                        ).into_response(),
+                    ),
+                }
+            }
+        },
+    }
 }
 
 #[tracing::instrument(level=tracing::Level::INFO, name="webserver:health_check")]

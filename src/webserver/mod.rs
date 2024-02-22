@@ -1,6 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use tower_http::timeout::TimeoutLayer;
@@ -10,24 +10,32 @@ use tracing::{info, warn};
 
 use crate::config::Settings;
 use crate::persist::CommonData;
+use crate::storage::player_scores::PlayerScoresRepository;
+use crate::storage::playlist::PlaylistRepository;
 use crate::webserver::routes::app_router;
 
 mod routes;
 
 pub struct WebServer {
-    settings: Settings,
+    pub player_scores_repository: Arc<PlayerScoresRepository>,
+    pub playlists_repository: Arc<PlaylistRepository>,
+    pub settings: Settings,
     tracker: TaskTracker,
     token: CancellationToken,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct AppState {
+    pub playlists_repository: Arc<PlaylistRepository>,
+    pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub settings: Settings,
 }
 
 impl WebServer {
     pub fn new(data: CommonData, tracker: TaskTracker, token: CancellationToken) -> Self {
         Self {
+            player_scores_repository: data.player_scores_repository,
+            playlists_repository: data.playlists_repository,
             settings: data.settings,
             tracker,
             token,
@@ -45,6 +53,8 @@ impl WebServer {
         let timeout = self.settings.server.timeout;
 
         let state = AppState {
+            player_scores_repository: self.player_scores_repository,
+            playlists_repository: self.playlists_repository,
             settings: self.settings,
         };
 
