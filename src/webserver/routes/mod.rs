@@ -176,11 +176,11 @@ async fn health_check() -> StatusCode {
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct Params {
-    #[serde(deserialize_with = "empty_string_as_none")]
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     code: Option<String>,
-    #[serde(deserialize_with = "empty_string_as_none")]
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     iss: Option<String>,
-    #[serde(deserialize_with = "empty_string_as_none")]
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     state: Option<String>,
 }
 
@@ -203,5 +203,25 @@ async fn bl_oauth(
     Query(params): Query<Params>,
     State(_settings): State<AppState>,
 ) -> (StatusCode, String) {
-    (StatusCode::OK, format!("{params:?}"))
+    let error_response = (
+        StatusCode::BAD_GATEWAY,
+        "Something went wrong.\n\nNo authorization code in response, can not continue.".to_string(),
+    );
+
+    match params.code {
+        None => error_response,
+        Some(code) => {
+            if !code.is_empty() {
+                (
+                    StatusCode::OK,
+                    format!(
+                        "Authorization code received\n\nNow copy the following command for the bot and paste it in Discord:\n\n/bl-set-clan-invitation-code auth_code:{}",
+                        code
+                    ),
+                )
+            } else {
+                error_response
+            }
+        }
+    }
 }
