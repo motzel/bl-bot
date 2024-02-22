@@ -109,7 +109,7 @@ pub(crate) type PlaylistId = String;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Playlist {
-    id: PlaylistId,
+    pub id: PlaylistId,
     allow_duplicates: bool,
     playlist_title: String,
     playlist_author: String,
@@ -364,6 +364,9 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 )
                 .await?;
 
+                return Ok(());
+            }
+
             match Playlist::for_clan_player(
                 &ctx.data().player_scores_repository.clone(),
                 &ctx.data().settings.server.url.clone(),
@@ -375,28 +378,36 @@ pub(crate) async fn cmd_clan_wars_playlist(
             )
             .await
             {
-                Ok(playlist) => {
-                    match serde_json::to_string::<Playlist>(&playlist) {
-                        Ok(data_json) => {
-                            ctx.send(|f| {
-                                f.content("Here's your personalized playlist:")
-                                    .attachment(AttachmentType::Bytes {
-                                        data: Cow::from(data_json.into_bytes()),
-                                        filename: format!(
-                                            "{}.json",
-                                            playlist.playlist_title.replace([' ', '-'], "_")
-                                        ),
-                                    })
-                                    .ephemeral(true)
-                            })
-                            .await?;
-                        }
-                        Err(err) => {
-                            ctx.say(format!("An error occurred: {}", err)).await?;
-                        }
-                    };
-                    Ok(())
-                }
+                Ok(playlist) => match &ctx.data().playlists_repository.save(playlist).await {
+                    Ok(playlist) => {
+                        match serde_json::to_string::<Playlist>(playlist) {
+                            Ok(data_json) => {
+                                ctx.send(|f| {
+                                    f.content("Here's your personalized playlist:")
+                                        .attachment(AttachmentType::Bytes {
+                                            data: Cow::from(data_json.into_bytes()),
+                                            filename: format!(
+                                                "{}.json",
+                                                playlist.playlist_title.replace([' ', '-'], "_")
+                                            ),
+                                        })
+                                        .ephemeral(true)
+                                })
+                                .await?;
+                            }
+                            Err(err) => {
+                                ctx.say(format!("An error occurred: {}", err)).await?;
+                            }
+                        };
+
+                        Ok(())
+                    }
+                    Err(err) => {
+                        ctx.say(format!("An error occurred: {}", err)).await?;
+
+                        Ok(())
+                    }
+                },
                 Err(err) => {
                     say_without_ping(ctx, err.as_str(), false).await?;
 

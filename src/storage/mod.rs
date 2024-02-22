@@ -16,6 +16,7 @@ pub(crate) mod persist;
 pub(crate) mod player;
 pub(crate) mod player_oauth_token;
 pub(crate) mod player_scores;
+pub(crate) mod playlist;
 
 type Result<T> = std::result::Result<T, StorageError>;
 

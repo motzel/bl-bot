@@ -16,6 +16,7 @@ use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
+use crate::storage::playlist::PlaylistRepository;
 use worker::oauth::BlOauthTokenRefreshWorker;
 
 pub mod bot;
@@ -26,6 +27,7 @@ pub(crate) struct BotData {
     pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    pub playlists_repository: Arc<PlaylistRepository>,
     pub settings: Settings,
 }
 
@@ -49,6 +51,7 @@ impl From<CommonData> for BotData {
             players_repository: value.players_repository,
             player_scores_repository: value.player_scores_repository,
             player_oauth_token_repository: value.player_oauth_token_repository,
+            playlists_repository: value.playlists_repository,
             settings: value.settings,
         }
     }

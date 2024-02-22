@@ -9,6 +9,7 @@ use crate::storage::persist::PersistInstance;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
+use crate::storage::playlist::PlaylistRepository;
 
 #[derive(Clone)]
 pub struct CommonData {
@@ -16,6 +17,7 @@ pub struct CommonData {
     pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    pub playlists_repository: Arc<PlaylistRepository>,
     pub settings: Settings,
 }
 
@@ -59,11 +61,17 @@ pub async fn init(settings: Settings) -> CommonData {
     );
     info!("Players scores repository initialized.");
 
+    info!("Initializing playlists repository...");
+    let playlists_repository =
+        Arc::new(PlaylistRepository::new(Arc::clone(&persist)).await.unwrap());
+    info!("Playlists repository initialized.");
+
     CommonData {
         guild_settings_repository,
         players_repository,
         player_oauth_token_repository,
         player_scores_repository,
+        playlists_repository,
         settings,
     }
 }
