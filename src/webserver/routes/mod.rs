@@ -1,8 +1,14 @@
+use std::time::Duration;
 use std::{fmt, str::FromStr};
 
-use axum::http::StatusCode;
+use axum::extract::Path;
+use axum::http::{header, Request, Response, StatusCode};
+use axum::response::IntoResponse;
 use axum::{extract::Query, extract::State, routing::get, Router};
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
+
+use tower_governor::key_extractor::KeyExtractor;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorError, GovernorLayer};
 
 use crate::webserver::AppState;
 
@@ -10,14 +16,87 @@ mod api;
 mod fallback;
 mod web;
 
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+struct PlaylistUser;
+
+impl KeyExtractor for PlaylistUser {
+    type Key = String;
+
+    fn name(&self) -> &'static str {
+        "PlaylistUser"
+    }
+    fn extract<B>(&self, req: &Request<B>) -> Result<Self::Key, GovernorError> {
+        Ok(req
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .get(2)
+            .unwrap_or(&"playlist")
+            .to_string())
+    }
+    fn key_name(&self, key: &Self::Key) -> Option<String> {
+        Some(key.to_string())
+    }
+}
+
 pub(crate) fn app_router(state: AppState) -> Router {
+    let playlist_governor_conf = Box::new(
+        GovernorConfigBuilder::default()
+            .key_extractor(PlaylistUser)
+            .period(Duration::from_secs(180))
+            .burst_size(3)
+            .finish()
+            .unwrap(),
+    );
+
+    let playlist_governor_limiter = playlist_governor_conf.limiter().clone();
+
+    let interval = Duration::from_secs(60);
+    // a separate background task to clean up
+    std::thread::spawn(move || loop {
+        std::thread::sleep(interval);
+        tracing::info!(
+            "rate limiting storage size: {}",
+            playlist_governor_limiter.len()
+        );
+        playlist_governor_limiter.retain_recent();
+    });
+
     Router::new()
+        .route("/playlist/:user/:id", get(playlist))
+        .layer(GovernorLayer {
+            config: Box::leak(playlist_governor_conf),
+        })
         .route("/health_check", get(health_check))
         .route("/bl-oauth/", get(bl_oauth))
         .route("/bl-oauth", get(bl_oauth))
         .nest("/api", api::router())
         .nest("/", web::router())
         .with_state(state)
+}
+
+#[tracing::instrument(skip(_state), level=tracing::Level::INFO, name="webserver:playlist")]
+async fn playlist(
+    State(_state): State<AppState>,
+    Path((user, id)): Path<(String, String)>,
+) -> (StatusCode, impl IntoResponse) {
+    (StatusCode::OK, {
+        let mut response = Response::new("this is a playlist contents".to_string());
+
+        response
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+
+        response.headers_mut().insert(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"playlist.bplist\"".parse().unwrap(),
+        );
+
+        response
+    })
+
+    // (StatusCode::OK, format!("user: {}, id: {}", user, id))
 }
 
 #[tracing::instrument(level=tracing::Level::INFO, name="webserver:health_check")]
@@ -32,6 +111,8 @@ struct Params {
     code: Option<String>,
     #[serde(deserialize_with = "empty_string_as_none")]
     iss: Option<String>,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    state: Option<String>,
 }
 
 /// Serde deserialization decorator to map empty Strings to None,
