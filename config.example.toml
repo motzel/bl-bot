@@ -2,9 +2,29 @@ discord_token = "the contents of my discord token"
 refresh_interval = 600 # seconds
 storage_path = "./.storage"
 clan_wars_interval = 360 # minutes
+clan_wars_maps_count = 30
 
 # uncomment to enable oauth features (clan invites for now)
 #[oauth]
 #client_id = "your bl oauth app id"
 #client_secret = "your bl oauth app secret"
 #redirect_uri = "your bl oauth app redirect uri"
+
+[server]
+ip = "0.0.0.0"
+port = 3000
+timeout = 30 #seconds
+url = "https://bl-bot.motzel.dev"
+
+[tracing]
+stdout_enabled = true
+stdout_target = false
+stdout_default_level = "warn"
+stdout_level = "debug"
+stdout_format = "compact" # compact, pretty or json
+log_enabled = false
+log_target = false
+log_dir = "./logs"
+log_default_level = "warn"
+log_level = "debug"
+log_format = "json" # compact, pretty or json

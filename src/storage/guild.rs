@@ -1,15 +1,15 @@
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
-use crate::file_storage::PersistInstance;
-use log::{debug, trace};
+use crate::storage::persist::PersistInstance;
 use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
 use tokio::sync::MutexGuard;
+use tracing::{debug, trace};
 
-use crate::bot::{
+use crate::discord::bot::{
     ClanSettings, Condition, GuildSettings, RequirementMetricValue, RoleGroup, RoleSettings,
 };
-use crate::storage::persist::{CachedStorage, PersistError, ShuttleStorage};
+use crate::storage::{CachedStorage, Storage, StorageError};
 
 use super::Result;
 
@@ -20,7 +20,7 @@ pub(crate) struct GuildSettingsRepository {
 impl<'a> GuildSettingsRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<GuildSettingsRepository> {
         Ok(Self {
-            storage: CachedStorage::new(ShuttleStorage::new("guild-settings", persist)).await?,
+            storage: CachedStorage::new(Storage::new("guild-settings", persist)).await?,
         })
     }
 
@@ -46,7 +46,7 @@ impl<'a> GuildSettingsRepository {
                     .await?
                 {
                     Some(guild_settings) => Ok(guild_settings),
-                    None => Err(PersistError::Unknown),
+                    None => Err(StorageError::Unknown),
                 }
             }
         }
@@ -77,7 +77,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -108,7 +108,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -142,7 +142,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -178,7 +178,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -210,7 +210,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -242,7 +242,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -285,7 +285,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }
@@ -314,7 +314,7 @@ impl<'a> GuildSettingsRepository {
 
             Ok(guild_settings)
         } else {
-            Err(PersistError::NotFound(
+            Err(StorageError::NotFound(
                 "guild is not registered".to_string(),
             ))
         }

@@ -4,11 +4,11 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::file_storage::PersistInstance;
+use crate::storage::persist::PersistInstance;
 
 use crate::beatleader::oauth::OAuthToken;
 use crate::beatleader::player::PlayerId;
-use crate::storage::persist::{CachedStorage, ShuttleStorage};
+use crate::storage::{CachedStorage, Storage};
 use crate::storage::{StorageKey, StorageValue};
 
 use super::Result;
@@ -51,7 +51,7 @@ pub(crate) struct PlayerOAuthTokenRepository {
 impl<'a> PlayerOAuthTokenRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerOAuthTokenRepository> {
         Ok(Self {
-            storage: CachedStorage::new(ShuttleStorage::new("player-oauth-token", persist)).await?,
+            storage: CachedStorage::new(Storage::new("player-oauth-token", persist)).await?,
         })
     }
 

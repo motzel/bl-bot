@@ -9,7 +9,6 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{debug, error, info, trace};
 use poise::serenity_prelude::{ChannelId, User, UserId};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
@@ -19,6 +18,7 @@ use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use std::time::Duration as TimeDuration;
+use tracing::{debug, error, info, trace};
 
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 
@@ -27,11 +27,13 @@ use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::APP_USER_AGENT;
-use crate::bot::beatleader::{fetch_scores, Player};
+use crate::discord::bot::beatleader::{fetch_scores, Player};
+use crate::discord::Context;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
-use crate::Context;
 use crate::Error;
+
+pub(crate) use commands::commands;
 
 pub(crate) mod beatleader;
 pub(crate) mod commands;
@@ -1229,7 +1231,7 @@ mod tests {
     use chrono::{DateTime, Duration, Utc};
     use poise::serenity_prelude::UserId;
 
-    use crate::bot::{
+    use crate::discord::bot::{
         Condition, GuildId, GuildSettings, Metric, Player, PlayerMetricValue, Requirement,
         RequirementMetricValue, RoleId, RoleRequirementId, RoleSettings,
     };

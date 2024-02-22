@@ -2,16 +2,16 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use log::{debug, error, trace};
 use poise::async_trait;
 use reqwest::{IntoUrl, Method, RequestBuilder, Response as ReqwestResponse, Url};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, trace};
 
+use crate::beatleader;
 use crate::beatleader::clan::{ClanAuthResource, ClanResource};
 use crate::beatleader::error::Error;
 use crate::beatleader::player::PlayerResource;
 use crate::beatleader::Client;
-use crate::{beatleader, BL_CLIENT};
 
 pub struct OauthResource<'a, T: OAuthTokenRepository> {
     client: &'a ClientWithOAuth<'a, T>,
@@ -411,7 +411,7 @@ where
                 Box::pin(async move {
                     // refresh only if the token has not changed in the meantime
                     if token.access_token == oauth_token.access_token {
-                        let new_token_result = BL_CLIENT
+                        let new_token_result = Client::default()
                             .with_oauth(oauth_credentials, oauth_token_repository)
                             .oauth()
                             .refresh_token(oauth_token.refresh_token.as_ref().unwrap())

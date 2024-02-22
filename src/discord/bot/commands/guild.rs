@@ -2,9 +2,10 @@ use futures::Stream;
 use poise::serenity_prelude;
 use poise::serenity_prelude::{ChannelId, GuildId};
 
-use crate::bot::commands::player::say_without_ping;
-use crate::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
-use crate::{Context, Error};
+use crate::discord::bot::commands::player::say_without_ping;
+use crate::discord::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
+use crate::discord::Context;
+use crate::Error;
 
 /// Display current bot settings
 #[poise::command(

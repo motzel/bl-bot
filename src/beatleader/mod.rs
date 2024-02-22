@@ -5,12 +5,12 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{Jitter, Quota, RateLimiter};
-use log::{debug, error, info, trace};
 use reqwest::{
     Client as HttpClient, IntoUrl, Method, Request, RequestBuilder, Response as ReqwestResponse,
     Url,
 };
 use serde::de::DeserializeOwned;
+use tracing::{debug, error, info, trace};
 
 use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;

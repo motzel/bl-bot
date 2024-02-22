@@ -2,21 +2,22 @@ use std::borrow::Cow;
 use std::convert::From;
 
 use bytes::Bytes;
-use log::{error, info, trace, warn};
 use poise::serenity_prelude::{AttachmentType, CreateComponents, GuildId, User, UserId};
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
+use tracing::{error, info, trace, warn};
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
-use crate::bot::beatleader::{
+use crate::discord::bot::beatleader::{
     fetch_player_from_bl_by_user_id, fetch_rating, fetch_scores, MapRating, MapRatingModifier,
     Player as BotPlayer, Player, Score,
 };
-use crate::bot::commands::guild::{get_guild_id, get_guild_settings};
-use crate::bot::get_binary_file;
+use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
+use crate::discord::bot::get_binary_file;
+use crate::discord::Context;
 use crate::embed::{embed_profile, embed_score};
-use crate::storage::PersistError;
-use crate::{Context, Error};
+use crate::storage::StorageError;
+use crate::Error;
 
 #[derive(Debug, poise::ChoiceParameter, Default)]
 
@@ -236,7 +237,7 @@ pub(crate) async fn cmd_unlink(
             Ok(())
         }
         Err(e) => match e {
-            PersistError::NotFound(_) => {
+            StorageError::NotFound(_) => {
                 say_profile_not_linked(ctx, &selected_user_id).await?;
 
                 Ok(())

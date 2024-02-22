@@ -1,13 +1,12 @@
-use futures::Stream;
-use poise::serenity_prelude;
-use poise::serenity_prelude::{Attachment, AttachmentType, ChannelId};
+use poise::serenity_prelude::{Attachment, AttachmentType};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::bot::beatleader::Player as BotPlayer;
-use crate::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
+use crate::discord::bot::beatleader::Player as BotPlayer;
+use crate::discord::bot::GuildSettings;
+use crate::discord::Context;
 use crate::storage::player_oauth_token::PlayerOAuthToken;
-use crate::{Context, Error};
+use crate::Error;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

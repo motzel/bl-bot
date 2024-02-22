@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use chrono::serde::{ts_seconds, ts_seconds_option};
 use chrono::{DateTime, Utc};
-use log::{debug, info, trace};
 use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage, GuildId, UserId};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
+use tracing::{debug, info, trace};
 
 use crate::beatleader::clan::Clan;
 use crate::beatleader::player::{DifficultyStatus, Duration, LeaderboardId, MapType, PlayerId};
@@ -19,7 +19,7 @@ use crate::beatleader::player::{
 use crate::beatleader::pp::{calculate_pp_boundary, WEIGHT_COEFFICIENT};
 use crate::beatleader::rating::Ratings;
 use crate::beatleader::{error::Error as BlError, BlContext, List as BlList, SortOrder};
-use crate::bot::{Metric, PlayerMetricValue};
+use crate::discord::bot::{Metric, PlayerMetricValue};
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::BL_CLIENT;
