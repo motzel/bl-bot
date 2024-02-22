@@ -1,7 +1,7 @@
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use reqwest::Method;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
@@ -16,13 +16,14 @@ pub struct ClanResource<'a> {
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum ClanMapsSort {
     Date,
     Pp,
     Acc,
     Rank,
     ToHold,
+    #[default]
     ToConquer,
 }
 

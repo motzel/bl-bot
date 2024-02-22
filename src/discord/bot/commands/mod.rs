@@ -1,8 +1,8 @@
+use crate::discord::bot::commands::playlist::cmd_clan_wars_playlist;
 use crate::discord::BotData;
 pub(crate) use backup::{cmd_export, cmd_import};
 pub(crate) use clan::{
-    cmd_clan_invitation, cmd_clan_wars_playlist, cmd_invite_player, cmd_set_clan_invitation,
-    cmd_set_clan_invitation_code,
+    cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation, cmd_set_clan_invitation_code,
 };
 pub(crate) use guild::{
     cmd_add_auto_role, cmd_remove_auto_role, cmd_set_clan_wars_maps_channel, cmd_set_log_channel,
@@ -15,6 +15,7 @@ pub(crate) mod backup;
 pub(crate) mod clan;
 pub(crate) mod guild;
 pub(crate) mod player;
+pub(crate) mod playlist;
 pub(crate) mod register;
 
 pub(crate) fn commands() -> Vec<poise::Command<BotData, crate::Error>> {
