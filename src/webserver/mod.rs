@@ -39,6 +39,8 @@ impl WebServer {
 
         info!("Starting web server on {}...", addr);
 
+        let timeout = self.settings.server.timeout;
+
         let state = AppState {
             settings: self.settings,
         };
@@ -53,8 +55,7 @@ impl WebServer {
                 ),
             // Graceful shutdown will wait for outstanding requests to complete. Add a timeout so
             // requests don't hang forever.
-            // TODO: add timeout to settings
-            TimeoutLayer::new(std::time::Duration::from_secs(3)),
+            TimeoutLayer::new(std::time::Duration::from_secs(timeout as u64)),
         ));
 
         axum::serve(

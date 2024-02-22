@@ -1,4 +1,4 @@
-use config::{Config, ConfigError, Environment, File};
+use config::{Config, ConfigError, Environment, File, Value, ValueKind};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use tracing::info;
@@ -65,6 +65,7 @@ pub(crate) struct OAuthSettings {
 pub(crate) struct ServerSettings {
     pub ip: Ipv4Addr,
     pub port: u16,
+    pub timeout: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +90,14 @@ impl Settings {
             .set_default("storage_path", "./.storage")?
             .set_default("clan_wars_interval", 360)?
             .set_default("clan_wars_maps_count", 30)?
+            .set_default(
+                "server",
+                ValueKind::Array(vec![
+                    Value::new(Some(&"ip".to_owned()), "0.0.0.0"),
+                    Value::new(Some(&"port".to_owned()), 3000),
+                    Value::new(Some(&"timeout".to_owned()), 30),
+                ]),
+            )?
             .add_source(File::with_name("config").required(false))
             .add_source(File::with_name("config.dev").required(false))
             .add_source(Environment::with_prefix("BLBOT"))
