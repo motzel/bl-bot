@@ -6,6 +6,8 @@ use axum::http::{header, Request, Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::{extract::Query, extract::State, routing::get, Router};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 
 use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorError, GovernorLayer};
@@ -40,7 +42,11 @@ impl KeyExtractor for PlaylistUser {
     }
 }
 
-pub(crate) fn app_router(state: AppState) -> Router {
+pub(crate) fn app_router(
+    tracker: TaskTracker,
+    token: CancellationToken,
+    state: AppState,
+) -> Router {
     let playlist_governor_conf = Box::new(
         GovernorConfigBuilder::default()
             .key_extractor(PlaylistUser)
@@ -52,15 +58,27 @@ pub(crate) fn app_router(state: AppState) -> Router {
 
     let playlist_governor_limiter = playlist_governor_conf.limiter().clone();
 
-    let interval = Duration::from_secs(60);
-    // a separate background task to clean up
-    std::thread::spawn(move || loop {
-        std::thread::sleep(interval);
-        tracing::info!(
-            "rate limiting storage size: {}",
-            playlist_governor_limiter.len()
-        );
-        playlist_governor_limiter.retain_recent();
+    tracker.spawn(async move {
+        let interval = std::time::Duration::from_secs(60);
+
+        'outer: loop {
+            tokio::select! {
+                _ = token.cancelled() => {
+                    tracing::warn!("Playlist rate limiting is shutting down...");
+                    break 'outer;
+                }
+                _ = tokio::time::sleep(interval) => {}
+            }
+
+            tracing::debug!(
+                "Playlist rate limiting storage size: {}",
+                playlist_governor_limiter.len()
+            );
+
+            playlist_governor_limiter.retain_recent();
+        }
+
+        tracing::warn!("Playlist rate limiting shut down.");
     });
 
     Router::new()

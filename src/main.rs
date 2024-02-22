@@ -42,7 +42,7 @@ async fn main() -> Result<(), Error> {
     let token = CancellationToken::new();
 
     let ram_reporter = RamReporter::new(token.clone());
-    let webserver = WebServer::new(common_data.clone(), token.clone());
+    let webserver = WebServer::new(common_data.clone(), tracker.clone(), token.clone());
 
     let discord_framework =
         discord::init(common_data.clone(), tracker.clone(), token.clone()).await?;

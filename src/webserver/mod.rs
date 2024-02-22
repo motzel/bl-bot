@@ -2,6 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::{self, TraceLayer};
 use tower_http::LatencyUnit;
@@ -15,6 +16,7 @@ mod routes;
 
 pub struct WebServer {
     settings: Settings,
+    tracker: TaskTracker,
     token: CancellationToken,
 }
 
@@ -24,9 +26,10 @@ pub(crate) struct AppState {
 }
 
 impl WebServer {
-    pub fn new(data: CommonData, token: CancellationToken) -> Self {
+    pub fn new(data: CommonData, tracker: TaskTracker, token: CancellationToken) -> Self {
         Self {
             settings: data.settings,
+            tracker,
             token,
         }
     }
@@ -45,7 +48,7 @@ impl WebServer {
             settings: self.settings,
         };
 
-        let app_router = app_router(state).layer((
+        let app_router = app_router(self.tracker.clone(), self.token.clone(), state).layer((
             TraceLayer::new_for_http()
                 .make_span_with(crate::log::make_span_with)
                 .on_response(
