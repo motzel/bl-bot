@@ -1,6 +1,7 @@
 .idea/
 .storage
 .http-cache
+.logs
 .test_output
 /target
 config.dev.toml
