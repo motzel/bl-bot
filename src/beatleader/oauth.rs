@@ -22,8 +22,8 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
         Self { client }
     }
 
-    pub fn authorize_url(&self, scopes: Vec<OAuthScope>) -> Option<String> {
-        let request = OAuthGrant::Authorize(scopes)
+    pub fn authorize_url(&self, scopes: Vec<OAuthScope>, state: String) -> Option<String> {
+        let request = OAuthGrant::Authorize(scopes, state)
             .get_request_builder(self.client)
             .build()
             .ok()?;
@@ -212,7 +212,7 @@ impl From<OAuthTokenResponse> for OAuthToken {
 }
 
 pub enum OAuthGrant {
-    Authorize(Vec<OAuthScope>),
+    Authorize(Vec<OAuthScope>, String),
     AuthorizationCode(String),
     RefreshToken(String),
 }
@@ -236,18 +236,23 @@ impl OAuthGrant {
         ]);
 
         match self {
-            OAuthGrant::Authorize(scopes) => {
+            OAuthGrant::Authorize(scopes, state) => {
                 let scopes_str = scopes
                     .iter()
                     .map(String::from)
                     .collect::<Vec<_>>()
                     .join(" ");
 
-                trace!("Authorize grant selected with scopes {}", &scopes_str);
+                trace!(
+                    "Authorize grant selected with scopes {} and state {}",
+                    &scopes_str,
+                    state.as_str()
+                );
 
                 params.extend(HashMap::from([
                     ("response_type", "code".to_owned()),
                     ("scope", scopes_str),
+                    ("state", state.to_string()),
                 ]));
 
                 client

@@ -44,6 +44,7 @@ impl StorageValue<PlayerId> for PlayerOAuthToken {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PlayerOAuthTokenRepository {
     storage: CachedStorage<PlayerId, PlayerOAuthToken>,
 }

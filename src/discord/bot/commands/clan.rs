@@ -1,3 +1,4 @@
+use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 use std::sync::Arc;
 
 use crate::beatleader::clan::Clan;
@@ -27,10 +28,10 @@ pub(crate) async fn cmd_set_clan_invitation(
     ctx: Context<'_>,
     // #[description = "Allow users to self-invite. Default: true"] self_invite: Option<bool>,
 ) -> Result<(), Error> {
-    if ctx.data().oauth_credentials().is_none() {
+    let Some(oauth_credentials) = ctx.data().oauth_credentials() else {
         say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
         return Ok(());
-    }
+    };
 
     let guild_settings = get_guild_settings(ctx, true).await?;
 
@@ -137,117 +138,11 @@ pub(crate) async fn cmd_set_clan_invitation(
         Arc::clone(&ctx.data().player_oauth_token_repository),
     );
 
-    let oauth_client = BL_CLIENT.with_oauth(
-        ctx.data().oauth_credentials().as_ref().unwrap().clone(),
-        guild_oauth_token_repository,
-    );
+    let mc = new_magic_crypt!(oauth_credentials.client_secret.clone(), 256);
 
-    msg_contents.push_str(format!("\nGreat, you are the owner of the {} clan. Now click this link and authorize the bot to send invitations to the clan on your behalf. {}", &player_clan.tag, oauth_client.oauth().authorize_url(vec![OAuthScope::Profile, OAuthScope::OfflineAccess, OAuthScope::Clan]).unwrap_or("Error when generating authorization link".to_owned())).as_str());
-    let msg_contents_clone = msg_contents.clone();
-    msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
-        .await?;
+    let oauth_client = BL_CLIENT.with_oauth(oauth_credentials, guild_oauth_token_repository);
 
-    Ok(())
-}
-
-/// Authorize sending of clan invitations
-#[poise::command(
-    slash_command,
-    rename = "bl-set-clan-invitation-code",
-    ephemeral,
-    required_permissions = "MANAGE_ROLES",
-    default_member_permissions = "MANAGE_ROLES",
-    required_bot_permissions = "MANAGE_ROLES",
-    guild_only
-)]
-pub(crate) async fn cmd_set_clan_invitation_code(
-    ctx: Context<'_>,
-    #[description = "BL authorization code"] auth_code: String,
-) -> Result<(), Error> {
-    if ctx.data().oauth_credentials().is_none() {
-        say_without_ping(ctx, "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured.", true).await?;
-        return Ok(());
-    }
-
-    let guild_settings = get_guild_settings(ctx, true).await?;
-
-    if guild_settings.clan_settings.is_none() {
-        say_without_ping(
-            ctx,
-            "Error: clan settings not found, use ``/bl-set-clan-invitation`` command first",
-            true,
-        )
-        .await?;
-
-        return Ok(());
-    }
-
-    let owner_id = guild_settings
-        .clan_settings
-        .as_ref()
-        .unwrap()
-        .owner_id
-        .clone();
-    let self_invite = guild_settings.clan_settings.as_ref().unwrap().self_invite;
-
-    let mut msg_contents = "Fetching access token...".to_owned();
-    let msg = ctx.say(&msg_contents).await?;
-
-    let guild_oauth_token_repository = GuildOAuthTokenRepository::new(
-        owner_id,
-        Arc::clone(&ctx.data().player_oauth_token_repository),
-    );
-    let oauth_client = BL_CLIENT.with_oauth(
-        ctx.data().oauth_credentials().unwrap().clone(),
-        guild_oauth_token_repository,
-    );
-
-    let access_token = oauth_client
-        .oauth()
-        .access_token_and_store(auth_code.as_str())
-        .await;
-    if access_token.is_err() {
-        msg_contents.push_str(
-            format!(
-                "An error has occurred: {} Use the ``/bl-set-clan-invitation`` command again.",
-                access_token.unwrap_err()
-            )
-            .as_str(),
-        );
-
-        let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
-            .await?;
-
-        return Ok(());
-    }
-
-    msg_contents.push_str("OK\nSaving clan settings...");
-
-    let msg_contents_clone = msg_contents.clone();
-    msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
-        .await?;
-
-    let mut clan_settings = guild_settings.clan_settings.unwrap();
-    clan_settings.oauth_token_is_set = true;
-
-    if ctx
-        .data()
-        .guild_settings_repository
-        .set_clan_settings(&guild_settings.guild_id, Some(clan_settings))
-        .await
-        .is_err()
-    {
-        msg_contents.push_str("An error occurred while saving clan settings\n");
-
-        let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
-            .await?;
-
-        return Ok(());
-    }
-
-    msg_contents.push_str(format!("OK\nClan invitation service has been set up. {}", if self_invite {"Players can use the ``/bl-clan-invitation`` command to send themselves an invitation to join the clan."} else {"You can use the ``/bl-invite-player`` command to send a player an invitation to join the clan."}).as_str());
+    msg_contents.push_str(format!("\nGreat, you are the owner of the {} clan. Now click this link and authorize the bot to send invitations to the clan on your behalf. {}", &player_clan.tag, oauth_client.oauth().authorize_url(vec![OAuthScope::Profile, OAuthScope::OfflineAccess, OAuthScope::Clan], mc.encrypt_str_to_base64(guild_settings.guild_id.to_string())).unwrap_or("Error when generating authorization link".to_owned())).as_str());
 
     let msg_contents_clone = msg_contents.clone();
     msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))

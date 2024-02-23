@@ -12,7 +12,7 @@ A (not so) simple Discord bot providing the following commands:
 - ``/bl-add-auto-role`` / ``/bl-remove-auto-role``, allowing a user (role management permission required) to configure the automatic setting of selected roles to server users based on their BL profile. The roles to be set up are grouped, and each role can be assigned a set of multiple conditions that must be met for it to be given. ![](docs/bl-role.gif)
 - ``/bl-set-log-channel``, allowing to set the channel on which all role changes will be posted ![](docs/bl-log.gif)
 - ``/bl-set-profile-verification``, allowing to set the profile verification requirement when linking a player's profile
-- ``/bl-set-clan-invitation`` / ``/bl-set-clan-invitation-code``, allowing to set up self-sending by the user invitations to the clan without the involvement of the clan owner (**NOTE**: requires contacting NSGolova on BeatLeader discord to get OAuth application id and secret)
+- ``/bl-set-clan-invitation``, allowing to set up self-sending by the user invitations to the clan without the involvement of the clan owner (**NOTE**: requires contacting NSGolova on BeatLeader discord to get OAuth application id and secret)
 - ``/bl-clan-invitation``, allowing a user to send an invitation to join a clan on their own
 - ``/bl-clan-wars-playlist``, allowing a user to generate personalized playlist of clan wars maps
 - ![](docs/clan-wars-playlist.png)

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, str::FromStr};
 
@@ -12,8 +13,13 @@ use tokio_util::task::TaskTracker;
 use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorError, GovernorLayer};
 
+use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::discord::bot::commands::playlist::Playlist;
+use crate::discord::bot::GuildOAuthTokenRepository;
 use crate::webserver::AppState;
+use crate::BL_CLIENT;
+use magic_crypt::{new_magic_crypt, MagicCryptTrait};
+use poise::serenity_prelude::GuildId;
 
 mod api;
 mod fallback;
@@ -201,27 +207,123 @@ where
 #[tracing::instrument(level=tracing::Level::INFO, name="webserver:bl-oauth")]
 async fn bl_oauth(
     Query(params): Query<Params>,
-    State(_settings): State<AppState>,
+    State(app_state): State<AppState>,
 ) -> (StatusCode, String) {
+    let oauth_settings = match app_state.settings.oauth {
+        None => return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "The bot is not properly configured to send invitations to the clan. Contact the bot owner to have it configured."
+                .to_string(),
+        ),
+        Some(oauth_settings) => oauth_settings.clone()
+    };
+
     let error_response = (
         StatusCode::BAD_GATEWAY,
-        "Something went wrong.\n\nNo authorization code in response, can not continue.".to_string(),
+        "Something went wrong.\n\nNo authorization code or oauth state in response, can not continue."
+            .to_string(),
     );
 
-    match params.code {
-        None => error_response,
+    let auth_code = match params.code {
+        None => return error_response.clone(),
         Some(code) => {
-            if !code.is_empty() {
-                (
-                    StatusCode::OK,
-                    format!(
-                        "Authorization code received\n\nNow copy the following command for the bot and paste it in Discord:\n\n/bl-set-clan-invitation-code auth_code:{}",
-                        code
-                    ),
-                )
-            } else {
-                error_response
+            if code.is_empty() {
+                return error_response.clone();
+            }
+
+            code
+        }
+    };
+
+    match params.state {
+        Some(state) => {
+            let mc = new_magic_crypt!(oauth_settings.client_secret.as_str(), 256);
+
+            match mc.decrypt_base64_to_string(state.as_str()) {
+                Err(err) => {
+                    let err_string = format!("Can not decode oauth state: {}", err);
+                    tracing::error!("{}", err_string.as_str());
+
+                    return (StatusCode::BAD_REQUEST, err_string);
+                }
+                Ok(decoded_state) => match decoded_state.parse::<GuildId>() {
+                    Err(err) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            format!("Invalid oauth state: {}", err),
+                        )
+                    }
+                    Ok(guild_id) => {
+                        match app_state.guild_settings_repository.get(&guild_id).await {
+                            Err(_) => {
+                                return (StatusCode::BAD_REQUEST, "Invalid guild ID".to_string())
+                            }
+                            Ok(guild_settings) => {
+                                let Some(mut clan_settings) = guild_settings.get_clan_settings()
+                                else {
+                                    return (StatusCode::BAD_REQUEST, "Clan settings not found, use ``/bl-set-clan-invitation`` command first".to_string());
+                                };
+
+                                let oauth_client = BL_CLIENT.with_oauth(
+                                    OAuthAppCredentials {
+                                        client_id: oauth_settings.client_id.clone(),
+                                        client_secret: oauth_settings.client_secret.clone(),
+                                        redirect_uri: oauth_settings.redirect_uri.clone(),
+                                    },
+                                    GuildOAuthTokenRepository::new(
+                                        clan_settings.get_owner().clone(),
+                                        Arc::clone(&app_state.player_oauth_token_repository),
+                                    ),
+                                );
+
+                                match oauth_client
+                                    .oauth()
+                                    .access_token_and_store(auth_code.as_str())
+                                    .await {
+                                    Err(err) => {
+                                        return (StatusCode::BAD_GATEWAY, format!(
+                                            "An error has occurred: {}\n\nUse the /bl-set-clan-invitation command again.", err
+                                        ))
+                                    },
+                                    Ok(_) => {
+                                        clan_settings.set_oauth_token(true);
+
+                                        let self_invite = clan_settings.supports_self_invitation();
+
+                                        if app_state
+                                            .guild_settings_repository
+                                            .set_clan_settings(
+                                                &guild_settings.get_key(),
+                                                Some(clan_settings),
+                                            )
+                                            .await
+                                            .is_err()
+                                        {
+                                            return (
+                                                StatusCode::INTERNAL_SERVER_ERROR,
+                                                "An error occurred while saving clan settings".to_string(),
+                                            );
+                                        }
+
+                                        (
+                                            StatusCode::OK,
+                                            format!(
+                                                "Clan invitation service has been set up.\n\n{}",
+                                                if self_invite {
+                                                    "Players can use the ``/bl-clan-invitation`` command to send themselves an invitation to join the clan."
+                                                } else {
+                                                    "You can use the ``/bl-invite-player`` command to send a player an invitation to join the clan."
+                                                }
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
             }
         }
+        None => error_response,
     }
 }

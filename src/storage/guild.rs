@@ -13,6 +13,7 @@ use crate::storage::{CachedStorage, Storage, StorageError};
 
 use super::Result;
 
+#[derive(Debug)]
 pub(crate) struct GuildSettingsRepository {
     storage: CachedStorage<GuildId, GuildSettings>,
 }

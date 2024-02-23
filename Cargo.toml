@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.14.0"
+version = "0.14.1"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
@@ -47,3 +47,4 @@ hostname = "0.3.1"
 uuid = { version = "1.5.0", features = ["v4", "serde"] }
 cookie = "0.18.0"
 tower_governor = { version = "0.3.2", features = ["axum", "tracing"] }
+magic-crypt = "^3.1"
