@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 
 use axum::body::Body;
 use axum::http::Request;
+use tower_governor::key_extractor::SmartIpKeyExtractor;
 use tracing::Span;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
@@ -9,6 +10,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter, Layer};
 
 use crate::config::{TracingFormat, TracingSettings};
+use tower_governor::key_extractor::KeyExtractor;
 
 pub(crate) fn init(tracing_settings: TracingSettings) -> Option<WorkerGuard> {
     let app_name = env!("CARGO_PKG_NAME").replace('-', "_");
@@ -113,18 +115,12 @@ pub(crate) fn make_span_with(request: &Request<Body>) -> Span {
         request_id = uuid::Uuid::new_v4().hyphenated().encode_lower(&mut uuid::Uuid::encode_buffer()),
         method = %request.method(),
         uri = %request.uri(),
-        // TODO: Change this if deploy is behind a proxy (eg the `X-forwarded-for` header)
-        // client_ip = request.extensions()
-        //     .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-        //     .map(|connect_info|
-        //         tracing::field::display(connect_info.ip().to_string()),
-        //     ).unwrap_or_else(||
-        //         tracing::field::display(String::from("<unknown>"))
-        //     ),
-        // user_agent = match request.headers().get("User-Agent").map(|h| h.as_bytes()) {
-        //     None => "<unknown>",
-        //     Some(h) => std::str::from_utf8(h).unwrap_or("<unknown>"),
-        // },
+        client_ip = SmartIpKeyExtractor.extract(request)
+        .map_or_else(|_| tracing::field::display(String::from("<unknown>")), |ip| tracing::field::display(ip.to_string())),
+        user_agent = match request.headers().get("User-Agent").map(|h| h.as_bytes()) {
+            None => "<unknown>",
+            Some(h) => std::str::from_utf8(h).unwrap_or("<unknown>"),
+        },
 
         // Fields must be defined to be used, define them as empty if they populate later
         status = tracing::field::Empty,
