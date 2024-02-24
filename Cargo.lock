@@ -277,6 +277,7 @@ dependencies = [
  "http-cache-reqwest",
  "lazy_static",
  "magic-crypt",
+ "mime",
  "peak_alloc",
  "poise",
  "rayon",

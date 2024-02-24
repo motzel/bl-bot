@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::{fmt, str::FromStr};
 
 use axum::extract::Path;
-use axum::http::{Request, StatusCode};
+use axum::http::{Request, Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::{extract::Query, extract::State, http::header, routing::get, Json, Router};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -32,7 +32,7 @@ impl KeyExtractor for PlaylistUserExtractor {
     type Key = String;
 
     fn name(&self) -> &'static str {
-        "PlaylistUser"
+        "PlaylistUserExtractor"
     }
     fn extract<B>(&self, req: &Request<B>) -> Result<Self::Key, GovernorError> {
         Ok(req
@@ -59,6 +59,25 @@ pub(crate) fn app_router(
             .key_extractor(PlaylistUserExtractor)
             .period(Duration::from_secs(180))
             .burst_size(3)
+            .use_headers()
+            .error_handler(|err| match err {
+                GovernorError::TooManyRequests { wait_time, headers } => {
+                    let (mut parts, body) = Json(json!({"error": {"code": "rate_limit", "message": format!("Too Many Requests! Wait for {}s", wait_time), "retry_after": wait_time}}))
+                        .into_response()
+                        .into_parts();
+
+                    parts.status = StatusCode::TOO_MANY_REQUESTS;
+                    if let Some(headers) = headers {
+                        headers.into_iter().for_each(|(name_option, value)| if let Some(name) = name_option {parts.headers.insert(name, value);});
+                    }
+
+                    Response::from_parts(parts, body)
+                }
+                _ => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": {"code": "internal_rate_limit_error", "message": "Unknown error"}})).into_response(),
+                ).into_response(),
+            })
             .finish()
             .unwrap(),
     );
