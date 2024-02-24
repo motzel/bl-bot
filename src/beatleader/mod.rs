@@ -15,6 +15,8 @@ use tracing::{debug, error, info, trace};
 use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::result;
 
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
@@ -307,6 +309,77 @@ where
             page: value.metadata.page,
             items_per_page: value.metadata.items_per_page,
             total: value.metadata.total,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PageDef {
+    pub page: u32,
+    pub items_per_page: u32,
+}
+
+#[derive(Debug)]
+pub struct DataPage<T> {
+    pub page_data: Vec<T>,
+    pub items_per_page: Option<u32>,
+    pub total: Option<u32>,
+}
+
+pub async fn fetch_paged_items<T, F, Fut>(
+    requested_items_per_page: u32,
+    items_count: Option<u32>,
+    func: F,
+) -> result::Result<Vec<T>, Error>
+where
+    T: Sized + std::fmt::Debug,
+    F: Fn(PageDef) -> Fut,
+    Fut: Future<Output = result::Result<DataPage<T>, Error>>,
+{
+    if items_count.is_some() && items_count.unwrap() == 0 {
+        return Ok(vec![]);
+    }
+
+    let mut data =
+        Vec::with_capacity(items_count.unwrap_or(10.max(requested_items_per_page)) as usize);
+
+    let mut page_def = PageDef {
+        page: 1,
+        items_per_page: requested_items_per_page,
+    };
+    let mut total = u32::MAX;
+
+    loop {
+        let page_data = func(page_def.clone()).await?;
+
+        let page_is_empty = page_data.page_data.is_empty();
+
+        data.extend(page_data.page_data);
+
+        page_def.page += 1;
+
+        // TODO: commented due to BL API bug (https://github.com/BeatLeader/beatleader-server/blob/b047f703ca63b08920c9747ca40c5d7ba8fc97ff/Controllers/ClanController.cs#L229)
+        // if let Some(actual_items_per_page) = page_data.items_per_page {
+        //     page_def.items_per_page = actual_items_per_page;
+        // }
+
+        if let Some(actual_total) = page_data.total {
+            total = actual_total;
+        }
+
+        let total_pages = total.div_ceil(page_def.items_per_page);
+
+        if page_is_empty
+            || page_def.page > total_pages
+            || data.len() as u32 >= items_count.unwrap_or(u32::MAX)
+        {
+            return Ok(if let Some(items_count) = items_count {
+                data.into_iter()
+                    .take(items_count as usize)
+                    .collect::<Vec<_>>()
+            } else {
+                data
+            });
         }
     }
 }
