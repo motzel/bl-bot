@@ -1,6 +1,7 @@
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use reqwest::Method;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull, TimestampSeconds};
 
@@ -62,10 +63,11 @@ impl QueryParam for ClanMapsParam {
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClanMap {
-    pub id: u32,
+    #[serde(rename = "id")]
+    pub clan_map_id: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub pp: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -86,21 +88,21 @@ impl BlApiResponse for ClanMap {}
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub enum ClanRankingParam {
+pub enum ClanMapParam {
     Page(u32),
     Count(u32),
 }
 
-impl QueryParam for ClanRankingParam {
+impl QueryParam for ClanMapParam {
     fn as_query_param(&self) -> (String, String) {
         match self {
-            ClanRankingParam::Page(page) => ("page".to_owned(), page.to_string()),
-            ClanRankingParam::Count(count) => ("count".to_owned(), count.to_string()),
+            ClanMapParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanMapParam::Count(count) => ("count".to_owned(), count.to_string()),
         }
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClanPlayer {
     pub id: PlayerId,
@@ -113,9 +115,9 @@ pub struct ClanPlayer {
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ClanRankingScore {
+pub struct ClanMapScore {
     pub id: u32,
     pub player_id: String,
     pub player: ClanPlayer,
@@ -125,6 +127,16 @@ pub struct ClanRankingScore {
     pub pp: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub rank: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub bad_cuts: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub bomb_cuts: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub missed_notes: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub walls_hit: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub full_combo: bool,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub modifiers: String,
     #[serde_as(as = "TimestampSeconds<String>")]
@@ -139,6 +151,10 @@ pub struct ClanRankingScore {
 pub struct BlApiClanRankingResponse {
     pub id: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub pp: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub total_score: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub clan: Clan,
     #[serde(with = "ts_seconds")]
     pub last_update_time: DateTime<Utc>,
@@ -147,17 +163,17 @@ pub struct BlApiClanRankingResponse {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub associated_scores_count: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub associated_scores: Vec<ClanRankingScore>,
+    pub associated_scores: Vec<ClanMapScore>,
 }
 
 impl BlApiResponse for BlApiClanRankingResponse {}
 
-impl From<BlApiClanRankingResponse> for List<ClanRankingScore> {
+impl From<BlApiClanRankingResponse> for List<ClanMapScore> {
     fn from(value: BlApiClanRankingResponse) -> Self {
         Self {
             data: value.associated_scores,
-            page: 1,
-            items_per_page: 100,
+            page: 0,
+            items_per_page: 0,
             total: value.associated_scores_count,
         }
     }
@@ -168,7 +184,7 @@ impl<'a> ClanResource<'a> {
         Self { client }
     }
 
-    pub async fn search(&self, params: &[ClanParam]) -> Result<List<Clan>> {
+    pub async fn clans(&self, params: &[ClanParam]) -> Result<List<Clan>> {
         self.client
             .get_json::<BlApiListResponse<BlApiClan>, List<Clan>, ClanParam>(
                 Method::GET,
@@ -180,17 +196,27 @@ impl<'a> ClanResource<'a> {
 
     pub async fn by_tag(&self, tag: &str) -> Result<Clan> {
         self.client
-            .get_json::<BlApiClanContainer, Clan, ClanParam>(
+            .get_json::<BlApiClanContainer<Player>, Clan, ClanPlayersParam>(
                 Method::GET,
                 format!("/clan/{}", tag).as_str(),
-                &[ClanParam::Count(0)],
+                &[ClanPlayersParam::Count(0)],
+            )
+            .await
+    }
+
+    pub async fn players(&self, tag: &str, params: &[ClanPlayersParam]) -> Result<List<Player>> {
+        self.client
+            .get_json::<BlApiClanContainer<Player>, List<Player>, ClanPlayersParam>(
+                Method::GET,
+                format!("/clan/{}", tag).as_str(),
+                params,
             )
             .await
     }
 
     pub async fn maps(&self, tag: &str, params: &[ClanMapsParam]) -> Result<List<ClanMap>> {
         self.client
-            .get_json::<BlApiListResponse<ClanMap>, List<ClanMap>, ClanMapsParam>(
+            .get_json::<BlApiClanContainer<ClanMap>, List<ClanMap>, ClanMapsParam>(
                 Method::GET,
                 &format!("/clan/{}/maps", tag),
                 params,
@@ -201,15 +227,15 @@ impl<'a> ClanResource<'a> {
     pub async fn scores(
         &self,
         leaderboard_id: &str,
-        clan_ranking_id: u32,
-        params: &[ClanRankingParam],
-    ) -> Result<List<ClanRankingScore>> {
+        clan_map_id: u32,
+        params: &[ClanMapParam],
+    ) -> Result<List<ClanMapScore>> {
         self.client
-            .get_json::<BlApiClanRankingResponse, List<ClanRankingScore>, ClanRankingParam>(
+            .get_json::<BlApiClanRankingResponse, List<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
                     "/leaderboard/clanRankings/{}/{}",
-                    leaderboard_id, clan_ranking_id
+                    leaderboard_id, clan_map_id
                 ),
                 params,
             )
@@ -260,13 +286,28 @@ impl BlApiResponse for BlApiClan {}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct BlApiClanContainer {
-    pub data: Vec<Player>,
+pub struct BlApiClanContainer<T> {
+    pub data: Vec<T>,
     pub metadata: MetaData,
     pub container: BlApiClan,
 }
 
-impl BlApiResponse for BlApiClanContainer {}
+impl<T> BlApiResponse for BlApiClanContainer<T> {}
+
+impl<In, Out> From<BlApiClanContainer<In>> for List<Out>
+where
+    In: BlApiResponse + Sized + DeserializeOwned,
+    Out: From<In> + Sized,
+{
+    fn from(value: BlApiClanContainer<In>) -> Self {
+        Self {
+            data: value.data.into_iter().map(|v| v.into()).collect(),
+            page: value.metadata.page,
+            items_per_page: value.metadata.items_per_page,
+            total: value.metadata.total,
+        }
+    }
+}
 
 #[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -301,8 +342,8 @@ impl From<BlApiClan> for Clan {
     }
 }
 
-impl From<BlApiClanContainer> for Clan {
-    fn from(value: BlApiClanContainer) -> Self {
+impl<T> From<BlApiClanContainer<T>> for Clan {
+    fn from(value: BlApiClanContainer<T>) -> Self {
         value.container.into()
     }
 }
@@ -314,6 +355,7 @@ pub enum ClanSort {
     Acc,
     Rank,
     Players,
+    MapsCaptured,
 }
 
 #[allow(dead_code)]
@@ -337,6 +379,7 @@ impl QueryParam for ClanParam {
                     ClanSort::Acc => "acc".to_owned(),
                     ClanSort::Rank => "rank".to_owned(),
                     ClanSort::Players => "count".to_owned(),
+                    ClanSort::MapsCaptured => "captures".to_owned(),
                 },
             ),
             ClanParam::Order(order) => (
@@ -348,6 +391,55 @@ impl QueryParam for ClanParam {
             ),
             ClanParam::Count(count) => ("count".to_owned(), count.to_string()),
             ClanParam::Search(search) => ("search".to_owned(), search.to_string()),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanPlayersSort {
+    Pp,
+    Acc,
+    Rank,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanPlayersParam {
+    Page(u32),
+    Sort(ClanPlayersSort),
+    Order(SortOrder),
+    Count(u32),
+    Primary(bool),
+    Search(String),
+    CapturedLeaderboards(String),
+}
+
+impl QueryParam for ClanPlayersParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            ClanPlayersParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanPlayersParam::Sort(field) => (
+                "sortBy".to_owned(),
+                match field {
+                    ClanPlayersSort::Pp => "pp".to_owned(),
+                    ClanPlayersSort::Acc => "acc".to_owned(),
+                    ClanPlayersSort::Rank => "rank".to_owned(),
+                },
+            ),
+            ClanPlayersParam::Order(order) => (
+                "order".to_owned(),
+                match order {
+                    SortOrder::Ascending => "asc".to_owned(),
+                    SortOrder::Descending => "desc".to_owned(),
+                },
+            ),
+            ClanPlayersParam::Count(count) => ("count".to_owned(), count.to_string()),
+            ClanPlayersParam::Search(search) => ("search".to_owned(), search.to_string()),
+            ClanPlayersParam::Primary(primary) => ("primary".to_owned(), primary.to_string()),
+            ClanPlayersParam::CapturedLeaderboards(captured) => {
+                ("capturedLeaderboards".to_owned(), captured.to_string())
+            }
         }
     }
 }

@@ -277,7 +277,7 @@ impl BlApiResponse for Score {}
 pub type LeaderboardId = String;
 
 #[serde_as]
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Leaderboard {
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -304,7 +304,7 @@ impl std::fmt::Display for Duration {
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -330,7 +330,7 @@ pub struct Song {
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Difficulty {
     #[serde_as(deserialize_as = "DefaultOnNull")]
@@ -393,7 +393,7 @@ impl std::fmt::Display for DifficultyStatus {
 }
 
 #[serde_as]
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ModifiersRatings {
     #[serde_as(deserialize_as = "DefaultOnNull")]

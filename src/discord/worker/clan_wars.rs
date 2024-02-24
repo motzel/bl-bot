@@ -1,4 +1,4 @@
-use crate::beatleader::clan::{ClanMapsParam, ClanMapsSort, ClanRankingParam};
+use crate::beatleader::clan::{ClanMapParam, ClanMapsParam, ClanMapsSort};
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::pp::{
     calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
@@ -96,10 +96,10 @@ impl BlClanWarsMapsWorker {
                                                 .clan()
                                                 .scores(
                                                     &map.leaderboard.id,
-                                                    map.id,
+                                                    map.clan_map_id,
                                                     &[
-                                                        ClanRankingParam::Count(100),
-                                                        ClanRankingParam::Page(1),
+                                                        ClanMapParam::Count(100),
+                                                        ClanMapParam::Page(1),
                                                     ],
                                                 )
                                                 .await
