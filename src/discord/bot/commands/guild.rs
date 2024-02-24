@@ -8,6 +8,7 @@ use crate::discord::Context;
 use crate::Error;
 
 /// Display current bot settings
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-show-settings")]
 #[poise::command(
     slash_command,
     rename = "bl-show-settings",
@@ -26,6 +27,7 @@ pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set or unset bot log channel
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-log-channel")]
 #[poise::command(
     slash_command,
     rename = "bl-set-log-channel",
@@ -62,6 +64,7 @@ pub(crate) async fn cmd_set_log_channel(
 }
 
 /// Set or unset clan wars maps channel
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-wars-maps-channel")]
 #[poise::command(
     slash_command,
     rename = "bl-set-clan-wars-maps-channel",
@@ -98,6 +101,7 @@ pub(crate) async fn cmd_set_clan_wars_maps_channel(
 }
 
 /// Set profile verification requirement
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-profile-verification")]
 #[poise::command(
     slash_command,
     rename = "bl-set-profile-verification",
@@ -134,6 +138,7 @@ pub(crate) async fn cmd_set_profile_verification(
 }
 
 /// Set conditions for automatic role assignment.
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-add-auto-role")]
 #[poise::command(
     slash_command,
     rename = "bl-add-auto-role",
@@ -195,6 +200,7 @@ pub(crate) async fn cmd_add_auto_role(
 }
 
 /// Remove auto role.
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-remove-auto-role")]
 #[poise::command(
     slash_command,
     rename = "bl-remove-auto-role",

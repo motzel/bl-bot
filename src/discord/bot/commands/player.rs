@@ -75,6 +75,7 @@ impl BlCommandContext {
 }
 
 /// Link your account to your Beat Leader profile.
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-link")]
 #[poise::command(slash_command, rename = "bl-link", guild_only)]
 pub(crate) async fn cmd_link(
     ctx: Context<'_>,
@@ -173,6 +174,7 @@ pub(crate) async fn cmd_link(
 }
 
 /// Unlink your account from your Beat Leader profile.
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-unlink")]
 #[poise::command(slash_command, rename = "bl-unlink", guild_only)]
 pub(crate) async fn cmd_unlink(
     ctx: Context<'_>,
@@ -256,6 +258,7 @@ pub(crate) async fn cmd_unlink(
 }
 
 /// Displays player's BL profile
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-profile")]
 #[poise::command(slash_command, rename = "bl-profile", guild_only)]
 pub(crate) async fn cmd_profile(
     ctx: Context<'_>,
@@ -383,6 +386,7 @@ pub(crate) async fn link_user_if_needed(
 /// Post link to a replay, yours or another server user who has linked they BL account.
 ///
 /// Enter any user of this server as a parameter. If you omit it then your replay will be searched for.
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-replay")]
 #[poise::command(slash_command, rename = "bl-replay", guild_only)]
 pub(crate) async fn cmd_replay(
     ctx: Context<'_>,
@@ -517,6 +521,7 @@ pub(crate) async fn cmd_replay(
 }
 
 /// Force refreshing all players scores
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-refresh-scores")]
 #[poise::command(
     slash_command,
     rename = "bl-refresh-scores",

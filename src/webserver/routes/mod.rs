@@ -101,12 +101,12 @@ pub(crate) fn app_router(
         .with_state(state)
 }
 
-#[tracing::instrument(skip(state), level=tracing::Level::INFO, name="webserver:playlist")]
+#[tracing::instrument(skip(app_state), level=tracing::Level::INFO, name="webserver:playlist")]
 async fn playlist(
-    State(state): State<AppState>,
+    State(app_state): State<AppState>,
     Path((player_id, playlist_id)): Path<(String, String)>,
 ) -> (StatusCode, impl IntoResponse) {
-    match state.playlists_repository.get(&playlist_id).await {
+    match app_state.playlists_repository.get(&playlist_id).await {
         None => (
             StatusCode::NOT_FOUND,
             Json(json!({"error": {"code": "not_found", "message": "Playlist not found"}})).into_response(),
@@ -129,8 +129,8 @@ async fn playlist(
                 }
 
                 match Playlist::for_clan_player(
-                    &state.player_scores_repository,
-                    state.settings.server.url.as_str(),
+                    &app_state.player_scores_repository,
+                    app_state.settings.server.url.as_str(),
                     custom_data.clan_tag.clone(),
                     custom_data.player_id.clone(),
                     custom_data.playlist_type.clone(),
@@ -142,7 +142,7 @@ async fn playlist(
                     Ok(mut refreshed_playlist) => {
                         refreshed_playlist.set_id(repository_playlist.get_id().clone());
 
-                        let _ = &state
+                        let _ = &app_state
                             .playlists_repository
                             .save(refreshed_playlist.clone())
                             .await;
@@ -204,7 +204,7 @@ where
     }
 }
 
-#[tracing::instrument(level=tracing::Level::INFO, name="webserver:bl-oauth")]
+#[tracing::instrument(skip(app_state), level=tracing::Level::INFO, name="webserver:bl-oauth")]
 async fn bl_oauth(
     Query(params): Query<Params>,
     State(app_state): State<AppState>,

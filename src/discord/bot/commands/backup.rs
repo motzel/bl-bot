@@ -18,6 +18,7 @@ struct BotData {
 }
 
 /// Export bot data
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-export")]
 #[poise::command(
     slash_command,
     rename = "bl-export",
@@ -64,6 +65,7 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Import bot data
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-import")]
 #[poise::command(
     slash_command,
     rename = "bl-import",

@@ -15,6 +15,7 @@ use crate::{Error, BL_CLIENT};
 use poise::serenity_prelude::User;
 
 /// Set up sending of clan invitations
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
 #[poise::command(
     slash_command,
     rename = "bl-set-clan-invitation",
@@ -152,6 +153,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 }
 
 /// Send yourself an invitation to join the clan
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-invitation")]
 #[poise::command(slash_command, rename = "bl-clan-invitation", guild_only)]
 pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;

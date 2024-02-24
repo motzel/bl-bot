@@ -300,6 +300,7 @@ impl Default for Playlist {
 }
 
 /// Generate clan wars playlist
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-wars-playlist")]
 #[poise::command(slash_command, rename = "bl-clan-wars-playlist", guild_only)]
 pub(crate) async fn cmd_clan_wars_playlist(
     ctx: Context<'_>,
