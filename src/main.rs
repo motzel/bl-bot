@@ -6,8 +6,8 @@ use tracing::{info, warn};
 
 use crate::beatleader::Client;
 use crate::config::Settings;
-use crate::other::RamReporter;
 use crate::webserver::WebServer;
+use other::ram_reporter::RamReporter;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;

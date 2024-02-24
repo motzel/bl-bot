@@ -14,7 +14,7 @@ use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorError, GovernorLayer};
 
 use crate::beatleader::oauth::OAuthAppCredentials;
-use crate::discord::bot::commands::playlist::Playlist;
+use crate::discord::bot::beatleader::clan::Playlist;
 use crate::discord::bot::GuildOAuthTokenRepository;
 use crate::webserver::AppState;
 use crate::BL_CLIENT;

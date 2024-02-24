@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::discord::bot::beatleader::Player;
+use crate::discord::bot::beatleader::player::Player;
 use tokio_util::sync::CancellationToken;
 
 use crate::discord::BotData;

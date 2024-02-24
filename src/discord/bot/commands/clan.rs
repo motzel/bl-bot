@@ -1,10 +1,11 @@
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::beatleader::clan::Clan;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
-use crate::discord::bot::beatleader::fetch_clan;
-use crate::discord::bot::beatleader::fetch_player_from_bl;
+use crate::discord::bot::beatleader::clan::{fetch_clan, ClanWarsPlayDate, ClanWarsSort, Playlist};
+use crate::discord::bot::beatleader::player::fetch_player_from_bl;
 use crate::discord::bot::commands::guild::get_guild_settings;
 use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
@@ -12,7 +13,7 @@ use crate::discord::bot::commands::player::{
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
 use crate::{Error, BL_CLIENT};
-use poise::serenity_prelude::User;
+use poise::serenity_prelude::{AttachmentType, User};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
@@ -295,6 +296,163 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
             .await?;
 
             Ok(())
+        }
+        None => {
+            say_profile_not_linked(ctx, &current_user.id).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Generate clan wars playlist
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-wars-playlist")]
+#[poise::command(slash_command, rename = "bl-clan-wars-playlist", guild_only)]
+pub(crate) async fn cmd_clan_wars_playlist(
+    ctx: Context<'_>,
+    #[description = "Playlist type (default: To Conquer)"] playlist_type: Option<ClanWarsSort>,
+    #[description = "Last played (default: Never)"] played: Option<ClanWarsPlayDate>,
+    #[description = "Maps count (max: 100, default: 100)"] count: Option<u8>,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    let playlist_type_filter = playlist_type.unwrap_or(ClanWarsSort::ToConquer);
+    let played_filter = played.unwrap_or(ClanWarsPlayDate::Never);
+    let count = match count {
+        None => 100,
+        Some(v) if v > 0 && v <= 100 => v,
+        Some(_others) => 100,
+    };
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    let current_user = ctx.author();
+
+    match link_user_if_needed(
+        ctx,
+        &guild_settings.guild_id,
+        current_user,
+        guild_settings.requires_verified_profile,
+    )
+    .await
+    {
+        Some(player) => {
+            if !player.is_linked_to_guild(&guild_settings.guild_id) {
+                say_profile_not_linked(ctx, &current_user.id).await?;
+
+                return Ok(());
+            }
+
+            let bl_player = fetch_player_from_bl(&player.id).await;
+            if bl_player.is_err() {
+                say_without_ping(
+                    ctx,
+                    format!(
+                        "Error: can not fetch player data from BL: {}",
+                        bl_player.err().unwrap()
+                    )
+                    .as_str(),
+                    true,
+                )
+                .await?;
+
+                return Ok(());
+            }
+
+            let bl_player = bl_player.unwrap();
+
+            if !bl_player.socials.iter().any(|social| {
+                social.service == "Discord" && social.user_id == current_user.id.to_string()
+            }) {
+                say_without_ping(
+                    ctx,
+                    "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.",
+                    false,
+                )
+                    .await?;
+
+                return Ok(());
+            }
+
+            let clan_tag = clan_settings.get_clan();
+
+            if !bl_player.clans.iter().any(|clan| clan.tag == clan_tag) {
+                say_without_ping(
+                    ctx,
+                    format!("You are not a member of the {} clan.", &clan_tag).as_str(),
+                    false,
+                )
+                .await?;
+
+                return Ok(());
+            }
+
+            if bl_player.clans.first().unwrap().tag != clan_tag {
+                say_without_ping(
+                    ctx,
+                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", &clan_tag).as_str(),
+                    true,
+                )
+                    .await?;
+
+                return Ok(());
+            }
+
+            match Playlist::for_clan_player(
+                &ctx.data().player_scores_repository.clone(),
+                &ctx.data().settings.server.url.clone(),
+                clan_tag,
+                player.id,
+                playlist_type_filter,
+                played_filter,
+                count as u32,
+            )
+            .await
+            {
+                Ok(playlist) => match &ctx.data().playlists_repository.save(playlist.clone()).await
+                {
+                    Ok(_) => {
+                        match serde_json::to_string::<Playlist>(&playlist) {
+                            Ok(data_json) => {
+                                ctx.send(|f| {
+                                    f.content("Here's your personalized playlist:")
+                                        .attachment(AttachmentType::Bytes {
+                                            data: Cow::from(data_json.into_bytes()),
+                                            filename: format!(
+                                                "{}.json",
+                                                playlist.get_title().replace([' ', '-'], "_")
+                                            ),
+                                        })
+                                        .ephemeral(true)
+                                })
+                                .await?;
+                            }
+                            Err(err) => {
+                                ctx.say(format!("An error occurred: {}", err)).await?;
+                            }
+                        };
+
+                        Ok(())
+                    }
+                    Err(err) => {
+                        ctx.say(format!("An error occurred: {}", err)).await?;
+
+                        Ok(())
+                    }
+                },
+                Err(err) => {
+                    say_without_ping(ctx, err.as_str(), false).await?;
+
+                    Ok(())
+                }
+            }
         }
         None => {
             say_profile_not_linked(ctx, &current_user.id).await?;

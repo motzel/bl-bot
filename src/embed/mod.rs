@@ -4,7 +4,9 @@ use ril::prelude::*;
 use map_triangle::Vertex;
 
 use crate::beatleader::player::DifficultyStatus;
-use crate::discord::bot::beatleader::{MapRatingModifier, Player, Score};
+use crate::discord::bot::beatleader::player::Player;
+use crate::discord::bot::beatleader::score::MapRatingModifier;
+use crate::discord::bot::beatleader::score::Score;
 use crate::discord::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
 use crate::embed::font::{

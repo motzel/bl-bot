@@ -1,6 +1,6 @@
+use crate::discord::bot::beatleader::clan::{Playlist, PlaylistId};
 use std::sync::Arc;
 
-use crate::discord::bot::commands::playlist::{Playlist, PlaylistId};
 use crate::storage::persist::PersistInstance;
 use crate::storage::{CachedStorage, Storage, StorageValue};
 

@@ -2,7 +2,7 @@ use poise::serenity_prelude::{Attachment, AttachmentType};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-use crate::discord::bot::beatleader::Player as BotPlayer;
+use crate::discord::bot::beatleader::player::Player as BotPlayer;
 use crate::discord::bot::GuildSettings;
 use crate::discord::Context;
 use crate::storage::player_oauth_token::PlayerOAuthToken;

@@ -6,7 +6,7 @@ use poise::serenity_prelude::{http, AttachmentType, GuildId, SerenityError};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
-use crate::discord::bot::beatleader::Player;
+use crate::discord::bot::beatleader::player::Player;
 use crate::discord::bot::commands::player::get_player_embed;
 use crate::discord::bot::{GuildSettings, UserRoleChanges};
 use crate::discord::{serenity, BotData};

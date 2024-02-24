@@ -5,7 +5,7 @@ use ril::{
     VerticalAnchor, WrapStyle,
 };
 
-use crate::discord::bot::beatleader::MapRating;
+use crate::discord::bot::beatleader::score::MapRating;
 use crate::embed::clamp;
 use crate::embed::font::{draw_text_segment, ROBOTO_FONT_FAMILY};
 

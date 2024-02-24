@@ -6,7 +6,9 @@ use tracing::{debug, trace, warn};
 
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::BlContext;
-use crate::discord::bot::beatleader::{fetch_all_player_scores, Player, Score};
+use crate::discord::bot::beatleader::player::fetch_all_player_scores;
+use crate::discord::bot::beatleader::player::Player;
+use crate::discord::bot::beatleader::score::Score;
 use crate::storage::persist::PersistInstance;
 use crate::storage::Storage;
 

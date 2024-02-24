@@ -9,17 +9,17 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use poise::serenity_prelude::{ChannelId, User, UserId};
+use poise::serenity_prelude::{ChannelId, UserId};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use serenity::model::gateway::Activity;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::RoleId;
 use std::time::Duration as TimeDuration;
 use tracing::{debug, error, info, trace};
 
+use beatleader::player::Player;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 
 use crate::beatleader::clan::ClanTag;
@@ -27,8 +27,6 @@ use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::APP_USER_AGENT;
-use crate::discord::bot::beatleader::{fetch_scores, Player};
-use crate::discord::Context;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::Error;
@@ -1228,13 +1226,12 @@ pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Duration, Utc};
-    use poise::serenity_prelude::UserId;
-
+    use crate::discord::bot::beatleader::player::Player;
     use crate::discord::bot::{
-        Condition, GuildId, GuildSettings, Metric, Player, PlayerMetricValue, Requirement,
+        Condition, GuildId, GuildSettings, Metric, PlayerMetricValue, Requirement,
         RequirementMetricValue, RoleId, RoleRequirementId, RoleSettings,
     };
+    use chrono::{Duration, Utc};
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
         let mut rs = RoleSettings::new(RoleId(1), 100);

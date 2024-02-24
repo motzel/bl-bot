@@ -1,4 +1,4 @@
-use crate::discord::bot::commands::playlist::cmd_clan_wars_playlist;
+use crate::discord::bot::commands::clan::cmd_clan_wars_playlist;
 use crate::discord::BotData;
 pub(crate) use backup::{cmd_export, cmd_import};
 pub(crate) use clan::{cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation};
@@ -13,7 +13,6 @@ pub(crate) mod backup;
 pub(crate) mod clan;
 pub(crate) mod guild;
 pub(crate) mod player;
-pub(crate) mod playlist;
 pub(crate) mod register;
 
 pub(crate) fn commands() -> Vec<poise::Command<BotData, crate::Error>> {

@@ -6,9 +6,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, trace};
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
-use crate::discord::bot::beatleader::{
-    fetch_player_from_bl, fetch_ranked_scores_stats, Player as BotPlayer,
-};
+use crate::discord::bot::beatleader::player::fetch_player_from_bl;
+use crate::discord::bot::beatleader::player::Player as BotPlayer;
+use crate::discord::bot::beatleader::score::fetch_ranked_scores_stats;
 use crate::storage::persist::PersistInstance;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{CachedStorage, Storage, StorageError};

@@ -8,9 +8,11 @@ use tracing::{error, info, trace, warn};
 
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
-use crate::discord::bot::beatleader::{
-    fetch_player_from_bl_by_user_id, fetch_rating, fetch_scores, MapRating, MapRatingModifier,
-    Player as BotPlayer, Player, Score,
+use crate::discord::bot::beatleader::player::{
+    fetch_player_from_bl_by_user_id, Player as BotPlayer, Player,
+};
+use crate::discord::bot::beatleader::score::{
+    fetch_rating, fetch_scores, MapRating, MapRatingModifier, Score,
 };
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::get_binary_file;
