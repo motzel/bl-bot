@@ -26,9 +26,9 @@ mod fallback;
 mod web;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-struct PlaylistUser;
+struct PlaylistUserExtractor;
 
-impl KeyExtractor for PlaylistUser {
+impl KeyExtractor for PlaylistUserExtractor {
     type Key = String;
 
     fn name(&self) -> &'static str {
@@ -56,7 +56,7 @@ pub(crate) fn app_router(
 ) -> Router {
     let playlist_governor_conf = Box::new(
         GovernorConfigBuilder::default()
-            .key_extractor(PlaylistUser)
+            .key_extractor(PlaylistUserExtractor)
             .period(Duration::from_secs(180))
             .burst_size(3)
             .finish()
