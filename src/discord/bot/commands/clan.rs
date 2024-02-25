@@ -115,6 +115,7 @@ pub(crate) async fn cmd_set_clan_invitation(
     let clan_settings = ClanSettings::new(
         current_user.id,
         player_clan.leader_id.clone(),
+        player_clan.id,
         player_clan.tag.clone(),
         self_invite,
     );

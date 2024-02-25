@@ -1,4 +1,4 @@
-use crate::discord::bot::commands::clan::cmd_clan_wars_playlist;
+use crate::discord::bot::commands::clan::{cmd_capture, cmd_clan_wars_playlist};
 use crate::discord::BotData;
 pub(crate) use backup::{cmd_export, cmd_import};
 pub(crate) use clan::{cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation};

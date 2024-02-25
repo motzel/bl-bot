@@ -179,6 +179,26 @@ impl From<BlApiClanRankingResponse> for List<ClanMapScore> {
     }
 }
 
+impl From<BlApiClanRankingResponse> for ClanWithList<ClanMapScore> {
+    fn from(value: BlApiClanRankingResponse) -> Self {
+        Self {
+            clan: value.clan,
+            list: List {
+                data: value.associated_scores,
+                page: 0,
+                items_per_page: 0,
+                total: value.associated_scores_count,
+            },
+        }
+        // Self {
+        //     data: value.associated_scores,
+        //     page: 0,
+        //     items_per_page: 0,
+        //     total: value.associated_scores_count,
+        // }
+    }
+}
+
 impl<'a> ClanResource<'a> {
     pub fn new(client: &'a Client) -> Self {
         Self { client }
@@ -186,7 +206,7 @@ impl<'a> ClanResource<'a> {
 
     pub async fn clans(&self, params: &[ClanParam]) -> Result<List<Clan>> {
         self.client
-            .get_json::<BlApiListResponse<BlApiClan>, List<Clan>, ClanParam>(
+            .get_json::<BlApiListResponse<Clan>, List<Clan>, ClanParam>(
                 Method::GET,
                 "/clans",
                 params,
@@ -204,9 +224,23 @@ impl<'a> ClanResource<'a> {
             .await
     }
 
-    pub async fn players(&self, tag: &str, params: &[ClanPlayersParam]) -> Result<List<Player>> {
+    pub async fn by_id(&self, clan_id: ClanId) -> Result<Clan> {
         self.client
-            .get_json::<BlApiClanContainer<Player>, List<Player>, ClanPlayersParam>(
+            .get_json::<BlApiClanContainer<Player>, Clan, ClanPlayersParam>(
+                Method::GET,
+                format!("/clan/id/{}", clan_id).as_str(),
+                &[ClanPlayersParam::Count(0)],
+            )
+            .await
+    }
+
+    pub async fn players_by_clan_tag(
+        &self,
+        tag: &str,
+        params: &[ClanPlayersParam],
+    ) -> Result<ClanWithList<Player>> {
+        self.client
+            .get_json::<BlApiClanContainer<Player>, ClanWithList<Player>, ClanPlayersParam>(
                 Method::GET,
                 format!("/clan/{}", tag).as_str(),
                 params,
@@ -214,9 +248,27 @@ impl<'a> ClanResource<'a> {
             .await
     }
 
-    pub async fn maps(&self, tag: &str, params: &[ClanMapsParam]) -> Result<List<ClanMap>> {
+    pub async fn players_by_clan_id(
+        &self,
+        clan_id: ClanId,
+        params: &[ClanPlayersParam],
+    ) -> Result<ClanWithList<Player>> {
         self.client
-            .get_json::<BlApiClanContainer<ClanMap>, List<ClanMap>, ClanMapsParam>(
+            .get_json::<BlApiClanContainer<Player>, ClanWithList<Player>, ClanPlayersParam>(
+                Method::GET,
+                format!("/clan/id/{}", clan_id).as_str(),
+                params,
+            )
+            .await
+    }
+
+    pub async fn maps_by_clan_tag(
+        &self,
+        tag: &str,
+        params: &[ClanMapsParam],
+    ) -> Result<ClanWithList<ClanMap>> {
+        self.client
+            .get_json::<BlApiClanContainer<ClanMap>, ClanWithList<ClanMap>, ClanMapsParam>(
                 Method::GET,
                 &format!("/clan/{}/maps", tag),
                 params,
@@ -224,18 +276,50 @@ impl<'a> ClanResource<'a> {
             .await
     }
 
-    pub async fn scores(
+    pub async fn maps_by_clan_id(
+        &self,
+        clan_id: ClanId,
+        params: &[ClanMapsParam],
+    ) -> Result<ClanWithList<ClanMap>> {
+        self.client
+            .get_json::<BlApiClanContainer<ClanMap>, ClanWithList<ClanMap>, ClanMapsParam>(
+                Method::GET,
+                &format!("/clan/id/{}/maps", clan_id),
+                params,
+            )
+            .await
+    }
+
+    pub async fn scores_by_clan_map_id(
         &self,
         leaderboard_id: &str,
         clan_map_id: u32,
         params: &[ClanMapParam],
-    ) -> Result<List<ClanMapScore>> {
+    ) -> Result<ClanWithList<ClanMapScore>> {
         self.client
-            .get_json::<BlApiClanRankingResponse, List<ClanMapScore>, ClanMapParam>(
+            .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
                     "/leaderboard/clanRankings/{}/{}",
                     leaderboard_id, clan_map_id
+                ),
+                params,
+            )
+            .await
+    }
+
+    pub async fn scores_by_clan_id(
+        &self,
+        leaderboard_id: &str,
+        clan_id: ClanId,
+        params: &[ClanMapParam],
+    ) -> Result<ClanWithList<ClanMapScore>> {
+        self.client
+            .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
+                Method::GET,
+                &format!(
+                    "/leaderboard/clanRankings/{}/clan/{}",
+                    leaderboard_id, clan_id
                 ),
                 params,
             )
@@ -268,28 +352,10 @@ pub(crate) type ClanTag = String;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct BlApiClan {
-    pub id: u32,
-    pub tag: ClanTag,
-    #[serde(rename = "leaderID")]
-    pub leader_id: PlayerId,
-    pub name: String,
-    pub description: String,
-    pub pp: f64,
-    pub average_rank: f64,
-    pub average_accuracy: f64,
-    pub players_count: u32,
-    pub icon: String,
-}
-
-impl BlApiResponse for BlApiClan {}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct BlApiClanContainer<T> {
     pub data: Vec<T>,
     pub metadata: MetaData,
-    pub container: BlApiClan,
+    pub container: Clan,
 }
 
 impl<T> BlApiResponse for BlApiClanContainer<T> {}
@@ -309,10 +375,37 @@ where
     }
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClanWithList<T> {
+    pub clan: Clan,
+    pub list: List<T>,
+}
+
+impl<In, Out> From<BlApiClanContainer<In>> for ClanWithList<Out>
+where
+    In: BlApiResponse + Sized + DeserializeOwned,
+    Out: From<In> + Sized,
+{
+    fn from(value: BlApiClanContainer<In>) -> Self {
+        Self {
+            clan: value.container,
+            list: List {
+                data: value.data.into_iter().map(|v| v.into()).collect(),
+                page: value.metadata.page,
+                items_per_page: value.metadata.items_per_page,
+                total: value.metadata.total,
+            },
+        }
+    }
+}
+
+pub(crate) type ClanId = u32;
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Clan {
-    pub id: u32,
+    pub id: ClanId,
     pub tag: ClanTag,
     #[serde(rename = "leaderID")]
     pub leader_id: PlayerId,
@@ -325,28 +418,13 @@ pub struct Clan {
     pub icon: String,
 }
 
-impl From<BlApiClan> for Clan {
-    fn from(value: BlApiClan) -> Self {
-        Clan {
-            id: value.id,
-            tag: value.tag,
-            leader_id: value.leader_id,
-            name: value.name,
-            description: value.description,
-            pp: value.pp,
-            average_rank: value.average_rank,
-            average_accuracy: value.average_accuracy * 100.0,
-            players_count: value.players_count,
-            icon: value.icon,
-        }
+impl<T> From<BlApiClanContainer<T>> for Clan {
+    fn from(value: BlApiClanContainer<T>) -> Self {
+        value.container
     }
 }
 
-impl<T> From<BlApiClanContainer<T>> for Clan {
-    fn from(value: BlApiClanContainer<T>) -> Self {
-        value.container.into()
-    }
-}
+impl BlApiResponse for Clan {}
 
 #[allow(dead_code)]
 #[derive(Clone)]

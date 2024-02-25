@@ -6,13 +6,18 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::beatleader::clan::{Clan, ClanMap, ClanMapsParam, ClanMapsSort, ClanTag};
+use crate::beatleader::clan::{
+    Clan, ClanId, ClanMap, ClanMapParam, ClanMapScore, ClanMapsParam, ClanMapsSort, ClanTag,
+};
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::player::PlayerId;
-use crate::beatleader::{BlContext, SortOrder};
+use crate::beatleader::pp::{
+    calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
+};
+use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
 use crate::storage::player_scores::PlayerScoresRepository;
-use crate::storage::StorageKey;
-use crate::BL_CLIENT;
+use crate::storage::{StorageKey, StorageValue};
+use crate::{beatleader, BL_CLIENT};
 
 #[derive(
     Debug, poise::ChoiceParameter, Serialize, Deserialize, Clone, Default, Hash, PartialEq, Eq,
@@ -69,6 +74,237 @@ impl From<ClanWarsPlayDate> for Option<DateTime<Utc>> {
             ClanWarsPlayDate::SixMonths => Some(Utc::now() - Duration::days(180)),
             ClanWarsPlayDate::Year => Some(Utc::now() - Duration::days(365)),
             ClanWarsPlayDate::NoMatter => Some(Utc::now()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct ClanWarsKey {
+    clan_tag: ClanTag,
+    sort: ClanWarsSort,
+}
+
+impl Display for ClanWarsKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.clan_tag, self.sort)
+    }
+}
+
+impl StorageKey for ClanWarsKey {}
+
+type AccBoundaryValue = Option<f64>;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AccBoundary {
+    pub none: Option<f64>,
+    pub ss: Option<f64>,
+    pub fs: Option<f64>,
+    pub sf: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ClanMapWithScores {
+    pub map: ClanMap,
+    pub scores: Vec<ClanMapScore>,
+    pub pp_boundary: f64,
+    pub acc_boundary: AccBoundary,
+}
+
+impl ClanMapWithScores {
+    pub fn calc_pp_boundary(&mut self, without_player: Option<PlayerId>) -> &mut Self {
+        let mut pps = self
+            .scores
+            .iter()
+            .filter(|score| {
+                without_player.is_none()
+                    || score.player_id.as_str() != without_player.as_ref().unwrap()
+            })
+            .map(|score| score.pp)
+            .collect::<Vec<_>>();
+
+        self.pp_boundary = calculate_pp_boundary(CLAN_WEIGHT_COEFFICIENT, &mut pps, -self.map.pp);
+
+        self.calc_acc_boundary()
+    }
+
+    pub fn calc_acc_boundary(&mut self) -> &mut Self {
+        let pp = self.pp_boundary;
+        if pp <= 0.0 {
+            self.acc_boundary = AccBoundary::default();
+
+            return self;
+        }
+
+        self.acc_boundary = AccBoundary {
+            none: calculate_acc_from_pp(
+                pp,
+                StarRating {
+                    pass: self.map.leaderboard.difficulty.pass_rating,
+                    tech: self.map.leaderboard.difficulty.tech_rating,
+                    acc: self.map.leaderboard.difficulty.acc_rating,
+                },
+                self.map.leaderboard.difficulty.mode_name.as_str(),
+            ),
+            ss: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
+                None => None,
+                Some(ratings) => calculate_acc_from_pp(
+                    pp,
+                    StarRating {
+                        pass: ratings.ss_pass_rating,
+                        tech: ratings.ss_tech_rating,
+                        acc: ratings.ss_acc_rating,
+                    },
+                    self.map.leaderboard.difficulty.mode_name.as_str(),
+                ),
+            },
+            fs: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
+                None => None,
+                Some(ratings) => calculate_acc_from_pp(
+                    pp,
+                    StarRating {
+                        pass: ratings.fs_pass_rating,
+                        tech: ratings.fs_tech_rating,
+                        acc: ratings.fs_acc_rating,
+                    },
+                    self.map.leaderboard.difficulty.mode_name.as_str(),
+                ),
+            },
+            sf: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
+                None => None,
+                Some(ratings) => calculate_acc_from_pp(
+                    pp,
+                    StarRating {
+                        pass: ratings.sf_pass_rating,
+                        tech: ratings.sf_tech_rating,
+                        acc: ratings.sf_acc_rating,
+                    },
+                    self.map.leaderboard.difficulty.mode_name.as_str(),
+                ),
+            },
+        };
+
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ClanWars {
+    pub clan_id: ClanId,
+    pub clan_tag: ClanTag,
+    pub sort: ClanWarsSort,
+    pub maps: Vec<ClanMapWithScores>,
+}
+
+impl ClanWars {
+    pub async fn fetch(
+        clan_tag: ClanTag,
+        sort: ClanWarsSort,
+        items_count: Option<u32>,
+    ) -> Result<Self, BlError> {
+        let clan_tag_clone = clan_tag.clone();
+        let sort_clone = sort.clone();
+
+        let requested_maps_per_page = 100.min(items_count.unwrap_or(u32::MAX));
+
+        let data =
+            beatleader::fetch_paged_items(requested_maps_per_page, items_count, move |page_def| {
+                let clan_tag_clone = clan_tag.clone();
+                let sort_param = sort.clone().into();
+
+                async move {
+                    let maps = BL_CLIENT
+                        .clan()
+                        .maps_by_clan_tag(
+                            clan_tag_clone.as_str(),
+                            &[
+                                ClanMapsParam::Page(page_def.page),
+                                ClanMapsParam::Count(page_def.items_per_page),
+                                ClanMapsParam::Order(SortOrder::Descending),
+                                ClanMapsParam::Context(BlContext::General),
+                                sort_param,
+                            ],
+                        )
+                        .await?;
+
+                    Ok(DataWithMeta {
+                        data: maps.list.data,
+                        items_per_page: Some(maps.list.items_per_page),
+                        total: Some(maps.list.total),
+                        other_data: Some(maps.clan),
+                    })
+                }
+            })
+            .await?;
+        if data.data.is_empty() {
+            return Err(BlError::NotFound);
+        }
+
+        let clan_id = data.other_data.unwrap_or_default().id;
+
+        let mut maps = data
+            .data
+            .into_iter()
+            .map(|map| ClanMapWithScores {
+                map,
+                scores: vec![],
+                pp_boundary: 0.0,
+                acc_boundary: AccBoundary::default(),
+            })
+            .collect::<Vec<_>>();
+
+        for map in maps.iter_mut() {
+            let leaderboard_id = map.map.leaderboard.id.clone();
+            let clan_map_id = map.map.clan_map_id;
+
+            let requested_scores_per_page = 50;
+
+            map.scores =
+                beatleader::fetch_paged_items(requested_scores_per_page, None, move |page_def| {
+                    let leaderboard_id = leaderboard_id.clone();
+
+                    async move {
+                        let scores = BL_CLIENT
+                            .clan()
+                            .scores_by_clan_map_id(
+                                &leaderboard_id,
+                                clan_map_id,
+                                &[
+                                    ClanMapParam::Count(page_def.items_per_page),
+                                    ClanMapParam::Page(page_def.page),
+                                ],
+                            )
+                            .await?;
+
+                        Ok(DataWithMeta {
+                            data: scores.list.data,
+                            items_per_page: Some(scores.list.items_per_page),
+                            total: Some(scores.list.total),
+                            other_data: None::<Clan>,
+                        })
+                    }
+                })
+                .await?
+                .data;
+
+            map.calc_pp_boundary(None);
+        }
+
+        Ok(ClanWars {
+            clan_id,
+            clan_tag: clan_tag_clone,
+            sort: sort_clone,
+            maps,
+        })
+    }
+}
+
+impl StorageValue<ClanWarsKey> for ClanWars {
+    fn get_key(&self) -> ClanWarsKey {
+        ClanWarsKey {
+            clan_tag: self.clan_tag.clone(),
+            sort: self.sort.clone(),
         }
     }
 }
@@ -130,7 +366,7 @@ impl Playlist {
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
-            .maps(
+            .maps_by_clan_tag(
                 clan_tag.as_str(),
                 &[
                     ClanMapsParam::Count(100),
@@ -148,7 +384,7 @@ impl Playlist {
 
         let maps_list = maps_list.unwrap();
 
-        if maps_list.data.is_empty() {
+        if maps_list.list.data.is_empty() {
             return Err("No maps of the selected type".to_string());
         }
 
@@ -164,6 +400,7 @@ impl Playlist {
         let played_filter: Option<DateTime<Utc>> = last_played.clone().into();
 
         let playlist_maps = maps_list
+            .list
             .data
             .into_iter()
             .filter(|score| {

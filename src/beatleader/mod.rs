@@ -320,28 +320,39 @@ pub struct PageDef {
 }
 
 #[derive(Debug)]
-pub struct DataPage<T> {
-    pub page_data: Vec<T>,
+pub struct DataWithMeta<T: Sized, O: Sized> {
+    pub data: Vec<T>,
     pub items_per_page: Option<u32>,
     pub total: Option<u32>,
+    pub other_data: Option<O>,
 }
 
-pub async fn fetch_paged_items<T, F, Fut>(
+pub async fn fetch_paged_items<T, O, F, Fut>(
     requested_items_per_page: u32,
     items_count: Option<u32>,
     func: F,
-) -> result::Result<Vec<T>, Error>
+) -> result::Result<DataWithMeta<T, O>, Error>
 where
     T: Sized + std::fmt::Debug,
+    O: Sized + std::fmt::Debug,
     F: Fn(PageDef) -> Fut,
-    Fut: Future<Output = result::Result<DataPage<T>, Error>>,
+    Fut: Future<Output = result::Result<DataWithMeta<T, O>, Error>>,
 {
     if items_count.is_some() && items_count.unwrap() == 0 {
-        return Ok(vec![]);
+        return Ok(DataWithMeta {
+            data: vec![],
+            items_per_page: None,
+            total: None,
+            other_data: None,
+        });
     }
 
-    let mut data =
-        Vec::with_capacity(items_count.unwrap_or(10.max(requested_items_per_page)) as usize);
+    let mut data = DataWithMeta {
+        data: Vec::with_capacity(items_count.unwrap_or(10.max(requested_items_per_page)) as usize),
+        items_per_page: Some(requested_items_per_page),
+        total: None,
+        other_data: None,
+    };
 
     let mut page_def = PageDef {
         page: 1,
@@ -352,31 +363,44 @@ where
     loop {
         let page_data = func(page_def.clone()).await?;
 
-        let page_is_empty = page_data.page_data.is_empty();
+        let page_is_empty = page_data.data.is_empty();
 
-        data.extend(page_data.page_data);
+        data.data.extend(page_data.data);
 
         page_def.page += 1;
 
         // TODO: commented due to BL API bug (https://github.com/BeatLeader/beatleader-server/blob/b047f703ca63b08920c9747ca40c5d7ba8fc97ff/Controllers/ClanController.cs#L229)
         // if let Some(actual_items_per_page) = page_data.items_per_page {
         //     page_def.items_per_page = actual_items_per_page;
+        //     data.items_per_page = Some(actual_items_per_page);
         // }
 
         if let Some(actual_total) = page_data.total {
             total = actual_total;
+            data.total = Some(actual_total);
         }
 
-        let total_pages = total.div_ceil(page_def.items_per_page);
+        data.other_data = page_data.other_data;
+
+        let total_pages = if page_def.items_per_page > 0 {
+            total.div_ceil(page_def.items_per_page)
+        } else {
+            0
+        };
 
         if page_is_empty
             || page_def.page > total_pages
-            || data.len() as u32 >= items_count.unwrap_or(u32::MAX)
+            || data.data.len() as u32 >= items_count.unwrap_or(u32::MAX)
         {
             return Ok(if let Some(items_count) = items_count {
-                data.into_iter()
-                    .take(items_count as usize)
-                    .collect::<Vec<_>>()
+                DataWithMeta {
+                    data: data
+                        .data
+                        .into_iter()
+                        .take(items_count as usize)
+                        .collect::<Vec<_>>(),
+                    ..data
+                }
             } else {
                 data
             });

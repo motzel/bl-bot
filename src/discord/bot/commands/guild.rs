@@ -76,7 +76,7 @@ pub(crate) async fn cmd_set_log_channel(
 )]
 pub(crate) async fn cmd_set_clan_wars_maps_channel(
     ctx: Context<'_>,
-    #[description = "The channel where the bot will post maps to play within clan wars Leave empty to disable."]
+    #[description = "The channel where the bot will post maps to play within clan wars. Leave empty to disable."]
     channel: Option<ChannelId>,
 ) -> Result<(), Error> {
     let guild_id = get_guild_id(ctx, true).await?;

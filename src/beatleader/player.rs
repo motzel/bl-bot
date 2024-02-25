@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use poise::serenity_prelude::UserId;
 
 use crate::beatleader;
-use crate::beatleader::clan::ClanTag;
+use crate::beatleader::clan::{ClanId, ClanTag};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, BlContext, Client, List, QueryParam, SortOrder,
 };
@@ -158,7 +158,7 @@ impl BlApiResponse for Player {}
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerClan {
-    pub id: u32,
+    pub id: ClanId,
     pub tag: ClanTag,
     pub color: String,
 }

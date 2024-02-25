@@ -22,7 +22,7 @@ use tracing::{debug, error, info, trace};
 use beatleader::player::Player;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 
-use crate::beatleader::clan::ClanTag;
+use crate::beatleader::clan::{ClanId, ClanTag};
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::oauth::{OAuthToken, OAuthTokenRepository};
 use crate::beatleader::player::PlayerId;
@@ -1016,6 +1016,7 @@ impl std::fmt::Display for GuildSettings {
 pub struct ClanSettings {
     user_id: UserId,
     owner_id: PlayerId,
+    clan_id: ClanId,
     clan: ClanTag,
     self_invite: bool,
     oauth_token_is_set: bool,
@@ -1027,12 +1028,14 @@ impl ClanSettings {
     pub fn new(
         user_id: UserId,
         owner_id: PlayerId,
+        clan_id: ClanId,
         clan: ClanTag,
         self_invite: bool,
     ) -> ClanSettings {
         ClanSettings {
             user_id,
             owner_id,
+            clan_id,
             clan,
             self_invite,
             oauth_token_is_set: false,
@@ -1043,6 +1046,10 @@ impl ClanSettings {
 
     pub fn get_owner(&self) -> PlayerId {
         self.owner_id.clone()
+    }
+
+    pub fn get_clan_id(&self) -> ClanId {
+        self.clan_id
     }
 
     pub fn get_clan(&self) -> ClanTag {

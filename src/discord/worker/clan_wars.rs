@@ -1,13 +1,8 @@
-use crate::beatleader::clan::{ClanMapParam, ClanMapsParam, ClanMapsSort};
 use crate::beatleader::oauth::OAuthAppCredentials;
-use crate::beatleader::pp::{
-    calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
-};
-use crate::beatleader::{BlContext, SortOrder};
+use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
 use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
-use crate::BL_CLIENT;
 use chrono::Utc;
 use poise::serenity_prelude::ChannelId;
 use std::cmp::Ordering;
@@ -75,129 +70,46 @@ impl BlClanWarsMapsWorker {
                                     clan_settings.get_clan()
                                 );
 
-                                match BL_CLIENT
-                                    .clan()
-                                    .maps(
-                                        &clan_settings.get_clan(),
-                                        &[
-                                            ClanMapsParam::Count(30),
-                                            ClanMapsParam::Page(1),
-                                            ClanMapsParam::Order(SortOrder::Descending),
-                                            ClanMapsParam::Context(BlContext::General),
-                                            ClanMapsParam::Sort(ClanMapsSort::ToConquer),
-                                        ],
-                                    )
-                                    .await
+                                match ClanWars::fetch(
+                                    clan_settings.get_clan(),
+                                    ClanWarsSort::ToConquer,
+                                    Some(30),
+                                )
+                                .await
                                 {
-                                    Ok(maps_list) => {
-                                        let mut maps = vec![];
-                                        for map in maps_list.data.into_iter() {
-                                            if let Ok(scores) = BL_CLIENT
-                                                .clan()
-                                                .scores(
-                                                    &map.leaderboard.id,
-                                                    map.clan_map_id,
-                                                    &[
-                                                        ClanMapParam::Count(100),
-                                                        ClanMapParam::Page(1),
-                                                    ],
-                                                )
-                                                .await
-                                            {
-                                                maps.push((
-                                                    map,
-                                                    scores
-                                                        .data
-                                                        .into_iter()
-                                                        .map(|score| score.pp)
-                                                        .collect::<Vec<_>>(),
-                                                ));
-                                            }
-                                        }
-
-                                        let mut out = maps
+                                    Ok(clan_wars) => {
+                                        let mut out = clan_wars
+                                            .maps
                                             .into_iter()
-                                            .map(|(map, mut pps)| {
-                                                let pp = calculate_pp_boundary(
-                                                    CLAN_WEIGHT_COEFFICIENT,
-                                                    &mut pps,
-                                                    -map.pp,
-                                                );
-                                                let acc = match calculate_acc_from_pp(
-                                                    pp,
-                                                    StarRating {
-                                                        pass: map
-                                                            .leaderboard
-                                                            .difficulty
-                                                            .pass_rating,
-                                                        tech: map
-                                                            .leaderboard
-                                                            .difficulty
-                                                            .tech_rating,
-                                                        acc: map.leaderboard.difficulty.acc_rating,
-                                                    },
-                                                    map.leaderboard.difficulty.mode_name.as_str(),
-                                                ) {
-                                                    None => "Not possible".to_owned(),
-                                                    Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                };
-                                                let acc_fs = match map
-                                                    .leaderboard
-                                                    .difficulty
-                                                    .modifiers_rating
-                                                    .as_ref()
-                                                {
-                                                    None => "No ratings".to_owned(),
-                                                    Some(ratings) => match calculate_acc_from_pp(
-                                                        pp,
-                                                        StarRating {
-                                                            pass: ratings.fs_pass_rating,
-                                                            tech: ratings.fs_tech_rating,
-                                                            acc: ratings.fs_acc_rating,
-                                                        },
-                                                        map.leaderboard
-                                                            .difficulty
-                                                            .mode_name
-                                                            .as_str(),
-                                                    ) {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                };
-                                                let acc_sfs = match map
-                                                    .leaderboard
-                                                    .difficulty
-                                                    .modifiers_rating
-                                                    .as_ref()
-                                                {
-                                                    None => "No ratings".to_owned(),
-                                                    Some(ratings) => match calculate_acc_from_pp(
-                                                        pp,
-                                                        StarRating {
-                                                            pass: ratings.sf_pass_rating,
-                                                            tech: ratings.sf_tech_rating,
-                                                            acc: ratings.sf_acc_rating,
-                                                        },
-                                                        map.leaderboard
-                                                            .difficulty
-                                                            .mode_name
-                                                            .as_str(),
-                                                    ) {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                };
+                                            .map(|clan_map| {
                                                 (
-                                                    map.leaderboard.id,
-                                                    map.rank,
-                                                    map.leaderboard.song.name,
-                                                    map.leaderboard.difficulty.difficulty_name,
-                                                    map.pp,
-                                                    pps.len(),
-                                                    pp,
-                                                    acc,
-                                                    acc_fs,
-                                                    acc_sfs,
+                                                    clan_map.map.leaderboard.id,
+                                                    clan_map.map.rank,
+                                                    clan_map.map.leaderboard.song.name,
+                                                    clan_map
+                                                        .map
+                                                        .leaderboard
+                                                        .difficulty
+                                                        .difficulty_name,
+                                                    clan_map.map.pp,
+                                                    clan_map.scores.len(),
+                                                    clan_map.pp_boundary,
+                                                    match clan_map.acc_boundary.ss {
+                                                        None => "Not possible".to_owned(),
+                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
+                                                    },
+                                                    match clan_map.acc_boundary.none {
+                                                        None => "Not possible".to_owned(),
+                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
+                                                    },
+                                                    match clan_map.acc_boundary.fs {
+                                                        None => "Not possible".to_owned(),
+                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
+                                                    },
+                                                    match clan_map.acc_boundary.sf {
+                                                        None => "Not possible".to_owned(),
+                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
+                                                    },
                                                 )
                                             })
                                             .collect::<Vec<_>>();
@@ -241,14 +153,15 @@ impl BlClanWarsMapsWorker {
                                         const MAX_DISCORD_MSG_LENGTH: usize = 2000;
                                         let mut msg_count = 0;
                                         let header = format!(
-                                            "### **{} clan wars maps**",
-                                            clan_settings.get_clan()
+                                            "### **{} clan wars maps** (<t:{}:R>)",
+                                            clan_settings.get_clan(),
+                                            Utc::now().timestamp()
                                         );
                                         let mut description = String::new();
                                         for item in out {
-                                            let map_description = format!("### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n {} / {} FS / {} SF\n",
+                                            let map_description = format!("### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n {} SS / **{}** / {} FS / {} SF\n",
                                                                           item.1, item.2, item.3, item.0, ((item.1 - 1) / 10 + 1),
-                                                                          item.5, if item.5 > 1 { "s" } else { "" }, item.4, item.6, item.7, item.8, item.9);
+                                                                          item.5, if item.5 > 1 { "s" } else { "" }, item.4, item.6, item.7, item.8, item.9, item.10);
 
                                             if description.len()
                                                 + "\n\n".len()

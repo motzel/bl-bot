@@ -271,8 +271,7 @@ pub(crate) async fn fetch_all_player_scores(
                     break 'outer;
                 }
 
-                page_count = scores_page.total / ITEMS_PER_PAGE
-                    + u32::from(scores_page.total % ITEMS_PER_PAGE != 0);
+                page_count = scores_page.total.div_ceil(ITEMS_PER_PAGE);
 
                 for score in scores_page.data {
                     if score.modifiers.contains("NF")
