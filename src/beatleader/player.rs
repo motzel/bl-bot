@@ -288,6 +288,8 @@ pub struct Leaderboard {
     pub difficulty: Difficulty,
 }
 
+impl BlApiResponse for Leaderboard {}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Duration(u32);
 

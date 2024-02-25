@@ -187,6 +187,49 @@ impl ClanMapWithScores {
 
         self
     }
+
+    pub fn to_player_string(&self, clan_tag: ClanTag, player_id: PlayerId) -> String {
+        let player_score = self
+            .scores
+            .iter()
+            .find(|score| score.player_id == player_id);
+
+        format!(
+            "{}On [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>), the {} clan has a loss of **{:.2}pp** to the leading clan. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
+            if let Some(score) = player_score {
+                format!("You already played this map <t:{}:R>. You got **{:.2}pp** with accuracy **{:.2}%{}**.\n", score.timepost.timestamp(), score.pp, score.accuracy * 100.0, if !score.modifiers.is_empty() { format!(" with {}", score.modifiers) } else { "".to_string() },
+                )
+            } else {
+                "You haven't played this map yet.\n".to_string()
+            },
+            self.map.leaderboard.song.name,
+            self
+                .map
+                .leaderboard
+                .difficulty
+                .difficulty_name,
+            self.map.leaderboard.id,
+            clan_tag,
+            -self.map.pp,
+            self.pp_boundary,
+            match self.acc_boundary.ss {
+                None => "Not possible".to_owned(),
+                Some(acc) => format!("{:.2}%", acc * 100.0),
+            },
+            match self.acc_boundary.none {
+                None => "Not possible".to_owned(),
+                Some(acc) => format!("{:.2}%", acc * 100.0),
+            },
+            match self.acc_boundary.fs {
+                None => "Not possible".to_owned(),
+                Some(acc) => format!("{:.2}%", acc * 100.0),
+            },
+            match self.acc_boundary.sf {
+                None => "Not possible".to_owned(),
+                Some(acc) => format!("{:.2}%", acc * 100.0),
+            },
+        )
+    }
 }
 
 impl Display for ClanMapWithScores {
@@ -201,7 +244,7 @@ impl Display for ClanMapWithScores {
                    .difficulty
                    .difficulty_name,
                self.map.leaderboard.id,
-               ((self.map.rank - 1) / 10 + 1),
+               ((if self.map.rank > 0 {self.map.rank} else {1} - 1) / 10 + 1),
                self.scores.len(),
                if self.scores.len() > 1 { "s" } else { "" },
                self.map.pp,

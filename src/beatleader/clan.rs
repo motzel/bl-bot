@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
-use crate::beatleader::player::{Leaderboard, Player, PlayerId};
+use crate::beatleader::player::{Leaderboard, LeaderboardId, Player, PlayerId};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, BlContext, Client, List, MetaData, QueryParam, Result,
     SortOrder,
@@ -63,7 +63,7 @@ impl QueryParam for ClanMapsParam {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClanMap {
     #[serde(rename = "id")]
@@ -88,6 +88,22 @@ impl BlApiResponse for ClanMap {}
 
 #[allow(dead_code)]
 #[derive(Clone)]
+pub enum LeaderboardParam {
+    Page(u32),
+    Count(u32),
+}
+
+impl QueryParam for LeaderboardParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            LeaderboardParam::Page(page) => ("page".to_owned(), page.to_string()),
+            LeaderboardParam::Count(count) => ("count".to_owned(), count.to_string()),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
 pub enum ClanMapParam {
     Page(u32),
     Count(u32),
@@ -98,6 +114,22 @@ impl QueryParam for ClanMapParam {
         match self {
             ClanMapParam::Page(page) => ("page".to_owned(), page.to_string()),
             ClanMapParam::Count(count) => ("count".to_owned(), count.to_string()),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum ClanRankingParam {
+    Page(u32),
+    Count(u32),
+}
+
+impl QueryParam for ClanRankingParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            ClanRankingParam::Page(page) => ("page".to_owned(), page.to_string()),
+            ClanRankingParam::Count(count) => ("count".to_owned(), count.to_string()),
         }
     }
 }
@@ -148,7 +180,7 @@ pub struct ClanMapScore {
 #[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct BlApiClanRankingResponse {
+pub struct BlApiClanRankingScoresResponse {
     pub id: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub pp: f64,
@@ -166,10 +198,10 @@ pub struct BlApiClanRankingResponse {
     pub associated_scores: Vec<ClanMapScore>,
 }
 
-impl BlApiResponse for BlApiClanRankingResponse {}
+impl BlApiResponse for BlApiClanRankingScoresResponse {}
 
-impl From<BlApiClanRankingResponse> for List<ClanMapScore> {
-    fn from(value: BlApiClanRankingResponse) -> Self {
+impl From<BlApiClanRankingScoresResponse> for List<ClanMapScore> {
+    fn from(value: BlApiClanRankingScoresResponse) -> Self {
         Self {
             data: value.associated_scores,
             page: 0,
@@ -179,8 +211,8 @@ impl From<BlApiClanRankingResponse> for List<ClanMapScore> {
     }
 }
 
-impl From<BlApiClanRankingResponse> for ClanWithList<ClanMapScore> {
-    fn from(value: BlApiClanRankingResponse) -> Self {
+impl From<BlApiClanRankingScoresResponse> for ClanWithList<ClanMapScore> {
+    fn from(value: BlApiClanRankingScoresResponse) -> Self {
         Self {
             clan: value.clan,
             list: List {
@@ -190,12 +222,48 @@ impl From<BlApiClanRankingResponse> for ClanWithList<ClanMapScore> {
                 total: value.associated_scores_count,
             },
         }
-        // Self {
-        //     data: value.associated_scores,
-        //     page: 0,
-        //     items_per_page: 0,
-        //     total: value.associated_scores_count,
-        // }
+    }
+}
+
+#[serde_as]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BlApiClanRankingResponse {
+    #[serde(rename = "id")]
+    pub leaderboard_id: LeaderboardId,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub clan: Clan,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(rename = "plays")]
+    pub clan_ranking_count: u32,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    pub clan_ranking: Vec<ClanMap>,
+}
+
+impl BlApiResponse for BlApiClanRankingResponse {}
+
+impl From<BlApiClanRankingResponse> for List<ClanMap> {
+    fn from(value: BlApiClanRankingResponse) -> Self {
+        Self {
+            data: value.clan_ranking,
+            page: 0,
+            items_per_page: 0,
+            total: value.clan_ranking_count,
+        }
+    }
+}
+
+impl From<BlApiClanRankingResponse> for ClanWithList<ClanMap> {
+    fn from(value: BlApiClanRankingResponse) -> Self {
+        Self {
+            clan: value.clan,
+            list: List {
+                data: value.clan_ranking,
+                page: 0,
+                items_per_page: 0,
+                total: value.clan_ranking_count,
+            },
+        }
     }
 }
 
@@ -290,6 +358,20 @@ impl<'a> ClanResource<'a> {
             .await
     }
 
+    pub async fn clan_ranking(
+        &self,
+        leaderboard_id: &str,
+        params: &[ClanRankingParam],
+    ) -> Result<ClanWithList<ClanMap>> {
+        self.client
+            .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMap>, ClanRankingParam>(
+                Method::GET,
+                &format!("/leaderboard/clanRankings/{}", leaderboard_id),
+                params,
+            )
+            .await
+    }
+
     pub async fn scores_by_clan_map_id(
         &self,
         leaderboard_id: &str,
@@ -297,7 +379,7 @@ impl<'a> ClanResource<'a> {
         params: &[ClanMapParam],
     ) -> Result<ClanWithList<ClanMapScore>> {
         self.client
-            .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
+            .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
                     "/leaderboard/clanRankings/{}/{}",
@@ -315,12 +397,44 @@ impl<'a> ClanResource<'a> {
         params: &[ClanMapParam],
     ) -> Result<ClanWithList<ClanMapScore>> {
         self.client
-            .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
+            .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
                     "/leaderboard/clanRankings/{}/clan/{}",
                     leaderboard_id, clan_id
                 ),
+                params,
+            )
+            .await
+    }
+
+    pub async fn scores_response(
+        &self,
+        leaderboard_id: &str,
+        clan_id: ClanId,
+        params: &[ClanMapParam],
+    ) -> Result<BlApiClanRankingScoresResponse> {
+        self.client
+            .get_json::<BlApiClanRankingScoresResponse, BlApiClanRankingScoresResponse, ClanMapParam>(
+                Method::GET,
+                &format!(
+                    "/leaderboard/clanRankings/{}/clan/{}",
+                    leaderboard_id, clan_id
+                ),
+                params,
+            )
+            .await
+    }
+
+    pub async fn leaderboard(
+        &self,
+        leaderboard_id: &str,
+        params: &[LeaderboardParam],
+    ) -> Result<Leaderboard> {
+        self.client
+            .get_json::<Leaderboard, Leaderboard, LeaderboardParam>(
+                Method::GET,
+                &format!("/leaderboard/{}", leaderboard_id),
                 params,
             )
             .await
@@ -375,13 +489,6 @@ where
     }
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ClanWithList<T> {
-    pub clan: Clan,
-    pub list: List<T>,
-}
-
 impl<In, Out> From<BlApiClanContainer<In>> for ClanWithList<Out>
 where
     In: BlApiResponse + Sized + DeserializeOwned,
@@ -400,7 +507,23 @@ where
     }
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClanWithList<T> {
+    pub clan: Clan,
+    pub list: List<T>,
+}
+
 pub(crate) type ClanId = u32;
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CapturedLeaderboard {
+    pub id: LeaderboardId,
+    pub clan_id: ClanId,
+    #[serde(with = "ts_seconds")]
+    pub timestamp: DateTime<Utc>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -416,6 +539,7 @@ pub struct Clan {
     pub average_accuracy: f64,
     pub players_count: u32,
     pub icon: String,
+    pub captured_leaderboards: Option<Vec<CapturedLeaderboard>>,
 }
 
 impl<T> From<BlApiClanContainer<T>> for Clan {

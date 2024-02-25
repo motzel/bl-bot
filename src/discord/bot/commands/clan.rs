@@ -1,10 +1,20 @@
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
+use poise::PrefixContext;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::beatleader::clan::Clan;
+use crate::beatleader::clan::ClanMapParam;
+use crate::beatleader::clan::ClanRankingParam;
+use crate::beatleader::clan::LeaderboardParam;
+use crate::beatleader::clan::{Clan, ClanMap, ClanMapScore};
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
-use crate::discord::bot::beatleader::clan::{fetch_clan, ClanWarsPlayDate, ClanWarsSort, Playlist};
+use crate::beatleader::pp::calculate_total_pp_from_sorted;
+use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
+use crate::beatleader::DataWithMeta;
+use crate::discord::bot::beatleader::clan::{
+    fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsPlayDate, ClanWarsSort, Playlist,
+};
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
 use crate::discord::bot::commands::guild::get_guild_settings;
 use crate::discord::bot::commands::player::{
@@ -13,7 +23,7 @@ use crate::discord::bot::commands::player::{
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
 use crate::{Error, BL_CLIENT};
-use poise::serenity_prelude::{AttachmentType, User};
+use poise::serenity_prelude::{AttachmentType, Message, User};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
@@ -477,4 +487,229 @@ pub(crate) async fn cmd_invite_player(
     #[description = "Discord user"] _user: User,
 ) -> Result<(), Error> {
     todo!()
+}
+
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:capture-map")]
+#[poise::command(
+    context_menu_command = "Capture the map",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_capture(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", false).await?;
+
+        return Ok(());
+    }
+
+    let contents = format!(
+        "{}\n{}",
+        message.content,
+        message
+            .embeds
+            .into_iter()
+            .map(|e| e.description.unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    let matches = regex::Regex::new(
+        r"beatleader.(?:xyz|net)/leaderboard/.*?/(?<leaderboard_id>[^\/\?$)\s>]+)",
+    )
+    .unwrap()
+    .captures_iter(&contents)
+    .filter_map(|c| c.name("leaderboard_id"))
+    .collect::<Vec<_>>();
+
+    if matches.is_empty() {
+        say_without_ping(ctx, "Are you sure you wanted to capture this map? I can't find any link to the leaderboard in this message.", false).await?;
+
+        return Ok(());
+    }
+
+    if matches.len() > 1 {
+        say_without_ping(ctx, "There is more than one link to the leaderboard in this message. I know you'd like to capture all these maps, but unfortunately I can't help.", false).await?;
+
+        return Ok(());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    let current_user = ctx.author();
+
+    match link_user_if_needed(
+        ctx,
+        &guild_settings.guild_id,
+        current_user,
+        guild_settings.requires_verified_profile,
+    )
+    .await
+    {
+        Some(player) => {
+            if !player.is_linked_to_guild(&guild_settings.guild_id) {
+                say_profile_not_linked(ctx, &current_user.id).await?;
+
+                return Ok(());
+            }
+
+            let clan_tag = clan_settings.get_clan();
+
+            if !player.clans.iter().any(|clan| clan == &clan_tag) {
+                say_without_ping(
+                    ctx,
+                    format!("You are not a member of the {} clan.", &clan_tag).as_str(),
+                    false,
+                )
+                .await?;
+
+                return Ok(());
+            }
+
+            if player.clans.first().unwrap() != &clan_tag {
+                say_without_ping(
+                    ctx,
+                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", &clan_tag).as_str(),
+                    false,
+                )
+                    .await?;
+
+                return Ok(());
+            }
+
+            let msg = ctx
+                .say("Sure, lemme check! Oil your gun properly while I check this map for you.")
+                .await?;
+
+            let leaderboard_id = matches.first().unwrap().clone().as_str();
+
+            let map = match BL_CLIENT
+                .clan()
+                .clan_ranking(leaderboard_id, &[ClanRankingParam::Count(1)])
+                .await
+            {
+                Ok(mut clan_maps) => {
+                    if clan_maps.list.data.is_empty() {
+                        msg.edit(ctx, |m| {
+                            m.content("Oh snap! It seems that there is no clan wars over this leaderboard.")
+                        })
+                        .await?;
+
+                        return Ok(());
+                    }
+
+                    clan_maps.list.data.swap_remove(0)
+                }
+                Err(err) => {
+                    msg.edit(ctx, |m| {
+                        m.content(format!("Oh snap! An error occurred: {}", err))
+                    })
+                    .await?;
+
+                    return Ok(());
+                }
+            };
+
+            match crate::beatleader::fetch_paged_items(50, None, move |page_def| async move {
+                let scores = BL_CLIENT
+                    .clan()
+                    .scores_response(
+                        leaderboard_id,
+                        clan_settings.clan_id,
+                        &[
+                            ClanMapParam::Count(page_def.items_per_page),
+                            ClanMapParam::Page(page_def.page),
+                        ],
+                    )
+                    .await?;
+
+                Ok(DataWithMeta {
+                    data: scores.associated_scores,
+                    items_per_page: None,
+                    total: Some(scores.associated_scores_count),
+                    other_data: Some((scores.clan, scores.pp)),
+                })
+            })
+            .await
+            {
+                Ok(data) => {
+                    let clan_pp = match data.other_data {
+                        Some(ref data) => data.1,
+                        None => 0.0,
+                    };
+
+                    if let Some((clan, ..)) = data.other_data {
+                        if clan.captured_leaderboards.is_some()
+                            && !clan.captured_leaderboards.unwrap().is_empty()
+                        {
+                            msg.edit(ctx, |m| {
+                                m.content(format!(
+                                    "Looks like this map is already captured by the {} clan 💪",
+                                    clan_tag
+                                ))
+                            })
+                            .await?;
+
+                            return Ok(());
+                        }
+                    }
+
+                    let leading_clan_pp = map.pp;
+                    let real_pp_loss = clan_pp - leading_clan_pp;
+
+                    let player_id = player.id.clone();
+                    let mut pps_without_player = data
+                        .data
+                        .iter()
+                        .filter(|score| score.player_id != player_id)
+                        .map(|score| score.pp)
+                        .collect::<Vec<_>>();
+                    pps_without_player
+                        .sort_unstable_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
+
+                    let mut clan_map_with_scores = ClanMapWithScores {
+                        map,
+                        scores: data.data,
+                        pp_boundary: 0.0,
+                        acc_boundary: AccBoundary::default(),
+                    };
+
+                    // calculate clan pp without player and pp_boundary
+                    let clan_pp_without_player = calculate_total_pp_from_sorted(
+                        CLAN_WEIGHT_COEFFICIENT,
+                        &pps_without_player,
+                        0,
+                    );
+                    clan_map_with_scores.map.pp = clan_pp_without_player - leading_clan_pp;
+                    clan_map_with_scores.calc_pp_boundary(Some(player.id.clone()));
+
+                    // set real pp loss
+                    clan_map_with_scores.map.pp = real_pp_loss;
+
+                    msg.edit(ctx, |m| {
+                        m.content(clan_map_with_scores.to_player_string(clan_tag, player.id))
+                    })
+                    .await?;
+                }
+                Err(err) => {
+                    msg.edit(ctx, |m| {
+                        m.content(format!("Oh snap! An error occurred: {}", err))
+                    })
+                    .await?;
+                }
+            }
+
+            Ok(())
+        }
+        None => {
+            say_profile_not_linked(ctx, &current_user.id).await?;
+
+            Ok(())
+        }
+    }
 }

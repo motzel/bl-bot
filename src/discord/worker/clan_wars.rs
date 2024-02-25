@@ -116,29 +116,50 @@ impl BlClanWarsMapsWorker {
                                             };
                                         }
 
+                                        const MAX_DISCORD_MSG_LENGTH: usize = 2000;
+                                        let mut msg_count = 0;
                                         let header = format!(
                                             "### **{} clan wars maps** (<t:{}:R>)",
                                             clan_settings.get_clan(),
                                             Utc::now().timestamp()
                                         );
-                                        for (idx, map) in clan_wars.maps.iter().enumerate() {
-                                            if idx > 0 {
-                                                post_msg(
-                                                    &self.context,
-                                                    clan_wars_channel_id,
-                                                    map.to_string().as_str(),
-                                                    "",
-                                                )
-                                                .await;
+                                        let mut description = String::new();
+                                        for map in clan_wars.maps.iter() {
+                                            let map_description = map.to_string();
+
+                                            if description.len()
+                                                + "\n\n".len()
+                                                + map_description.len()
+                                                + (if msg_count > 0 { 0 } else { header.len() })
+                                                < MAX_DISCORD_MSG_LENGTH
+                                            {
+                                                description.push_str(&map_description);
                                             } else {
                                                 post_msg(
                                                     &self.context,
                                                     clan_wars_channel_id,
-                                                    map.to_string().as_str(),
-                                                    header.as_str(),
+                                                    description.as_str(),
+                                                    if msg_count == 0 {
+                                                        header.as_str()
+                                                    } else {
+                                                        ""
+                                                    },
                                                 )
                                                 .await;
+
+                                                description = String::new();
+                                                msg_count += 1;
                                             }
+                                        }
+
+                                        if !description.is_empty() {
+                                            post_msg(
+                                                &self.context,
+                                                clan_wars_channel_id,
+                                                description.as_str(),
+                                                if msg_count == 0 { header.as_str() } else { "" },
+                                            )
+                                            .await;
                                         }
                                     }
                                     Err(err) => {

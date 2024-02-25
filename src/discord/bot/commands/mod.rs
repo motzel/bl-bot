@@ -30,6 +30,7 @@ pub(crate) fn commands() -> Vec<poise::Command<BotData, crate::Error>> {
         cmd_clan_invitation(),
         cmd_clan_wars_playlist(),
         cmd_set_clan_wars_maps_channel(),
+        cmd_capture(),
         // cmd_invite_player(),
         cmd_register(),
         cmd_export(),
