@@ -18,6 +18,8 @@ A (not so) simple Discord bot providing the following commands:
 - ![](docs/clan-wars-playlist.png)
 - ``/bl-set-clan-wars-maps-channel``, allowing to set the channel on which top 30 clan wars maps will be posted 
 - ![](docs/clan-wars-maps.png)
+- ``Capture the map`` context menu command, allowing you to check the pp and accuracy needed to capture the map after clicking on any message containing a link to the leaderboard
+- ![](docs/capture-the-map.png)
 - ``/bl-show-settings``, showing current server settings ![](docs/bl-show.gif)
 - ``/bl-export`` / ``/bl-import``, allowing to export and import all bot data (bot owner only)
 
