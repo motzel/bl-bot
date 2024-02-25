@@ -489,7 +489,7 @@ pub(crate) async fn cmd_invite_player(
     todo!()
 }
 
-#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:capture-map")]
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:capture-map")]
 #[poise::command(
     context_menu_command = "Capture the map",
     guild_only,
@@ -649,7 +649,13 @@ pub(crate) async fn cmd_capture(
                         {
                             msg.edit(ctx, |m| {
                                 m.content(format!(
-                                    "Looks like this map is already captured by the {} clan 💪",
+                                    "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is already captured by the {} clan 💪",
+                                    map.leaderboard.song.name,
+                                    map
+                                        .leaderboard
+                                        .difficulty
+                                        .difficulty_name,
+                                    map.leaderboard.id,
                                     clan_tag
                                 ))
                             })
