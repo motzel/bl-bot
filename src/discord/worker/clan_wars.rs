@@ -77,50 +77,16 @@ impl BlClanWarsMapsWorker {
                                 )
                                 .await
                                 {
-                                    Ok(clan_wars) => {
-                                        let mut out = clan_wars
-                                            .maps
-                                            .into_iter()
-                                            .map(|clan_map| {
-                                                (
-                                                    clan_map.map.leaderboard.id,
-                                                    clan_map.map.rank,
-                                                    clan_map.map.leaderboard.song.name,
-                                                    clan_map
-                                                        .map
-                                                        .leaderboard
-                                                        .difficulty
-                                                        .difficulty_name,
-                                                    clan_map.map.pp,
-                                                    clan_map.scores.len(),
-                                                    clan_map.pp_boundary,
-                                                    match clan_map.acc_boundary.ss {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                    match clan_map.acc_boundary.none {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                    match clan_map.acc_boundary.fs {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                    match clan_map.acc_boundary.sf {
-                                                        None => "Not possible".to_owned(),
-                                                        Some(acc) => format!("{:.2}%", acc * 100.0),
-                                                    },
-                                                )
-                                            })
-                                            .collect::<Vec<_>>();
-
-                                        out.sort_unstable_by(|a, b| {
-                                            a.6.partial_cmp(&b.6).unwrap_or(Ordering::Equal)
+                                    Ok(mut clan_wars) => {
+                                        clan_wars.maps.sort_unstable_by(|a, b| {
+                                            a.pp_boundary
+                                                .partial_cmp(&b.pp_boundary)
+                                                .unwrap_or(Ordering::Equal)
                                         });
 
                                         info!(
                                             "{} clan wars maps found. Posting maps to channel #{}",
-                                            out.len(),
+                                            clan_wars.maps.len(),
                                             clan_wars_channel_id
                                         );
 
@@ -150,52 +116,29 @@ impl BlClanWarsMapsWorker {
                                             };
                                         }
 
-                                        const MAX_DISCORD_MSG_LENGTH: usize = 2000;
-                                        let mut msg_count = 0;
                                         let header = format!(
                                             "### **{} clan wars maps** (<t:{}:R>)",
                                             clan_settings.get_clan(),
                                             Utc::now().timestamp()
                                         );
-                                        let mut description = String::new();
-                                        for item in out {
-                                            let map_description = format!("### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n {} SS / **{}** / {} FS / {} SF\n",
-                                                                          item.1, item.2, item.3, item.0, ((item.1 - 1) / 10 + 1),
-                                                                          item.5, if item.5 > 1 { "s" } else { "" }, item.4, item.6, item.7, item.8, item.9, item.10);
-
-                                            if description.len()
-                                                + "\n\n".len()
-                                                + map_description.len()
-                                                + (if msg_count > 0 { 0 } else { header.len() })
-                                                < MAX_DISCORD_MSG_LENGTH
-                                            {
-                                                description.push_str(&map_description);
+                                        for (idx, map) in clan_wars.maps.iter().enumerate() {
+                                            if idx > 0 {
+                                                post_msg(
+                                                    &self.context,
+                                                    clan_wars_channel_id,
+                                                    map.to_string().as_str(),
+                                                    "",
+                                                )
+                                                .await;
                                             } else {
                                                 post_msg(
                                                     &self.context,
                                                     clan_wars_channel_id,
-                                                    description.as_str(),
-                                                    if msg_count == 0 {
-                                                        header.as_str()
-                                                    } else {
-                                                        ""
-                                                    },
+                                                    map.to_string().as_str(),
+                                                    header.as_str(),
                                                 )
                                                 .await;
-
-                                                description = String::new();
-                                                msg_count += 1;
                                             }
-                                        }
-
-                                        if !description.is_empty() {
-                                            post_msg(
-                                                &self.context,
-                                                clan_wars_channel_id,
-                                                description.as_str(),
-                                                if msg_count == 0 { header.as_str() } else { "" },
-                                            )
-                                            .await;
                                         }
                                     }
                                     Err(err) => {

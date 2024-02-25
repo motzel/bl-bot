@@ -189,6 +189,43 @@ impl ClanMapWithScores {
     }
 }
 
+impl Display for ClanMapWithScores {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f,
+               "### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n {} SS / **{}** / {} FS / {} SF\n",
+               self.map.rank,
+               self.map.leaderboard.song.name,
+               self
+                   .map
+                   .leaderboard
+                   .difficulty
+                   .difficulty_name,
+               self.map.leaderboard.id,
+               ((self.map.rank - 1) / 10 + 1),
+               self.scores.len(),
+               if self.scores.len() > 1 { "s" } else { "" },
+               self.map.pp,
+               self.pp_boundary,
+               match self.acc_boundary.ss {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.none {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.fs {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.sf {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ClanWars {
     pub clan_id: ClanId,
