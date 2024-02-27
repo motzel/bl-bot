@@ -33,6 +33,19 @@ pub(crate) enum ClanWarsSort {
     ToHold,
 }
 
+impl Display for ClanWarsSort {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ClanWarsSort::ToConquer => "to conquer",
+                ClanWarsSort::ToHold => "to hold",
+            }
+        )
+    }
+}
+
 impl From<ClanWarsSort> for ClanMapsParam {
     fn from(value: ClanWarsSort) -> Self {
         match value {

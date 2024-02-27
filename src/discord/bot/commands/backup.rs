@@ -1,4 +1,5 @@
-use poise::serenity_prelude::{Attachment, AttachmentType};
+use poise::serenity_prelude::{Attachment, CreateAttachment};
+use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -46,14 +47,15 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
 
     match serde_json::to_string::<BotData>(&data) {
         Ok(data_json) => {
-            ctx.send(|f| {
-                f.content("Requested backup:")
-                    .attachment(AttachmentType::Bytes {
-                        data: Cow::from(data_json.into_bytes()),
-                        filename: "bl-bot-backup.json".to_owned(),
-                    })
-                    .ephemeral(true)
-            })
+            ctx.send(
+                CreateReply::default()
+                    .content("Requested backup:")
+                    .attachment(CreateAttachment::bytes(
+                        Cow::from(data_json.into_bytes()),
+                        "bl-bot-backup.json".to_owned(),
+                    ))
+                    .ephemeral(true),
+            )
             .await?;
         }
         Err(err) => {

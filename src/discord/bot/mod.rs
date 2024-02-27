@@ -4,6 +4,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -100,6 +101,23 @@ pub(crate) enum Condition {
     WorseThan,
     #[name = "Contains (clan metric only)"]
     Contains,
+}
+
+impl std::fmt::Display for Condition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Condition::BetterThanOrEqualTo => "better than or equal to",
+                Condition::BetterThan => "better than",
+                Condition::EqualTo => "equal to",
+                Condition::WorseThanOrEqualTo => "worse than or equal to",
+                Condition::WorseThan => "worse than",
+                Condition::Contains => "contains",
+            }
+        )
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
@@ -616,12 +634,7 @@ impl UserRoleChanges {
             );
 
             if let Err(e) = http
-                .add_member_role(
-                    self.guild_id.into(),
-                    self.user_id.into(),
-                    (*role_id).into(),
-                    None,
-                )
+                .add_member_role(self.guild_id, self.user_id, *role_id, None)
                 .await
             {
                 error!(
@@ -653,12 +666,7 @@ impl UserRoleChanges {
             );
 
             if let Err(e) = http
-                .remove_member_role(
-                    self.guild_id.into(),
-                    self.user_id.into(),
-                    (*role_id).into(),
-                    None,
-                )
+                .remove_member_role(self.guild_id, self.user_id, *role_id, None)
                 .await
             {
                 error!(

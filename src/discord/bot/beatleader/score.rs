@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
-use poise::serenity_prelude::{AttachmentType, CreateEmbed, CreateMessage};
+use poise::serenity_prelude::{CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use poise::CreateReply;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -125,59 +125,55 @@ impl From<BlScore> for Score {
 }
 
 impl Score {
-    pub(crate) fn add_embed_to_message<'a>(
+    pub(crate) fn add_embed_to_message(
         &self,
-        message: &mut CreateMessage<'a>,
+        message: CreateMessage,
         player: &Player,
         bl_context: &BlContext,
-        embed_image: Option<&'a Vec<u8>>,
-    ) {
+        embed_image: Option<&Vec<u8>>,
+    ) -> CreateMessage {
+        let mut message = message;
+
         let with_embed_image = embed_image.is_some();
 
         if let Some(embed_buffer) = embed_image {
-            message.add_file(AttachmentType::Bytes {
-                data: Cow::<[u8]>::from(embed_buffer),
-                filename: "embed.png".to_string(),
-            });
+            message = message.add_file(CreateAttachment::bytes(
+                Cow::<[u8]>::from(embed_buffer),
+                "embed.png".to_string(),
+            ));
         }
 
-        message.embed(|f| {
-            self.add_embed(player, bl_context, with_embed_image, f);
-
-            f
-        });
+        message.embed(self.add_embed(CreateEmbed::new(), player, bl_context, with_embed_image))
     }
 
-    pub(crate) fn add_embed_to_reply<'a>(
+    pub(crate) fn add_embed_to_reply(
         &self,
-        message: &mut CreateReply<'a>,
+        reply: CreateReply,
         player: &Player,
         bl_context: &BlContext,
-        embed_image: Option<&'a Vec<u8>>,
-    ) {
+        embed_image: Option<&Vec<u8>>,
+    ) -> CreateReply {
+        let mut reply = reply;
+
         let with_embed_image = embed_image.is_some();
 
         if let Some(embed_buffer) = embed_image {
-            message.attachment(AttachmentType::Bytes {
-                data: Cow::<[u8]>::from(embed_buffer),
-                filename: "embed.png".to_string(),
-            });
+            reply = reply.attachment(CreateAttachment::bytes(
+                Cow::<[u8]>::from(embed_buffer),
+                "embed.png".to_string(),
+            ));
         }
 
-        message.embed(|f| {
-            self.add_embed(player, bl_context, with_embed_image, f);
-
-            f
-        });
+        reply.embed(self.add_embed(CreateEmbed::new(), player, bl_context, with_embed_image))
     }
 
-    pub(crate) fn add_embed<'a>(
-        &'a self,
+    pub(crate) fn add_embed(
+        &self,
+        embed: CreateEmbed,
         player: &Player,
         bl_context: &BlContext,
         with_embed_image: bool,
-        f: &'a mut CreateEmbed,
-    ) {
+    ) -> CreateEmbed {
         let mut desc = "".to_owned();
 
         desc.push_str(&format!(
@@ -199,41 +195,44 @@ impl Score {
 
         desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.xyz/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
 
-        f.author(|a| {
-            a.name(player.name.clone())
-                .icon_url(player.avatar.clone())
-                .url(format!("https://www.beatleader.xyz/u/{}", player.id))
-        })
-        .title(format!("{} {}", self.song_name, self.song_sub_name,))
-        .description(desc)
-        .url(format!(
-            "https://www.beatleader.xyz/leaderboard/global/{}/1",
-            self.leaderboard_id
-        ))
-        .timestamp(self.timeset);
+        let mut embed = embed
+            .author(
+                CreateEmbedAuthor::new(player.name.clone())
+                    .icon_url(player.avatar.clone())
+                    .url(format!("https://www.beatleader.xyz/u/{}", player.id)),
+            )
+            .title(format!("{} {}", self.song_name, self.song_sub_name,))
+            .description(desc)
+            .url(format!(
+                "https://www.beatleader.xyz/leaderboard/global/{}/1",
+                self.leaderboard_id
+            ))
+            .timestamp(self.timeset);
 
         if !with_embed_image {
-            f.thumbnail(self.song_cover.clone());
+            embed = embed.thumbnail(self.song_cover.clone());
 
             if self.pp > 0.00 {
                 if self.full_combo {
-                    f.field("PP", format!("{:.2}", self.pp), true);
+                    embed = embed.field("PP", format!("{:.2}", self.pp), true);
                 } else {
-                    f.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
+                    embed =
+                        embed.field("PP", format!("{:.2} ({:.2} FC)", self.pp, self.fc_pp), true);
                 }
             }
 
             if self.full_combo {
-                f.field("Acc", format!("{:.2}%", self.accuracy), true);
+                embed = embed.field("Acc", format!("{:.2}%", self.accuracy), true);
             } else {
-                f.field(
+                embed = embed.field(
                     "Acc",
                     format!("{:.2}% ({:.2}% FC)", self.accuracy, self.fc_accuracy),
                     true,
                 );
             }
 
-            f.field("Rank", format!("#{}", self.rank), true)
+            embed = embed
+                .field("Rank", format!("#{}", self.rank), true)
                 .field(
                     "Mistakes",
                     if self.mistakes == 0 {
@@ -245,10 +244,12 @@ impl Score {
                 )
                 .field("Acc Left", format!("{:.2}", self.acc_left), true)
                 .field("Acc Right", format!("{:.2}", self.acc_right), true)
-                .field("Pauses", self.pauses, true)
-                .field("Max combo", self.max_combo, true)
-                .field("Max streak", self.max_streak, true);
+                .field("Pauses", self.pauses.to_string(), true)
+                .field("Max combo", self.max_combo.to_string(), true)
+                .field("Max streak", self.max_streak.to_string(), true);
         }
+
+        embed
     }
 }
 

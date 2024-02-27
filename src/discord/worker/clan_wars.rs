@@ -4,7 +4,7 @@ use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use chrono::Utc;
-use poise::serenity_prelude::ChannelId;
+use poise::serenity_prelude::{ChannelId, CreateAllowedMentions, CreateEmbed, CreateMessage};
 use std::cmp::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -96,17 +96,14 @@ impl BlClanWarsMapsWorker {
                                             description: &str,
                                             content: &str,
                                         ) {
+                                            let mut message = CreateMessage::new()
+                                                .embed(CreateEmbed::new().description(description))
+                                                .allowed_mentions(CreateAllowedMentions::new());
+                                            if !content.is_empty() {
+                                                message = message.content(content);
+                                            }
                                             match channel_id
-                                                .send_message(global_ctx.clone(), |m| {
-                                                    m.embed(|e| e.description(description))
-                                                        .allowed_mentions(|am| am.empty_parse());
-
-                                                    if !content.is_empty() {
-                                                        m.content(content);
-                                                    }
-
-                                                    m
-                                                })
+                                                .send_message(global_ctx.clone(), message)
                                                 .await
                                             {
                                                 Ok(_) => {}

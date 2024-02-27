@@ -40,14 +40,15 @@ pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
 pub(crate) async fn cmd_set_log_channel(
     ctx: Context<'_>,
     #[description = "The channel where the bot logs will be posted. Leave empty to disable logging."]
-    channel: Option<ChannelId>,
+    #[channel_types("Text")]
+    channel_id: Option<ChannelId>,
 ) -> Result<(), Error> {
     let guild_id = get_guild_id(ctx, true).await?;
 
     match ctx
         .data()
         .guild_settings_repository
-        .set_bot_channel(&guild_id, channel)
+        .set_bot_channel(&guild_id, channel_id)
         .await
     {
         Ok(guild_settings) => {
@@ -77,14 +78,15 @@ pub(crate) async fn cmd_set_log_channel(
 pub(crate) async fn cmd_set_clan_wars_maps_channel(
     ctx: Context<'_>,
     #[description = "The channel where the bot will post maps to play within clan wars. Leave empty to disable."]
-    channel: Option<ChannelId>,
+    #[channel_types("Text")]
+    channel_id: Option<ChannelId>,
 ) -> Result<(), Error> {
     let guild_id = get_guild_id(ctx, true).await?;
 
     match ctx
         .data()
         .guild_settings_repository
-        .set_clan_wars_maps_channel(&guild_id, channel)
+        .set_clan_wars_maps_channel(&guild_id, channel_id)
         .await
     {
         Ok(guild_settings) => {

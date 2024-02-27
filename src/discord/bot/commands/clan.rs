@@ -1,5 +1,5 @@
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-use poise::PrefixContext;
+use poise::{CreateReply, PrefixContext};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use crate::discord::bot::commands::player::{
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
 use crate::{Error, BL_CLIENT};
-use poise::serenity_prelude::{AttachmentType, Message, User};
+use poise::serenity_prelude::{CreateAttachment, Message, User};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
@@ -55,7 +55,12 @@ pub(crate) async fn cmd_set_clan_invitation(
     let player = ctx.data().players_repository.get(&current_user.id).await;
 
     if player.is_none() {
-        say_profile_not_linked(ctx, &current_user.id).await?;
+        say_profile_not_linked(
+            ctx,
+            &current_user.id,
+            guild_settings.requires_verified_profile,
+        )
+        .await?;
         return Ok(());
     }
 
@@ -78,7 +83,7 @@ pub(crate) async fn cmd_set_clan_invitation(
         msg_contents.push_str(format!("Fetching {} clan data...", tag).as_str());
 
         let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+        msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
             .await?;
 
         let clan_result = fetch_clan(tag.as_str()).await;
@@ -86,7 +91,7 @@ pub(crate) async fn cmd_set_clan_invitation(
             msg_contents.push_str("FAILED\n");
 
             let msg_contents_clone = msg_contents.clone();
-            msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+            msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
                 .await?;
             return Ok(());
         }
@@ -96,7 +101,7 @@ pub(crate) async fn cmd_set_clan_invitation(
             msg_contents.push_str("OK, you are the owner!\n");
 
             let msg_contents_clone = msg_contents.clone();
-            msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+            msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
                 .await?;
 
             player_clan = Some(clan);
@@ -105,7 +110,7 @@ pub(crate) async fn cmd_set_clan_invitation(
             msg_contents.push_str("OK, not the owner\n");
 
             let msg_contents_clone = msg_contents.clone();
-            msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+            msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
                 .await?;
         }
     }
@@ -114,7 +119,7 @@ pub(crate) async fn cmd_set_clan_invitation(
         msg_contents.push_str("You are not the owner of any clan!\n");
 
         let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+        msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
             .await?;
 
         return Ok(());
@@ -140,7 +145,7 @@ pub(crate) async fn cmd_set_clan_invitation(
         msg_contents.push_str("An error occurred while saving clan settings\n");
 
         let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+        msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
             .await?;
 
         return Ok(());
@@ -158,7 +163,7 @@ pub(crate) async fn cmd_set_clan_invitation(
     msg_contents.push_str(format!("\nGreat, you are the owner of the {} clan. Now click this link and authorize the bot to send invitations to the clan on your behalf. {}", &player_clan.tag, oauth_client.oauth().authorize_url(vec![OAuthScope::Profile, OAuthScope::OfflineAccess, OAuthScope::Clan], mc.encrypt_str_to_base64(guild_settings.guild_id.to_string())).unwrap_or("Error when generating authorization link".to_owned())).as_str());
 
     let msg_contents_clone = msg_contents.clone();
-    msg.edit(ctx, |m| m.components(|c| c).content(&msg_contents_clone))
+    msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
         .await?;
 
     Ok(())
@@ -224,7 +229,12 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
     {
         Some(player) => {
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &current_user.id).await?;
+                say_profile_not_linked(
+                    ctx,
+                    &current_user.id,
+                    guild_settings.requires_verified_profile,
+                )
+                .await?;
 
                 return Ok(());
             }
@@ -309,7 +319,12 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
             Ok(())
         }
         None => {
-            say_profile_not_linked(ctx, &current_user.id).await?;
+            say_profile_not_linked(
+                ctx,
+                &current_user.id,
+                guild_settings.requires_verified_profile,
+            )
+            .await?;
 
             Ok(())
         }
@@ -360,7 +375,12 @@ pub(crate) async fn cmd_clan_wars_playlist(
     {
         Some(player) => {
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &current_user.id).await?;
+                say_profile_not_linked(
+                    ctx,
+                    &current_user.id,
+                    guild_settings.requires_verified_profile,
+                )
+                .await?;
 
                 return Ok(());
             }
@@ -425,17 +445,18 @@ pub(crate) async fn cmd_clan_wars_playlist(
                     Ok(_) => {
                         match serde_json::to_string::<Playlist>(&playlist) {
                             Ok(data_json) => {
-                                ctx.send(|f| {
-                                    f.content("Here's your personalized playlist:")
-                                        .attachment(AttachmentType::Bytes {
-                                            data: Cow::from(data_json.into_bytes()),
-                                            filename: format!(
+                                ctx.send(
+                                    CreateReply::default()
+                                        .content("Here's your personalized playlist:")
+                                        .attachment(CreateAttachment::bytes(
+                                            Cow::from(data_json.into_bytes()),
+                                            format!(
                                                 "{}.json",
                                                 playlist.get_title().replace([' ', '-'], "_")
                                             ),
-                                        })
-                                        .ephemeral(true)
-                                })
+                                        ))
+                                        .ephemeral(true),
+                                )
                                 .await?;
                             }
                             Err(err) => {
@@ -459,7 +480,12 @@ pub(crate) async fn cmd_clan_wars_playlist(
             }
         }
         None => {
-            say_profile_not_linked(ctx, &current_user.id).await?;
+            say_profile_not_linked(
+                ctx,
+                &current_user.id,
+                guild_settings.requires_verified_profile,
+            )
+            .await?;
 
             Ok(())
         }
@@ -546,7 +572,12 @@ pub(crate) async fn cmd_capture(
     {
         Some(player) => {
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &current_user.id).await?;
+                say_profile_not_linked(
+                    ctx,
+                    &current_user.id,
+                    guild_settings.requires_verified_profile,
+                )
+                .await?;
 
                 return Ok(());
             }
@@ -588,9 +619,8 @@ pub(crate) async fn cmd_capture(
             {
                 Ok(mut clan_maps) => {
                     if clan_maps.list.data.is_empty() {
-                        msg.edit(ctx, |m| {
-                            m.content("Oh snap! It seems that there is no clan wars over this leaderboard.")
-                        })
+                        msg.edit(ctx, CreateReply::default().content("Oh snap! It seems that there is no clan wars over this leaderboard.")
+                        )
                         .await?;
 
                         return Ok(());
@@ -599,9 +629,11 @@ pub(crate) async fn cmd_capture(
                     clan_maps.list.data.swap_remove(0)
                 }
                 Err(err) => {
-                    msg.edit(ctx, |m| {
-                        m.content(format!("Oh snap! An error occurred: {}", err))
-                    })
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
                     .await?;
 
                     return Ok(());
@@ -640,18 +672,16 @@ pub(crate) async fn cmd_capture(
                         if clan.captured_leaderboards.is_some()
                             && !clan.captured_leaderboards.unwrap().is_empty()
                         {
-                            msg.edit(ctx, |m| {
-                                m.content(format!(
-                                    "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is already captured by the {} clan 💪",
-                                    map.leaderboard.song.name,
-                                    map
-                                        .leaderboard
-                                        .difficulty
-                                        .difficulty_name,
-                                    map.leaderboard.id,
-                                    clan_tag
-                                ))
-                            })
+                            msg.edit(ctx, CreateReply::default().content(format!(
+                                "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is already captured by the {} clan 💪",
+                                map.leaderboard.song.name,
+                                map
+                                    .leaderboard
+                                    .difficulty
+                                    .difficulty_name,
+                                map.leaderboard.id,
+                                clan_tag
+                            )))
                             .await?;
 
                             return Ok(());
@@ -690,15 +720,19 @@ pub(crate) async fn cmd_capture(
                     // set real pp loss
                     clan_map_with_scores.map.pp = real_pp_loss;
 
-                    msg.edit(ctx, |m| {
-                        m.content(clan_map_with_scores.to_player_string(clan_tag, player.id))
-                    })
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(clan_map_with_scores.to_player_string(clan_tag, player.id)),
+                    )
                     .await?;
                 }
                 Err(err) => {
-                    msg.edit(ctx, |m| {
-                        m.content(format!("Oh snap! An error occurred: {}", err))
-                    })
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
                     .await?;
                 }
             }
@@ -706,7 +740,12 @@ pub(crate) async fn cmd_capture(
             Ok(())
         }
         None => {
-            say_profile_not_linked(ctx, &current_user.id).await?;
+            say_profile_not_linked(
+                ctx,
+                &current_user.id,
+                guild_settings.requires_verified_profile,
+            )
+            .await?;
 
             Ok(())
         }

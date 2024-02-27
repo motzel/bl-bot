@@ -2,7 +2,10 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use poise::serenity_prelude::{http, AttachmentType, GuildId, SerenityError};
+use poise::serenity_prelude::prelude::SerenityError;
+use poise::serenity_prelude::{
+    http, CreateAllowedMentions, CreateAttachment, CreateMessage, ErrorResponse, GuildId,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
@@ -46,7 +49,7 @@ impl UserRolesWorker {
                 let member = match self
                     .context
                     .http
-                    .get_member(u64::from(*guild_id), bot_player.user_id.into())
+                    .get_member(GuildId::from(guild_id), bot_player.user_id)
                     .await
                 {
                     Ok(member) => member,
@@ -57,22 +60,22 @@ impl UserRolesWorker {
                         );
 
                         match err {
-                            SerenityError::Http(http_err) => {
-                                match *http_err {
-                                    http::HttpError::UnsuccessfulRequest(
-                                        http::error::ErrorResponse {
-                                            error: discord_err, ..
-                                        },
-                                    ) => {
-                                        // see: https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
-                                        if discord_err.code == 10007 {
-                                            debug!("User {} ({}) is not a member of the guild {} anymore.", &bot_player.user_id, &bot_player.name, &guild_id);
-                                            guilds_to_unlink.push(u64::from(*guild_id));
-                                        }
-
-                                        continue;
+                            SerenityError::Http(http::HttpError::UnsuccessfulRequest(
+                                ErrorResponse {
+                                    error: discord_err, ..
+                                },
+                            )) => {
+                                {
+                                    // see: https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
+                                    if discord_err.code == 10007 {
+                                        debug!(
+                                            "User {} ({}) is not a member of the guild {} anymore.",
+                                            &bot_player.user_id, &bot_player.name, &guild_id
+                                        );
+                                        guilds_to_unlink.push(u64::from(*guild_id));
                                     }
-                                    _ => continue,
+
+                                    continue;
                                 }
                             }
                             _ => continue,
@@ -139,18 +142,19 @@ impl UserRolesWorker {
                                 Some(player) => {
                                     let embed_image = get_player_embed(&player).await;
 
-                                    match bot_channel_id
-                                        .send_message(self.context.clone(), |m| {
-                                            if let Some(embed_buffer) = embed_image {
-                                                m.add_file(AttachmentType::Bytes {
-                                                    data: Cow::<[u8]>::from(embed_buffer),
-                                                    filename: "embed.png".to_string(),
-                                                });
-                                            }
+                                    let mut message = CreateMessage::new()
+                                        .content(format!("{}", rc))
+                                        .allowed_mentions(CreateAllowedMentions::new());
 
-                                            m.content(format!("{}", rc))
-                                                .allowed_mentions(|am| am.empty_parse())
-                                        })
+                                    if let Some(embed_buffer) = embed_image {
+                                        message = message.add_file(CreateAttachment::bytes(
+                                            Cow::<[u8]>::from(embed_buffer),
+                                            "embed.png".to_string(),
+                                        ));
+                                    }
+
+                                    match bot_channel_id
+                                        .send_message(self.context.clone(), message)
                                         .await
                                     {
                                         Ok(_) => {}
@@ -164,10 +168,12 @@ impl UserRolesWorker {
                                 }
                                 None => {
                                     match bot_channel_id
-                                        .send_message(self.context.clone(), |m| {
-                                            m.content(format!("{}", rc))
-                                                .allowed_mentions(|am| am.empty_parse())
-                                        })
+                                        .send_message(
+                                            self.context.clone(),
+                                            CreateMessage::new()
+                                                .content(format!("{}", rc))
+                                                .allowed_mentions(CreateAllowedMentions::new()),
+                                        )
                                         .await
                                     {
                                         Ok(_) => {}

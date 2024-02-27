@@ -1,11 +1,6 @@
 use std::borrow::Cow;
 use std::convert::From;
 
-use bytes::Bytes;
-use poise::serenity_prelude::{AttachmentType, CreateComponents, GuildId, User, UserId};
-use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
-use tracing::{error, info, trace, warn};
-
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
 use crate::discord::bot::beatleader::player::{
@@ -20,6 +15,15 @@ use crate::discord::Context;
 use crate::embed::{embed_profile, embed_score};
 use crate::storage::StorageError;
 use crate::Error;
+use bytes::Bytes;
+use poise::serenity_prelude::{
+    ComponentInteractionDataKind, CreateActionRow, CreateAttachment, CreateEmbed,
+    CreateEmbedFooter, CreateMessage, CreateSelectMenu, CreateSelectMenuKind,
+    CreateSelectMenuOption, GuildId, User, UserId,
+};
+use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
+use serenity::builder::CreateAllowedMentions;
+use tracing::{error, info, trace, warn};
 
 #[derive(Debug, poise::ChoiceParameter, Default)]
 
@@ -145,25 +149,25 @@ pub(crate) async fn cmd_link(
         Ok(player) => {
             let embed_image = get_player_embed(&player).await;
 
-            ctx.send(|m| {
-                if embed_image.is_none() {
-                    add_profile_card(m, player);
-                } else if let Some(embed_buffer) = embed_image {
-                    m.attachment(AttachmentType::Bytes {
-                        data: Cow::<[u8]>::from(embed_buffer),
-                        filename: "embed.png".to_string(),
-                    });
-                }
-
-                m.content(format!(
+            let mut reply = CreateReply::default()
+                .content(format!(
                     "<@{}> has been linked to the BL profile",
                     selected_user_id
                 ))
                 // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
-                .allowed_mentions(|am| am.parse(serenity::builder::ParseValue::Users))
-                .ephemeral(false)
-            })
-            .await?;
+                .allowed_mentions(CreateAllowedMentions::new().all_users(true))
+                .ephemeral(false);
+
+            if embed_image.is_none() {
+                reply = add_profile_card(reply, player);
+            } else if let Some(embed_buffer) = embed_image {
+                reply = reply.attachment(CreateAttachment::bytes(
+                    Cow::<[u8]>::from(embed_buffer),
+                    "embed.png".to_string(),
+                ));
+            }
+
+            ctx.send(reply).await?;
 
             Ok(())
         }
@@ -224,33 +228,37 @@ pub(crate) async fn cmd_unlink(
         .await
     {
         Ok(_) => {
-            ctx.send(|m| {
-                m.content(format!(
-                    "<@{}> has been unlinked from BL profile",
-                    selected_user_id
-                ))
-                // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
-                .allowed_mentions(|am| {
-                    am.parse(serenity::builder::ParseValue::Users)
-                        .parse(serenity::builder::ParseValue::Roles)
-                })
-                .ephemeral(false)
-            })
+            ctx.send(
+                CreateReply::default()
+                    .content(format!(
+                        "<@{}> has been unlinked from BL profile",
+                        selected_user_id
+                    ))
+                    // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
+                    .allowed_mentions(CreateAllowedMentions::new().all_users(true).all_roles(true))
+                    .ephemeral(false),
+            )
             .await?;
 
             Ok(())
         }
         Err(e) => match e {
             StorageError::NotFound(_) => {
-                say_profile_not_linked(ctx, &selected_user_id).await?;
+                say_without_ping(
+                    ctx,
+                    format!("<@{}> is not linked by a bot.", selected_user_id).as_str(),
+                    false,
+                )
+                .await?;
 
                 Ok(())
             }
             _ => {
-                ctx.send(|f| {
-                    f.content(format!("An error has occurred: {}", e))
-                        .ephemeral(true)
-                })
+                ctx.send(
+                    CreateReply::default()
+                        .content(format!("An error has occurred: {}", e))
+                        .ephemeral(true),
+                )
                 .await?;
 
                 Ok(())
@@ -282,31 +290,42 @@ pub(crate) async fn cmd_profile(
     {
         Some(player) => {
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &selected_user.id).await?;
+                say_profile_not_linked(
+                    ctx,
+                    &selected_user.id,
+                    guild_settings.requires_verified_profile,
+                )
+                .await?;
 
                 return Ok(());
             }
 
             let embed_image = get_player_embed(&player).await;
 
-            ctx.send(|m| {
-                if embed_image.is_none() {
-                    add_profile_card(m, player);
-                } else if let Some(embed_buffer) = embed_image {
-                    m.attachment(AttachmentType::Bytes {
-                        data: Cow::<[u8]>::from(embed_buffer),
-                        filename: "embed.png".to_string(),
-                    });
-                }
+            let mut reply = CreateReply::default()
+                .allowed_mentions(CreateAllowedMentions::new())
+                .ephemeral(false);
 
-                m.allowed_mentions(|am| am.empty_parse()).ephemeral(false)
-            })
-            .await?;
+            if embed_image.is_none() {
+                reply = add_profile_card(reply, player);
+            } else if let Some(embed_buffer) = embed_image {
+                reply = reply.attachment(CreateAttachment::bytes(
+                    Cow::<[u8]>::from(embed_buffer),
+                    "embed.png".to_string(),
+                ));
+            }
+
+            ctx.send(reply).await?;
 
             Ok(())
         }
         None => {
-            say_profile_not_linked(ctx, &selected_user.id).await?;
+            say_profile_not_linked(
+                ctx,
+                &selected_user.id,
+                guild_settings.requires_verified_profile,
+            )
+            .await?;
 
             Ok(())
         }
@@ -416,7 +435,12 @@ pub(crate) async fn cmd_replay(
             let player_score_context = (context.unwrap_or_default()).to_bl_context();
 
             if !player.is_linked_to_guild(&guild_settings.guild_id) {
-                say_profile_not_linked(ctx, &selected_user.id).await?;
+                say_profile_not_linked(
+                    ctx,
+                    &selected_user.id,
+                    guild_settings.requires_verified_profile,
+                )
+                .await?;
 
                 return Ok(());
             }
@@ -447,18 +471,19 @@ pub(crate) async fn cmd_replay(
                 }
             };
 
+            let selected_ids = Vec::new();
             let msg = ctx
-                .send(|m| {
-                    let selected_ids = Vec::new();
-                    m.components(|c| add_replay_components(c, &player_scores, &selected_ids))
-                        .ephemeral(true)
-                })
+                .send(
+                    CreateReply::default()
+                        .components(add_replay_components(&player_scores, &selected_ids))
+                        .ephemeral(true),
+                )
                 .await?;
 
             let mut score_ids = Vec::<String>::new();
             let mut replay_posted = false;
 
-            while let Some(mci) = serenity::CollectComponentInteraction::new(ctx)
+            while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
                 .author_id(current_user.id)
                 .channel_id(ctx.channel_id())
                 .timeout(std::time::Duration::from_secs(120))
@@ -466,19 +491,22 @@ pub(crate) async fn cmd_replay(
             {
                 trace!("Interaction response: {:?}", mci.data);
 
+                mci.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+                    .await?;
+
                 match mci.data.custom_id.as_str() {
                     "score_id" => {
-                        score_ids = mci.data.values.clone();
+                        score_ids = match &mci.data.kind {
+                            ComponentInteractionDataKind::StringSelect { values } => values.clone(),
+                            _ => vec![],
+                        };
 
-                        // edit message
-                        mci.create_interaction_response(ctx, |ir| {
-                            ir.kind(serenity::InteractionResponseType::UpdateMessage)
-                                .interaction_response_data(|message| {
-                                    message.components(|c| {
-                                        add_replay_components(c, &player_scores, &score_ids)
-                                    })
-                                })
-                        })
+                        msg.edit(
+                            ctx,
+                            CreateReply::default()
+                                .components(add_replay_components(&player_scores, &score_ids))
+                                .ephemeral(true),
+                        )
                         .await?;
                     }
                     "post_btn" => {
@@ -492,30 +520,32 @@ pub(crate) async fn cmd_replay(
                                 &msg,
                             )
                             .await?;
-                        } else {
-                            mci.defer(ctx).await?;
                         }
 
                         replay_posted = true;
                     }
-                    _ => {
-                        mci.defer(ctx).await?;
-                    }
+                    _ => {}
                 }
             }
 
             if !replay_posted {
-                msg.edit(ctx, |m| {
-                    m.components(|c| c)
-                        .content("Interaction timed out. Dismiss this message and try again.")
-                })
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Interaction timed out. Dismiss this message and try again."),
+                )
                 .await?;
             }
 
             Ok(())
         }
         None => {
-            say_profile_not_linked(ctx, &selected_user.id).await?;
+            say_profile_not_linked(
+                ctx,
+                &selected_user.id,
+                guild_settings.requires_verified_profile,
+            )
+            .await?;
 
             Ok(())
         }
@@ -548,47 +578,48 @@ pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-fn add_replay_components<'a>(
-    c: &'a mut CreateComponents,
+fn add_replay_components(
     player_scores: &BlList<Score>,
     selected_ids: &[String],
-) -> &'a mut CreateComponents {
-    c.create_action_row(|r| {
-        r.create_select_menu(|m| {
-            m.custom_id("score_id")
-                .placeholder("Select replay(s) to post")
-                .options(|o| {
-                    player_scores.data.iter().fold(o, |acc, s| {
-                        acc.create_option(|o| {
+) -> Vec<CreateActionRow> {
+    vec![
+        CreateActionRow::SelectMenu(
+            CreateSelectMenu::new(
+                "score_id",
+                CreateSelectMenuKind::String {
+                    options: player_scores
+                        .data
+                        .iter()
+                        .map(|s| {
                             let label = format!(
                                 "{} {} ({})",
                                 s.song_name.clone(),
                                 s.song_sub_name.clone(),
                                 s.difficulty_name.clone(),
                             );
-                            o.label(if label.len() > 100 {
-                                &label[..100]
-                            } else {
-                                label.as_str()
-                            })
-                            .value(s.id.to_string())
+                            CreateSelectMenuOption::new(
+                                if label.len() > 100 {
+                                    &label[..100]
+                                } else {
+                                    label.as_str()
+                                },
+                                s.id.to_string(),
+                            )
                             .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
                             .default_selection(selected_ids.contains(&s.id.to_string()))
                         })
-                    })
-                })
-                .min_values(1)
-                .max_values(3)
-        })
-    })
-    .create_action_row(|r| {
-        r.create_button(|b| {
-            b.custom_id("post_btn")
-                .label("Post replay")
-                .style(serenity::ButtonStyle::Primary)
-                .disabled(selected_ids.is_empty())
-        })
-    })
+                        .collect::<Vec<_>>(),
+                },
+            )
+            .min_values(1)
+            .max_values(3)
+            .placeholder("Select replays to post (max 3)"),
+        ),
+        CreateActionRow::Buttons(vec![poise::serenity_prelude::CreateButton::new("post_btn")
+            .label("Post replay")
+            .style(serenity::ButtonStyle::Primary)
+            .disabled(selected_ids.is_empty())]),
+    ]
 }
 
 async fn post_replays(
@@ -602,8 +633,13 @@ async fn post_replays(
     let mut msg_contents = "Loading player avatar...".to_owned();
 
     let msg_contents_clone = msg_contents.clone();
-    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
-        .await?;
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(msg_contents_clone)
+            .components(vec![]),
+    )
+    .await?;
 
     let player_avatar = get_binary_file(&player.avatar)
         .await
@@ -617,7 +653,7 @@ async fn post_replays(
 
     let msg_contents_clone = msg_contents.clone();
 
-    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+    msg.edit(ctx, CreateReply::default().content(msg_contents_clone))
         .await?;
 
     for score_id in score_ids {
@@ -637,7 +673,7 @@ async fn post_replays(
             msg_contents.push_str(&format!("Fetching ratings for {}...", score.song_name));
 
             let msg_contents_clone = msg_contents.clone();
-            msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+            msg.edit(ctx, CreateReply::default().content(msg_contents_clone))
                 .await?;
 
             let ratings = fetch_rating(
@@ -675,10 +711,13 @@ async fn post_replays(
 
         info!("Posting replay for scoreId: {}", score_id);
 
-        msg_contents.push_str(&format!("Generating embed for {}...", score.song_name));
+        msg_contents.push_str(&format!(
+            "Generating embed for {} ({})...",
+            score.song_name, score.difficulty_name
+        ));
 
         let msg_contents_clone = msg_contents.clone();
-        msg.edit(ctx, |m| m.components(|c| c).content(msg_contents_clone))
+        msg.edit(ctx, CreateReply::default().content(msg_contents_clone))
             .await?;
 
         let embed_image = if !player_avatar.is_empty() {
@@ -695,14 +734,17 @@ async fn post_replays(
 
         let send_message_result = ctx
             .channel_id()
-            .send_message(ctx, |m| {
-                score.add_embed_to_message(m, player, bl_context, embed_image.as_ref());
-
-                m.allowed_mentions(|am| {
-                    am.parse(serenity::builder::ParseValue::Users)
-                        .parse(serenity::builder::ParseValue::Roles)
-                })
-            })
+            .send_message(
+                ctx,
+                score
+                    .add_embed_to_message(
+                        CreateMessage::new(),
+                        player,
+                        bl_context,
+                        embed_image.as_ref(),
+                    )
+                    .allowed_mentions(CreateAllowedMentions::new().all_users(true).all_roles(true)),
+            )
             .await;
 
         if send_message_result.is_err() {
@@ -711,18 +753,17 @@ async fn post_replays(
                 send_message_result.err()
             );
 
-            let reply_result = ctx
-                .send(|m| {
-                    score.add_embed_to_reply(m, player, bl_context, embed_image.as_ref());
-
-                    m.allowed_mentions(|am| {
-                        am.parse(serenity::builder::ParseValue::Users)
-                            .parse(serenity::builder::ParseValue::Roles)
-                    })
-                    .reply(false)
-                    .ephemeral(false)
-                })
-                .await;
+            let reply = score
+                .add_embed_to_reply(
+                    CreateReply::default(),
+                    player,
+                    bl_context,
+                    embed_image.as_ref(),
+                )
+                .allowed_mentions(CreateAllowedMentions::new().all_users(true).all_roles(true))
+                .reply(false)
+                .ephemeral(false);
+            let reply_result = ctx.send(reply).await;
 
             if reply_result.is_err() {
                 error!(
@@ -733,7 +774,7 @@ async fn post_replays(
                 msg_contents
                     .push_str("An error has occurred. No permissions to post to the channel?");
 
-                msg.edit(ctx, |m| m.components(|c| c).content(msg_contents))
+                msg.edit(ctx, CreateReply::default().content(msg_contents))
                     .await?;
 
                 return Ok(());
@@ -743,23 +784,30 @@ async fn post_replays(
 
     msg_contents.push_str("Replay(s) posted. You can dismiss this message.");
 
-    msg.edit(ctx, |m| m.components(|c| c).content(msg_contents))
+    msg.edit(ctx, CreateReply::default().content(msg_contents))
         .await?;
 
     Ok(())
 }
 
-fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
-    reply.embed(|f| {
-        let mut clans = player.clans.join(", ");
-        if clans.is_empty() {
-            clans = "None".to_string()
-        }
+fn add_profile_card(reply: CreateReply, player: BotPlayer) -> CreateReply {
+    let mut clans = player.clans.join(", ");
+    if clans.is_empty() {
+        clans = "None".to_string()
+    }
 
-        f.title(player.name)
+    let footer_text = if !player.is_verified {
+        "Profile is NOT VERIFIED\n\n"
+    } else {
+        ""
+    };
+
+    reply.embed(
+        CreateEmbed::new()
+            .title(player.name)
             .url(format!("https://www.beatleader.xyz/u/{}", player.id))
             .thumbnail(player.avatar)
-            .field("Rank", player.rank, true)
+            .field("Rank", player.rank.to_string(), true)
             .field("PP", format!("{:.2}", player.pp), true)
             .field("Country", player.country, true)
             .field("Top PP", format!("{:.2}", player.top_pp), true)
@@ -798,35 +846,39 @@ fn add_profile_card(reply: &mut CreateReply, player: BotPlayer) {
                 },
                 true,
             )
-            .field("Clans", clans, true);
-
-        let footer_text = if !player.is_verified {
-            "Profile is NOT VERIFIED\n\n"
-        } else {
-            ""
-        };
-
-        if let Some(last_fetch) = player.last_fetch {
-            f.footer(|footer| footer.text(format!("{}Last updated", footer_text)))
-                .timestamp(last_fetch);
-        } else {
-            f.footer(|footer| footer.text(footer_text));
-        }
-
-        f
-    });
+            .field("Clans", clans, true)
+            .footer(CreateEmbedFooter::new(
+                if let Some(last_fetch) = player.last_fetch {
+                    format!(
+                        "{}Last updated: <t:{}:R>",
+                        footer_text,
+                        last_fetch.timestamp()
+                    )
+                } else {
+                    footer_text.to_owned()
+                },
+            )),
+    )
 }
 
 pub(crate) async fn say_profile_not_linked(
     ctx: Context<'_>,
     user_id: &UserId,
+    requires_verified_profile: bool,
 ) -> Result<(), Error> {
     say_without_ping(
         ctx,
-        format!(
-            "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. Use the ``/bl-link`` command first or link the account on the BL site.",
-            user_id
-        )
+        if requires_verified_profile {
+            format!(
+                "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. This server requires a verified profile, so link your Discord account on the BL website first, then use this command again.",
+                user_id
+            )
+        } else {
+            format!(
+                "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. Use the ``/bl-link`` command first or link your Discord account on the BL site first, then use this command again.",
+                user_id
+            )
+        }
         .as_str(),
         false,
     )
@@ -840,11 +892,12 @@ pub(crate) async fn say_without_ping(
     message: &str,
     ephemeral: bool,
 ) -> Result<(), Error> {
-    ctx.send(|f| {
-        f.content(message)
-            .allowed_mentions(|am| am.empty_parse())
-            .ephemeral(ephemeral)
-    })
+    ctx.send(
+        CreateReply::default()
+            .content(message)
+            .allowed_mentions(CreateAllowedMentions::new())
+            .ephemeral(ephemeral),
+    )
     .await?;
 
     Ok(())
