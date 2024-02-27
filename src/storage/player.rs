@@ -1,28 +1,61 @@
 #![allow(clippy::blocks_in_conditions)]
+
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use poise::serenity_prelude::{GuildId, UserId};
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, trace};
 
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
-use crate::discord::bot::beatleader::player::fetch_player_from_bl;
 use crate::discord::bot::beatleader::player::Player as BotPlayer;
+use crate::discord::bot::beatleader::player::{fetch_player_from_bl, Player};
 use crate::discord::bot::beatleader::score::fetch_ranked_scores_stats;
 use crate::storage::persist::PersistInstance;
 use crate::storage::player_scores::PlayerScoresRepository;
-use crate::storage::{CachedStorage, Storage, StorageError};
+use crate::storage::{CachedStorage, Storage, StorageError, StorageKey, StorageValue};
 
 use super::Result;
 
+#[derive(Debug)]
 pub(crate) struct PlayerRepository {
     storage: CachedStorage<UserId, BotPlayer>,
+    user_player_idx_repository: PlayerUserIdxRepository,
 }
 
 impl<'a> PlayerRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerRepository> {
+        let storage = CachedStorage::new(Storage::new("players", persist.clone())).await?;
+        let user_player_idx_repository = PlayerUserIdxRepository::new(persist).await?;
+
+        // refresh index at start if needed
+        if storage.len().await != user_player_idx_repository.len().await {
+            let idx_values = user_player_idx_repository.all().await;
+            let users_to_refresh = storage
+                .keys()
+                .await
+                .into_iter()
+                .filter(|user_id| !idx_values.iter().any(|idx| idx.user_id == *user_id))
+                .collect::<Vec<_>>();
+
+            tracing::debug!(
+                "Refreshing player-user index ({} items)...",
+                users_to_refresh.len()
+            );
+
+            for user_id in users_to_refresh {
+                if let Some(Player { id, .. }) = storage.get(&user_id).await {
+                    let _ = user_player_idx_repository.set(id, user_id).await?;
+                }
+            }
+
+            tracing::debug!("player-user index refreshed.");
+        }
+
         Ok(Self {
-            storage: CachedStorage::new(Storage::new("players", persist)).await?,
+            storage,
+            user_player_idx_repository,
         })
     }
 
@@ -35,7 +68,24 @@ impl<'a> PlayerRepository {
     }
 
     pub(crate) async fn get(&self, user_id: &UserId) -> Option<BotPlayer> {
-        self.storage.get(user_id).await
+        match self.storage.get(user_id).await {
+            None => None,
+            Some(player) => {
+                let _ = self
+                    .user_player_idx_repository
+                    .set(player.id.clone(), player.user_id)
+                    .await;
+
+                Some(player)
+            }
+        }
+    }
+
+    pub(crate) async fn get_by_player_id(&self, player_id: &PlayerId) -> Option<BotPlayer> {
+        match self.user_player_idx_repository.get(player_id).await {
+            None => None,
+            Some(user_id) => self.storage.get(&user_id).await,
+        }
     }
 
     pub(crate) async fn link(
@@ -369,9 +419,73 @@ impl<'a> PlayerRepository {
         {
             Some(player) => {
                 debug!("User {} linked with BL player {}.", user_id, player_id);
+
+                self.user_player_idx_repository
+                    .set(player.id.clone(), user_id)
+                    .await?;
+
                 Ok(player)
             }
             None => Err(StorageError::Unknown),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+pub(crate) struct PlayerUserIdx {
+    pub player_id: PlayerId,
+    pub user_id: UserId,
+}
+
+impl StorageKey for PlayerUserIdx {}
+impl StorageValue<PlayerId> for PlayerUserIdx {
+    fn get_key(&self) -> PlayerId {
+        self.player_id.clone()
+    }
+}
+
+impl Display for PlayerUserIdx {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.player_id.as_str(), self.user_id)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct PlayerUserIdxRepository {
+    storage: CachedStorage<PlayerId, PlayerUserIdx>,
+}
+
+impl<'a> PlayerUserIdxRepository {
+    pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerUserIdxRepository> {
+        Ok(Self {
+            storage: CachedStorage::new(Storage::new("player-user-idx", persist)).await?,
+        })
+    }
+
+    pub(crate) async fn get(&self, player_id: &PlayerId) -> Option<UserId> {
+        match self.storage.get(player_id).await {
+            None => None,
+            Some(player_user_idx) => Some(player_user_idx.user_id),
+        }
+    }
+
+    pub(crate) async fn set(&self, player_id: PlayerId, user_id: UserId) -> Result<PlayerUserIdx> {
+        self.storage
+            .set(
+                &player_id,
+                PlayerUserIdx {
+                    player_id: player_id.clone(),
+                    user_id,
+                },
+            )
+            .await
+    }
+
+    pub(crate) async fn all(&self) -> Vec<PlayerUserIdx> {
+        self.storage.values().await
+    }
+
+    pub(crate) async fn len(&self) -> usize {
+        self.storage.len().await
     }
 }

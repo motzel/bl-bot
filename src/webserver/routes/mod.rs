@@ -147,14 +147,30 @@ async fn playlist(
                     );
                 }
 
+                let player =
+                    match app_state
+                        .players_repository
+                        .get_by_player_id(&player_id)
+                        .await
+                    {
+                        Some(player) => player,
+                        None => return (
+                            StatusCode::NOT_FOUND,
+                            Json(json!({"error": {"code": "player_not_found", "message": "Player not found"}}))
+                                .into_response(),
+                        ),
+                    };
+
                 match Playlist::for_clan_player(
                     &app_state.player_scores_repository,
                     app_state.settings.server.url.as_str(),
                     custom_data.clan_tag.clone(),
-                    custom_data.player_id.clone(),
+                    player,
                     custom_data.playlist_type.clone(),
                     custom_data.last_played.clone(),
                     custom_data.count,
+                    custom_data.max_stars,
+                    custom_data.max_clan_pp_diff,
                 )
                 .await
                 {

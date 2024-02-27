@@ -149,6 +149,12 @@ where
         }
     }
 
+    pub(super) async fn keys(&self) -> Vec<K> {
+        let read_lock = self.state.read().await;
+
+        read_lock.keys().cloned().collect::<Vec<_>>()
+    }
+
     pub(super) async fn values(&self) -> Vec<V> {
         let storage_name = self.storage.get_name();
 

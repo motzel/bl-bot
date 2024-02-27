@@ -324,6 +324,10 @@ pub(crate) async fn cmd_clan_wars_playlist(
     #[description = "Playlist type (default: To Conquer)"] playlist_type: Option<ClanWarsSort>,
     #[description = "Last played (default: Never)"] played: Option<ClanWarsPlayDate>,
     #[description = "Maps count (max: 100, default: 100)"] count: Option<u8>,
+    #[description = "Maps map stars (default: player's top stars)"] max_stars: Option<f64>,
+    #[description = "Maps clan pp difference (default: player's top pp)"] max_clan_pp_diff: Option<
+        f64,
+    >,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
@@ -420,10 +424,12 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 &ctx.data().player_scores_repository.clone(),
                 &ctx.data().settings.server.url.clone(),
                 clan_tag,
-                player.id,
+                player,
                 playlist_type_filter,
                 played_filter,
                 count as u32,
+                max_stars,
+                max_clan_pp_diff,
             )
             .await
             {

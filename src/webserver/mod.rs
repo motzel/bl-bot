@@ -11,6 +11,7 @@ use tracing::{info, warn};
 use crate::config::Settings;
 use crate::persist::CommonData;
 use crate::storage::guild::GuildSettingsRepository;
+use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::playlist::PlaylistRepository;
@@ -21,6 +22,7 @@ mod routes;
 pub struct WebServer {
     pub guild_settings_repository: Arc<GuildSettingsRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
     pub settings: Settings,
@@ -30,10 +32,11 @@ pub struct WebServer {
 
 #[derive(Debug, Clone)]
 pub(crate) struct AppState {
-    pub playlists_repository: Arc<PlaylistRepository>,
-    pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub guild_settings_repository: Arc<GuildSettingsRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    pub players_repository: Arc<PlayerRepository>,
+    pub player_scores_repository: Arc<PlayerScoresRepository>,
+    pub playlists_repository: Arc<PlaylistRepository>,
     pub settings: Settings,
 }
 
@@ -42,6 +45,7 @@ impl WebServer {
         Self {
             guild_settings_repository: data.guild_settings_repository,
             player_oauth_token_repository: data.player_oauth_token_repository,
+            players_repository: data.players_repository,
             player_scores_repository: data.player_scores_repository,
             playlists_repository: data.playlists_repository,
             settings: data.settings,
@@ -63,6 +67,7 @@ impl WebServer {
         let state = AppState {
             guild_settings_repository: self.guild_settings_repository,
             player_oauth_token_repository: self.player_oauth_token_repository,
+            players_repository: self.players_repository,
             player_scores_repository: self.player_scores_repository,
             playlists_repository: self.playlists_repository,
             settings: self.settings,

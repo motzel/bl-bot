@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -15,6 +17,7 @@ use crate::beatleader::pp::{
     calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
 };
 use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
+use crate::discord::bot::beatleader::player::Player;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::{beatleader, BL_CLIENT};
@@ -416,6 +419,8 @@ pub(crate) struct PlaylistCustomData {
     pub playlist_type: ClanWarsSort,
     pub last_played: ClanWarsPlayDate,
     pub count: u32,
+    pub max_stars: Option<f64>,
+    pub max_clan_pp_diff: Option<f64>,
 }
 
 pub(crate) type PlaylistId = String;
@@ -439,17 +444,19 @@ impl Playlist {
         player_scores_repository: &Arc<PlayerScoresRepository>,
         server_url: &str,
         clan_tag: ClanTag,
-        player_id: PlayerId,
+        player: Player,
         playlist_type: ClanWarsSort,
         last_played: ClanWarsPlayDate,
         count: u32,
+        max_stars: Option<f64>,
+        max_clan_pp_diff: Option<f64>,
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
             .maps_by_clan_tag(
                 clan_tag.as_str(),
                 &[
-                    ClanMapsParam::Count(100),
+                    ClanMapsParam::Count(200),
                     ClanMapsParam::Page(1),
                     ClanMapsParam::Order(SortOrder::Descending),
                     ClanMapsParam::Context(BlContext::General),
@@ -464,9 +471,7 @@ impl Playlist {
 
         let maps_list = maps_list.unwrap();
 
-        if maps_list.list.data.is_empty() {
-            return Err("No maps of the selected type".to_string());
-        }
+        let player_id = player.id.clone();
 
         let player_leaderboard_ids = player_scores_repository
             .get(&player_id)
@@ -479,23 +484,26 @@ impl Playlist {
 
         let played_filter: Option<DateTime<Utc>> = last_played.clone().into();
 
+        let max_stars_value = max_stars.unwrap_or(player.top_stars).max(0.0);
+        let max_clan_pp_diff_value = max_clan_pp_diff.unwrap_or(player.top_pp).max(0.0);
+
         let playlist_maps = maps_list
             .list
             .data
             .into_iter()
             .filter(|score| {
                 let score_timepost = player_leaderboard_ids.get(&score.leaderboard.id);
+                let map_clan_pp_diff = score.pp.abs();
+                let map_stars = score.leaderboard.difficulty.stars;
 
-                score_timepost.is_none()
+                (score_timepost.is_none()
                     || (played_filter.is_some()
-                        && played_filter.unwrap() > *score_timepost.unwrap())
+                        && played_filter.unwrap() > *score_timepost.unwrap()))
+                    && (max_stars_value == 0.0 || map_stars <= max_stars_value)
+                    && (max_clan_pp_diff_value == 0.0 || map_clan_pp_diff <= max_clan_pp_diff_value)
             })
             .take(count as usize)
             .collect::<Vec<_>>();
-
-        if playlist_maps.is_empty() {
-            return Err("No maps meeting the criteria".to_string());
-        }
 
         let playlist_title = format!(
             "{}-clan wars-{}",
@@ -520,6 +528,8 @@ impl Playlist {
                 playlist_type,
                 last_played,
                 count,
+                max_stars,
+                max_clan_pp_diff,
             }),
             ..Playlist::default()
         })
