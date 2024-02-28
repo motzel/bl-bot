@@ -383,19 +383,6 @@ pub(crate) async fn cmd_clan_wars_playlist(
 
             let bl_player = bl_player.unwrap();
 
-            if !bl_player.socials.iter().any(|social| {
-                social.service == "Discord" && social.user_id == current_user.id.to_string()
-            }) {
-                say_without_ping(
-                    ctx,
-                    "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.",
-                    false,
-                )
-                    .await?;
-
-                return Ok(());
-            }
-
             let clan_tag = clan_settings.get_clan();
 
             if !bl_player.clans.iter().any(|clan| clan.tag == clan_tag) {
