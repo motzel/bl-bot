@@ -39,7 +39,6 @@ reqwest-middleware = "^0.2.4"
 colorgrad = "^0.6.2"
 tracing = "0.1.40"
 tracing-appender = "0.2.2"
-tracing-futures = { version = "0.2.5", features = ["tokio"] }
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 axum = { version = "^0.7", features = ["http2", "macros", "multipart", "tracing", "ws"] }
 tower-http = { version = "^0.5", features = ["fs", "trace", "timeout"] }
