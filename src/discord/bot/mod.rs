@@ -1249,7 +1249,7 @@ mod tests {
     use chrono::{Duration, Utc};
 
     fn create_5kpp_ss_50_country_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(1), 100);
+        let mut rs = RoleSettings::new(RoleId::new(1), 100);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1270,7 +1270,7 @@ mod tests {
     }
 
     fn create_10kpp_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(2), 200);
+        let mut rs = RoleSettings::new(RoleId::new(2), 200);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1280,7 +1280,7 @@ mod tests {
         rs
     }
     fn create_1k_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(3), 100);
+        let mut rs = RoleSettings::new(RoleId::new(3), 100);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1290,7 +1290,7 @@ mod tests {
         rs
     }
     fn create_500_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(4), 200);
+        let mut rs = RoleSettings::new(RoleId::new(4), 200);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1300,7 +1300,7 @@ mod tests {
         rs
     }
     fn create_100_rank_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(5), 300);
+        let mut rs = RoleSettings::new(RoleId::new(5), 300);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1311,7 +1311,7 @@ mod tests {
     }
 
     fn create_clan_member_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(6), 100);
+        let mut rs = RoleSettings::new(RoleId::new(6), 100);
 
         rs.add_requirement(
             Condition::Contains,
@@ -1322,7 +1322,7 @@ mod tests {
     }
 
     fn create_no_pause_role_settings() -> RoleSettings {
-        let mut rs = RoleSettings::new(RoleId(7), 100);
+        let mut rs = RoleSettings::new(RoleId::new(7), 100);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1333,7 +1333,7 @@ mod tests {
     }
 
     fn create_empty_guild_settings() -> GuildSettings {
-        GuildSettings::new(GuildId(1))
+        GuildSettings::new(GuildId::new(1))
     }
 
     fn create_guild_settings() -> GuildSettings {
@@ -1582,7 +1582,7 @@ mod tests {
     fn it_can_merge_role_conditions() {
         let mut gs = create_empty_guild_settings();
 
-        let mut rs = RoleSettings::new(RoleId(1), 1000);
+        let mut rs = RoleSettings::new(RoleId::new(1), 1000);
 
         rs.add_requirement(
             Condition::BetterThanOrEqualTo,
@@ -1592,7 +1592,12 @@ mod tests {
         gs.merge("pp".to_string(), create_5kpp_ss_50_country_role_settings())
             .merge("pp".to_string(), rs);
 
-        let role_conditions = gs.role_groups.get("pp").unwrap().get(&RoleId(1)).unwrap();
+        let role_conditions = gs
+            .role_groups
+            .get("pp")
+            .unwrap()
+            .get(&RoleId::new(1))
+            .unwrap();
 
         assert_eq!(gs.role_groups.keys().len(), 1);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 1);
@@ -1604,10 +1609,10 @@ mod tests {
     fn it_can_remove_role_settings_from_guild() {
         let mut gs = create_guild_settings();
 
-        gs.remove("invalid-group".to_string(), RoleId(1));
-        gs.remove("rank".to_string(), RoleId(1));
-        gs.remove("rank".to_string(), RoleId(3));
-        gs.remove("rank".to_string(), RoleId(5));
+        gs.remove("invalid-group".to_string(), RoleId::new(1));
+        gs.remove("rank".to_string(), RoleId::new(1));
+        gs.remove("rank".to_string(), RoleId::new(3));
+        gs.remove("rank".to_string(), RoleId::new(5));
 
         assert_eq!(gs.role_groups.keys().len(), 4);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
@@ -1615,7 +1620,7 @@ mod tests {
         assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
         assert_eq!(gs.role_groups.get("no-pause").unwrap().keys().len(), 1);
 
-        gs.remove("rank".to_string(), RoleId(4));
+        gs.remove("rank".to_string(), RoleId::new(4));
         assert!(!gs.role_groups.contains_key("rank"));
     }
 
@@ -1623,10 +1628,10 @@ mod tests {
     fn it_can_check_if_role_exists_in_guild_role_group() {
         let gs = create_guild_settings();
 
-        assert!(!gs.contains_in_group("invalid".to_string(), RoleId(1)));
-        assert!(!gs.contains_in_group("rank".to_string(), RoleId(1000)));
-        assert!(gs.contains_in_group("rank".to_string(), RoleId(3)));
-        assert!(gs.contains_in_group("rank".to_string(), RoleId(5)));
+        assert!(!gs.contains_in_group("invalid".to_string(), RoleId::new(1)));
+        assert!(!gs.contains_in_group("rank".to_string(), RoleId::new(1000)));
+        assert!(gs.contains_in_group("rank".to_string(), RoleId::new(3)));
+        assert!(gs.contains_in_group("rank".to_string(), RoleId::new(5)));
     }
 
     #[test]
@@ -1639,13 +1644,13 @@ mod tests {
         assert_eq!(
             roles,
             vec![
-                &RoleId(1),
-                &RoleId(2),
-                &RoleId(3),
-                &RoleId(4),
-                &RoleId(5),
-                &RoleId(6),
-                &RoleId(7)
+                &RoleId::new(1),
+                &RoleId::new(2),
+                &RoleId::new(3),
+                &RoleId::new(4),
+                &RoleId::new(5),
+                &RoleId::new(6),
+                &RoleId::new(7)
             ]
         );
     }
@@ -1654,9 +1659,9 @@ mod tests {
     fn it_can_check_if_role_exists_in_any_guild_role_group() {
         let gs = create_guild_settings();
 
-        assert!(!gs.contains(RoleId(1000)));
-        assert!(gs.contains(RoleId(1)));
-        assert!(gs.contains(RoleId(5)));
+        assert!(!gs.contains(RoleId::new(1000)));
+        assert!(gs.contains(RoleId::new(1)));
+        assert!(gs.contains(RoleId::new(5)));
     }
 
     #[test]
@@ -1672,87 +1677,113 @@ mod tests {
             ..Default::default()
         };
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1), RoleId(3), RoleId(7)]);
+        let mut roles_updates = gs.get_role_updates(
+            GuildId::new(1),
+            &player,
+            &vec![RoleId::new(1), RoleId::new(3), RoleId::new(7)],
+        );
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
         assert_eq!(roles_updates.to_add, Vec::<RoleId>::new());
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(7)]);
+        assert_eq!(
+            roles_updates.to_remove,
+            vec![RoleId::new(3), RoleId::new(7)]
+        );
 
         player.top_accuracy = 89.0;
 
-        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![RoleId(1)]);
+        let mut roles_updates =
+            gs.get_role_updates(GuildId::new(1), &player, &vec![RoleId::new(1)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
         assert_eq!(roles_updates.to_add, Vec::<RoleId>::new());
-        assert_eq!(roles_updates.to_remove, vec![RoleId(1)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId::new(1)]);
 
         player.pp = 10000.0;
 
-        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![]);
+        let mut roles_updates = gs.get_role_updates(GuildId::new(1), &player, &vec![]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(2)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(2)]);
         assert_eq!(roles_updates.to_remove, Vec::<RoleId>::new());
 
         player.rank = 1000;
 
-        let mut roles_updates = gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2)]);
+        let mut roles_updates =
+            gs.get_role_updates(GuildId::new(1), &player, &vec![RoleId::new(2)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(3)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(3)]);
         assert_eq!(roles_updates.to_remove, Vec::<RoleId>::new());
 
         player.rank = 500;
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3)]);
+        let mut roles_updates = gs.get_role_updates(
+            GuildId::new(1),
+            &player,
+            &vec![RoleId::new(2), RoleId::new(3)],
+        );
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(4)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId::new(3)]);
 
         player.clans = vec!["Clan1".to_string()];
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3)]);
+        let mut roles_updates = gs.get_role_updates(
+            GuildId::new(1),
+            &player,
+            &vec![RoleId::new(2), RoleId::new(3)],
+        );
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(6)]);
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(4), RoleId::new(6)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId::new(3)]);
 
         player.clans = vec!["Other".to_string()];
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3), RoleId(6)]);
+        let mut roles_updates = gs.get_role_updates(
+            GuildId::new(1),
+            &player,
+            &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
+        );
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(4)]);
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(4)]);
+        assert_eq!(
+            roles_updates.to_remove,
+            vec![RoleId::new(3), RoleId::new(6)]
+        );
 
         player.last_ranked_paused_at = Some(Utc::now() - Duration::days(50));
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId(1), &player, &vec![RoleId(2), RoleId(3), RoleId(6)]);
+        let mut roles_updates = gs.get_role_updates(
+            GuildId::new(1),
+            &player,
+            &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
+        );
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
 
-        assert_eq!(roles_updates.to_add, vec![RoleId(4), RoleId(7)]);
-        assert_eq!(roles_updates.to_remove, vec![RoleId(3), RoleId(6)]);
+        assert_eq!(roles_updates.to_add, vec![RoleId::new(4), RoleId::new(7)]);
+        assert_eq!(
+            roles_updates.to_remove,
+            vec![RoleId::new(3), RoleId::new(6)]
+        );
     }
 }
