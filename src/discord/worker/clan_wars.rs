@@ -4,7 +4,10 @@ use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use chrono::Utc;
-use poise::serenity_prelude::{ChannelId, CreateAllowedMentions, CreateEmbed, CreateMessage};
+use poise::serenity_prelude::{
+    AutoArchiveDuration, ChannelId, ChannelType, CreateAllowedMentions, CreateEmbed, CreateMessage,
+    CreateThread,
+};
 use std::cmp::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -57,7 +60,7 @@ impl BlClanWarsMapsWorker {
                     if last_posted_at.is_none()
                         || last_posted_at
                             .unwrap()
-                            .le(&(Utc::now() - self.refresh_interval))
+                            .le(&(Utc::now() - chrono::Duration::minutes(60)))
                     {
                         match self
                             .guild_settings_repository
@@ -95,68 +98,103 @@ impl BlClanWarsMapsWorker {
                                             channel_id: ChannelId,
                                             description: &str,
                                             content: &str,
-                                        ) {
+                                            thread_name: &str,
+                                        ) -> Result<ChannelId, poise::serenity_prelude::Error>
+                                        {
                                             let mut message = CreateMessage::new()
-                                                .embed(CreateEmbed::new().description(description))
                                                 .allowed_mentions(CreateAllowedMentions::new());
+
                                             if !content.is_empty() {
                                                 message = message.content(content);
                                             }
+
+                                            if !description.is_empty() {
+                                                message = message.embed(
+                                                    CreateEmbed::new().description(description),
+                                                );
+                                            }
+
                                             match channel_id
                                                 .send_message(global_ctx.clone(), message)
                                                 .await
                                             {
-                                                Ok(_) => {}
+                                                Ok(msg) => {
+                                                    //
+                                                    if !thread_name.is_empty() {
+                                                        return match channel_id
+                                                            .create_thread_from_message(
+                                                                global_ctx.clone(),
+                                                                msg.id,
+                                                                CreateThread::new(thread_name)
+                                                                    .auto_archive_duration(AutoArchiveDuration::OneHour)
+                                                                    .kind(ChannelType::PublicThread),
+                                                            )
+                                                            .await {
+                                                            Ok(guild_channel) => Ok(guild_channel.id),
+                                                            Err(_) => Ok(msg.channel_id)
+                                                        };
+                                                    }
+
+                                                    Ok(msg.channel_id)
+                                                }
                                                 Err(err) => {
                                                     info!("Can not post clan wars map to channel #{}: {}", channel_id, err);
+                                                    Err(err)
                                                 }
-                                            };
+                                            }
                                         }
 
-                                        const MAX_DISCORD_MSG_LENGTH: usize = 2000;
-                                        let mut msg_count = 0;
+                                        // create new thread if possible
                                         let header = format!(
                                             "### **{} clan wars maps** (<t:{}:R>)",
                                             clan_settings.get_clan(),
                                             Utc::now().timestamp()
                                         );
+                                        let thread_name =
+                                            format!("{} clan wars maps", clan_settings.get_clan(),);
+                                        let channel_id = if let Ok(new_channel_id) = post_msg(
+                                            &self.context,
+                                            clan_wars_channel_id,
+                                            "",
+                                            header.as_str(),
+                                            thread_name.as_str(),
+                                        )
+                                        .await
+                                        {
+                                            new_channel_id
+                                        } else {
+                                            clan_wars_channel_id
+                                        };
+
+                                        const MAX_DISCORD_MSG_LENGTH: usize = 2000;
+
                                         let mut description = String::new();
-                                        for map in clan_wars.maps.iter() {
+                                        let clan_wars_len = clan_wars.maps.len();
+                                        for (idx, map) in clan_wars.maps.iter().enumerate() {
                                             let map_description = map.to_string();
 
                                             if description.len()
                                                 + "\n\n".len()
                                                 + map_description.len()
-                                                + (if msg_count > 0 { 0 } else { header.len() })
-                                                < MAX_DISCORD_MSG_LENGTH
+                                                + (if idx > 0 { 0 } else { header.len() })
+                                                >= MAX_DISCORD_MSG_LENGTH
+                                                || idx == clan_wars_len - 1
                                             {
                                                 description.push_str(&map_description);
-                                            } else {
-                                                post_msg(
+
+                                                let _ = post_msg(
                                                     &self.context,
-                                                    clan_wars_channel_id,
+                                                    channel_id,
                                                     description.as_str(),
-                                                    if msg_count == 0 {
-                                                        header.as_str()
-                                                    } else {
-                                                        ""
-                                                    },
+                                                    if idx == 0 { header.as_str() } else { "" },
+                                                    thread_name.as_str(),
                                                 )
                                                 .await;
 
                                                 description = String::new();
-                                                msg_count += 1;
+                                            } else {
+                                                description.push_str(&map_description);
                                             }
-                                        }
-
-                                        if !description.is_empty() {
-                                            post_msg(
-                                                &self.context,
-                                                clan_wars_channel_id,
-                                                description.as_str(),
-                                                if msg_count == 0 { header.as_str() } else { "" },
-                                            )
-                                            .await;
                                         }
                                     }
                                     Err(err) => {
