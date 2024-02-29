@@ -102,6 +102,44 @@ pub(crate) async fn cmd_set_clan_wars_maps_channel(
     }
 }
 
+/// Set or unset clan wars contribution channel
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-wars-contribution-channel")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-wars-contrib-channel",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only
+)]
+pub(crate) async fn cmd_set_clan_wars_contribution_channel(
+    ctx: Context<'_>,
+    #[description = "The channel where the bot will post clan wars contributions. Leave empty to disable."]
+    #[channel_types("Text")]
+    channel_id: Option<ChannelId>,
+) -> Result<(), Error> {
+    let guild_id = get_guild_id(ctx, true).await?;
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_wars_maps_contribution_channel(&guild_id, channel_id)
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
 /// Set profile verification requirement
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-profile-verification")]
 #[poise::command(

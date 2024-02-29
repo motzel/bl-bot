@@ -829,6 +829,18 @@ impl GuildSettings {
         }
     }
 
+    pub fn set_clan_wars_contribution_channel(&mut self, channel_id: Option<ChannelId>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_clan_wars_contribution_channel(channel_id);
+        }
+    }
+
+    pub fn set_clan_wars_contribution_posted_at(&mut self, posted_at: DateTime<Utc>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_clan_wars_contribution_posted_at(posted_at);
+        }
+    }
+
     pub fn get_clan_settings(&self) -> Option<ClanSettings> {
         self.clan_settings.clone()
     }
@@ -1028,8 +1040,12 @@ pub struct ClanSettings {
     clan: ClanTag,
     self_invite: bool,
     oauth_token_is_set: bool,
-    clan_wars_channel_id: Option<ChannelId>,
-    clan_wars_posted_at: Option<DateTime<Utc>>,
+    #[serde(rename = "clanWarsChannelId")]
+    clan_wars_maps_channel_id: Option<ChannelId>,
+    #[serde(rename = "clanWarsPostedAt")]
+    clan_wars_maps_posted_at: Option<DateTime<Utc>>,
+    clan_wars_contribution_channel_id: Option<ChannelId>,
+    clan_wars_contribution_posted_at: Option<DateTime<Utc>>,
 }
 
 impl ClanSettings {
@@ -1047,8 +1063,10 @@ impl ClanSettings {
             clan,
             self_invite,
             oauth_token_is_set: false,
-            clan_wars_channel_id: None,
-            clan_wars_posted_at: None,
+            clan_wars_maps_channel_id: None,
+            clan_wars_contribution_channel_id: None,
+            clan_wars_maps_posted_at: None,
+            clan_wars_contribution_posted_at: None,
         }
     }
 
@@ -1077,18 +1095,33 @@ impl ClanSettings {
     }
 
     pub fn get_clan_wars_maps_channel(&self) -> Option<ChannelId> {
-        self.clan_wars_channel_id
+        self.clan_wars_maps_channel_id
     }
     pub fn set_clan_wars_maps_channel(&mut self, channel_id: Option<ChannelId>) {
-        self.clan_wars_channel_id = channel_id;
+        self.clan_wars_maps_channel_id = channel_id;
+    }
+
+    pub fn get_clan_wars_contribution_channel(&self) -> Option<ChannelId> {
+        self.clan_wars_contribution_channel_id
+    }
+    pub fn set_clan_wars_contribution_channel(&mut self, channel_id: Option<ChannelId>) {
+        self.clan_wars_contribution_channel_id = channel_id;
     }
 
     pub fn get_clan_wars_posted_at(&self) -> Option<DateTime<Utc>> {
-        self.clan_wars_posted_at
+        self.clan_wars_maps_posted_at
     }
 
     pub fn set_clan_wars_posted_at(&mut self, posted_at: DateTime<Utc>) {
-        self.clan_wars_posted_at = Some(posted_at);
+        self.clan_wars_maps_posted_at = Some(posted_at);
+    }
+
+    pub fn get_clan_wars_contribution_posted_at(&self) -> Option<DateTime<Utc>> {
+        self.clan_wars_contribution_posted_at
+    }
+
+    pub fn set_clan_wars_contribution_posted_at(&mut self, posted_at: DateTime<Utc>) {
+        self.clan_wars_contribution_posted_at = Some(posted_at);
     }
 }
 
@@ -1097,14 +1130,18 @@ impl std::fmt::Display for ClanSettings {
         if self.oauth_token_is_set {
             write!(
                 f,
-                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars channel: {}",
+                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars maps channel: {}\nClan wars contribution channel: {}",
                 self.clan,
                 if !self.supports_self_invitation() {
                     " NOT"
                 } else {
                     ""
                 },
-                self.clan_wars_channel_id.map_or_else(
+                self.clan_wars_maps_channel_id.map_or_else(
+                    || "**None**".to_owned(),
+                    |channel_id| format!("<#{}>", channel_id.to_owned())
+                ),
+                self.clan_wars_contribution_channel_id.map_or_else(
                     || "**None**".to_owned(),
                     |channel_id| format!("<#{}>", channel_id.to_owned())
                 ),

@@ -92,25 +92,25 @@ pub(crate) fn calculate_pp_boundary(coefficient: f64, pps: &mut [f64], expected_
     calculate_raw_pp_at_idx(coefficient, pps, 0, expected_pp)
 }
 
-fn curve_pp(acc: f64, star_rating: StarRating, is_golf: bool) -> f64 {
-    fn curve(acc: f64) -> f64 {
-        let mut idx: usize = 0;
-        for (i, val) in CURVE.iter().enumerate() {
-            if val.0 <= acc {
-                idx = i;
-                break;
-            }
+pub fn curve_at_value(value: f64) -> f64 {
+    let mut idx: usize = 0;
+    for (i, val) in CURVE.iter().enumerate() {
+        if val.0 <= value {
+            idx = i;
+            break;
         }
-
-        if idx == 0 {
-            idx = 1;
-        }
-
-        let middle = (acc - CURVE[idx - 1].0) / (CURVE[idx].0 - CURVE[idx - 1].0);
-
-        CURVE[idx - 1].1 + middle * (CURVE[idx].1 - CURVE[idx - 1].1)
     }
 
+    if idx == 0 {
+        idx = 1;
+    }
+
+    let middle = (value - CURVE[idx - 1].0) / (CURVE[idx].0 - CURVE[idx - 1].0);
+
+    CURVE[idx - 1].1 + middle * (CURVE[idx].1 - CURVE[idx - 1].1)
+}
+
+fn curve_pp(acc: f64, star_rating: StarRating, is_golf: bool) -> f64 {
     let mut pass_pp = 15.2 * (star_rating.pass.powf(1.0 / 2.62)).exp() - 30.0;
     if pass_pp.is_nan() || !pass_pp.is_finite() {
         pass_pp = 0.0;
@@ -119,7 +119,7 @@ fn curve_pp(acc: f64, star_rating: StarRating, is_golf: bool) -> f64 {
     let acc_pp = if is_golf {
         acc * star_rating.acc * 42.0
     } else {
-        curve(acc) * star_rating.acc * 34.0
+        curve_at_value(acc) * star_rating.acc * 34.0
     };
 
     (650.0 * (pass_pp + tech_pp + acc_pp).powf(1.3)) / 650.0_f64.powf(1.3)

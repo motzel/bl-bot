@@ -12,6 +12,7 @@ use worker::oauth::BlOauthTokenRefreshWorker;
 
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::config::Settings;
+use crate::discord::worker::clan_contribution::BlClanContributionWorker;
 use crate::discord::worker::clan_wars::BlClanWarsMapsWorker;
 use crate::discord::worker::player_stats::BlPlayersStatsWorker;
 use crate::discord::worker::user_roles::UserRolesWorker;
@@ -148,6 +149,13 @@ impl DiscordClient {
                                 data.clone().into(),
                                 token_clone.clone(),
                             );
+                            let bl_clan_contribution_maps_worker = BlClanContributionWorker::new(
+                                ctx.clone(),
+                                data.clone().into(),
+                                // TODO:
+                                chrono::Duration::minutes(settings.clan_wars_interval as i64),
+                                token_clone.clone(),
+                            );
 
                             let data: BotData = data.into();
 
@@ -164,6 +172,8 @@ impl DiscordClient {
                                     }
 
                                     bl_clan_wars_maps_worker.run().await;
+
+                                    bl_clan_contribution_maps_worker.run().await;
 
                                     tokio::select! {
                                         _ = token_clone.cancelled() => {

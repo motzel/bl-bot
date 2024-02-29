@@ -255,6 +255,7 @@ dependencies = [
  "bytes",
  "cacache",
  "chrono",
+ "cli-table",
  "colorgrad",
  "config",
  "cookie",
@@ -462,6 +463,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ee52072ec15386f770805afd189a01c8841be8696bed250fa2f13c4c0d6dfb7"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "cli-table"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adfbb116d9e2c4be7011360d0c0bee565712c11e969c9609b25b619366dc379d"
+dependencies = [
+ "cli-table-derive",
+ "termcolor",
+ "unicode-width",
+]
+
+[[package]]
+name = "cli-table-derive"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af3bfb9da627b0a6c467624fb7963921433774ed435493b5c08a3053e829ad4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -2785,6 +2808,15 @@ dependencies = [
  "fastrand",
  "rustix",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
