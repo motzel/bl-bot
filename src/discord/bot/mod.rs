@@ -841,6 +841,18 @@ impl GuildSettings {
         }
     }
 
+    pub fn add_clan_wars_soldier(&mut self, user_id: UserId) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.add_clan_wars_soldier(user_id);
+        }
+    }
+
+    pub fn remove_clan_wars_soldier(&mut self, user_id: UserId) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.remove_clan_wars_soldier(user_id);
+        }
+    }
+
     pub fn get_clan_settings(&self) -> Option<ClanSettings> {
         self.clan_settings.clone()
     }
@@ -1046,6 +1058,7 @@ pub struct ClanSettings {
     clan_wars_maps_posted_at: Option<DateTime<Utc>>,
     clan_wars_contribution_channel_id: Option<ChannelId>,
     clan_wars_contribution_posted_at: Option<DateTime<Utc>>,
+    soldiers: Vec<UserId>,
 }
 
 impl ClanSettings {
@@ -1067,6 +1080,7 @@ impl ClanSettings {
             clan_wars_contribution_channel_id: None,
             clan_wars_maps_posted_at: None,
             clan_wars_contribution_posted_at: None,
+            soldiers: Vec::new(),
         }
     }
 
@@ -1122,6 +1136,18 @@ impl ClanSettings {
 
     pub fn set_clan_wars_contribution_posted_at(&mut self, posted_at: DateTime<Utc>) {
         self.clan_wars_contribution_posted_at = Some(posted_at);
+    }
+
+    pub fn add_clan_wars_soldier(&mut self, user_id: UserId) {
+        if !self.soldiers.contains(&user_id) {
+            self.soldiers.push(user_id);
+        }
+    }
+
+    pub fn remove_clan_wars_soldier(&mut self, user_id: UserId) {
+        if self.soldiers.contains(&user_id) {
+            self.soldiers.retain(|&id| id != user_id);
+        }
     }
 }
 

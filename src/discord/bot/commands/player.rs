@@ -9,6 +9,7 @@ use crate::discord::bot::beatleader::player::{
 use crate::discord::bot::beatleader::score::{
     fetch_rating, fetch_scores, MapRating, MapRatingModifier, Score,
 };
+use crate::discord::bot::commands::get_user_id_with_required_permission;
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::get_binary_file;
 use crate::discord::Context;
@@ -19,7 +20,7 @@ use bytes::Bytes;
 use poise::serenity_prelude::{
     ComponentInteractionDataKind, CreateActionRow, CreateAttachment, CreateEmbed,
     CreateEmbedFooter, CreateMessage, CreateSelectMenu, CreateSelectMenuKind,
-    CreateSelectMenuOption, GuildId, User, UserId,
+    CreateSelectMenuOption, GuildId, Permissions, User, UserId,
 };
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use serenity::builder::CreateAllowedMentions;
@@ -188,38 +189,15 @@ pub(crate) async fn cmd_unlink(
 ) -> Result<(), Error> {
     let guild_id = get_guild_id(ctx, true).await?;
 
-    let selected_user_id = match user {
-        Some(user) => {
-            if let Some(member) = ctx.author_member().await {
-                match member.permissions {
-                    None => {
-                        say_without_ping(ctx, "Error: can not get user permissions", true).await?;
-
-                        return Ok(());
-                    }
-                    Some(permissions) => {
-                        if !permissions.administrator() {
-                            say_without_ping(
-                                ctx,
-                                "Error: unlinking another user requires administrator privilege",
-                                true,
-                            )
-                            .await?;
-
-                            return Ok(());
-                        }
-
-                        user.id
-                    }
-                }
-            } else {
-                say_without_ping(ctx, "Error: can not get user permissions", true).await?;
+    let selected_user_id =
+        match get_user_id_with_required_permission(ctx, user, Permissions::ADMINISTRATOR).await {
+            Ok(user_id) => user_id,
+            Err(err) => {
+                say_without_ping(ctx, err.as_str(), true).await?;
 
                 return Ok(());
             }
-        }
-        None => ctx.author().id,
-    };
+        };
 
     match ctx
         .data()

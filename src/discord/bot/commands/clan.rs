@@ -1,13 +1,12 @@
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-use poise::{CreateReply, PrefixContext};
+use poise::CreateReply;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
+use crate::beatleader::clan::Clan;
 use crate::beatleader::clan::ClanMapParam;
 use crate::beatleader::clan::ClanRankingParam;
-use crate::beatleader::clan::LeaderboardParam;
-use crate::beatleader::clan::{Clan, ClanMap, ClanMapScore};
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
@@ -16,14 +15,15 @@ use crate::discord::bot::beatleader::clan::{
     fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsPlayDate, ClanWarsSort, Playlist,
 };
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
-use crate::discord::bot::commands::guild::get_guild_settings;
+use crate::discord::bot::commands::get_user_id_with_required_permission;
+use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
 };
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
 use crate::{Error, BL_CLIENT};
-use poise::serenity_prelude::{CreateAttachment, Message, User};
+use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, User};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
@@ -747,6 +747,178 @@ pub(crate) async fn cmd_capture(
                 guild_settings.requires_verified_profile,
             )
             .await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Set or unset clan wars maps channel
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-wars-maps-channel")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-wars-maps-channel",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only,
+    hide_in_help
+)]
+pub(crate) async fn cmd_set_clan_wars_maps_channel(
+    ctx: Context<'_>,
+    #[description = "The channel where the bot will post maps to play within clan wars. Leave empty to disable."]
+    #[channel_types("Text")]
+    channel_id: Option<ChannelId>,
+) -> Result<(), Error> {
+    let guild_id = get_guild_id(ctx, true).await?;
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_wars_maps_channel(&guild_id, channel_id)
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Set or unset clan wars contribution channel
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-wars-contribution-channel")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-wars-contrib-channel",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only,
+    hide_in_help
+)]
+pub(crate) async fn cmd_set_clan_wars_contribution_channel(
+    ctx: Context<'_>,
+    #[description = "The channel where the bot will post clan wars contributions. Leave empty to disable."]
+    #[channel_types("Text")]
+    channel_id: Option<ChannelId>,
+) -> Result<(), Error> {
+    let guild_id = get_guild_id(ctx, true).await?;
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_wars_maps_contribution_channel(&guild_id, channel_id)
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Enlist for clan wars
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-wars-enlist")]
+#[poise::command(slash_command, rename = "bl-clan-wars-enlist", guild_only)]
+pub(crate) async fn cmd_clan_wars_enlist(
+    ctx: Context<'_>,
+    #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
+) -> Result<(), Error> {
+    let ephemeral = user.is_some();
+
+    let selected_user_id =
+        match get_user_id_with_required_permission(ctx, user, Permissions::MANAGE_ROLES).await {
+            Ok(user_id) => user_id,
+            Err(err) => {
+                say_without_ping(ctx, err.as_str(), true).await?;
+
+                return Ok(());
+            }
+        };
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .add_clan_wars_soldier(&guild_settings.guild_id, selected_user_id)
+        .await
+    {
+        Ok(_) => {
+            let message = format!("<@{}> has been enlisted.", selected_user_id);
+            say_without_ping(ctx, message.as_str(), ephemeral).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            let message = format!("An error occurred: {}", e);
+            say_without_ping(ctx, message.as_str(), true).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Release from service in clan wars
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-wars-release")]
+#[poise::command(slash_command, rename = "bl-clan-wars-release", guild_only)]
+pub(crate) async fn cmd_clan_wars_release(
+    ctx: Context<'_>,
+    #[description = "Discord user (admin only, YOU if not specified)"] user: Option<User>,
+) -> Result<(), Error> {
+    let ephemeral = user.is_some();
+
+    let selected_user_id =
+        match get_user_id_with_required_permission(ctx, user, Permissions::MANAGE_ROLES).await {
+            Ok(user_id) => user_id,
+            Err(err) => {
+                say_without_ping(ctx, err.as_str(), true).await?;
+
+                return Ok(());
+            }
+        };
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .remove_clan_wars_soldier(&guild_settings.guild_id, selected_user_id)
+        .await
+    {
+        Ok(_) => {
+            let message = format!("<@{}> has been released from service.", selected_user_id);
+            say_without_ping(ctx, message.as_str(), ephemeral).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            let message = format!("An error occurred: {}", e);
+            say_without_ping(ctx, message.as_str(), true).await?;
 
             Ok(())
         }

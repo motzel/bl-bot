@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 
 use crate::storage::persist::PersistInstance;
-use poise::serenity_prelude::{ChannelId, GuildId, RoleId};
+use poise::serenity_prelude::{ChannelId, GuildId, RoleId, UserId};
 use tokio::sync::MutexGuard;
 use tracing::{debug, trace};
 
@@ -210,6 +210,77 @@ impl<'a> GuildSettingsRepository {
             debug!(
                 "Clan wars contribution posted time for guild {} set.",
                 guild_id
+            );
+
+            Ok(guild_settings)
+        } else {
+            Err(StorageError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn add_clan_wars_soldier(
+        &self,
+        guild_id: &GuildId,
+        user_id: UserId,
+    ) -> Result<GuildSettings> {
+        trace!(
+            "Adding new clan wars soldier @{} for guild {}...",
+            user_id,
+            guild_id
+        );
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.add_clan_wars_soldier(user_id),
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.add_clan_wars_soldier(user_id);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            debug!(
+                "Clan wars soldier @{} for guild {} added.",
+                user_id, guild_id
+            );
+
+            Ok(guild_settings)
+        } else {
+            Err(StorageError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn remove_clan_wars_soldier(
+        &self,
+        guild_id: &GuildId,
+        user_id: UserId,
+    ) -> Result<GuildSettings> {
+        trace!(
+            "Removing new clan wars soldier @{} from guild {}...",
+            user_id,
+            guild_id
+        );
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.remove_clan_wars_soldier(user_id),
+                || Some(GuildSettings::new(*guild_id)),
+            )
+            .await?
+        {
+            debug!(
+                "Clan wars soldier @{} removed from guild {}.",
+                user_id, guild_id
             );
 
             Ok(guild_settings)

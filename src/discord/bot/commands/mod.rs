@@ -1,15 +1,16 @@
-use poise::serenity_prelude as serenity;
-
-use crate::discord::bot::commands::clan::{cmd_capture, cmd_clan_wars_playlist};
-use crate::discord::bot::commands::guild::cmd_set_clan_wars_contribution_channel;
+use crate::discord::bot::commands::clan::{
+    cmd_capture, cmd_clan_wars_enlist, cmd_clan_wars_playlist, cmd_clan_wars_release,
+    cmd_set_clan_wars_contribution_channel, cmd_set_clan_wars_maps_channel,
+};
 use crate::discord::{BotData, Context};
 pub(crate) use backup::{cmd_export, cmd_import};
-pub(crate) use clan::{cmd_clan_invitation, cmd_invite_player, cmd_set_clan_invitation};
+pub(crate) use clan::{cmd_clan_invitation, cmd_set_clan_invitation};
 pub(crate) use guild::{
-    cmd_add_auto_role, cmd_remove_auto_role, cmd_set_clan_wars_maps_channel, cmd_set_log_channel,
-    cmd_set_profile_verification, cmd_show_settings,
+    cmd_add_auto_role, cmd_remove_auto_role, cmd_set_log_channel, cmd_set_profile_verification,
+    cmd_show_settings,
 };
 pub(crate) use player::{cmd_link, cmd_profile, cmd_refresh_scores, cmd_replay, cmd_unlink};
+use poise::serenity_prelude::{Permissions, User, UserId};
 pub(crate) use register::cmd_register;
 
 pub(crate) mod backup;
@@ -34,6 +35,8 @@ pub(crate) fn commands() -> Vec<poise::Command<BotData, crate::Error>> {
         cmd_clan_wars_playlist(),
         cmd_set_clan_wars_maps_channel(),
         cmd_set_clan_wars_contribution_channel(),
+        cmd_clan_wars_enlist(),
+        cmd_clan_wars_release(),
         cmd_capture(),
         // cmd_invite_player(),
         cmd_register(),
@@ -64,4 +67,27 @@ pub async fn cmd_help(
 
     poise::builtins::help(ctx, command.as_deref(), config).await?;
     Ok(())
+}
+
+pub(crate) async fn get_user_id_with_required_permission(
+    ctx: Context<'_>,
+    user: Option<User>,
+    required_permissions: Permissions,
+) -> Result<UserId, String> {
+    match user {
+        Some(user) => match ctx.author_member().await {
+            Some(member) => match member.permissions {
+                Some(member_permissions) => {
+                    if !member_permissions.contains(required_permissions) {
+                        return Err("Error: requires administrator privilege".to_owned());
+                    }
+
+                    Ok(user.id)
+                }
+                None => Err("Error: can not get user permissions".to_owned()),
+            },
+            None => Err("Error: can not get user permissions".to_owned()),
+        },
+        None => Ok(ctx.author().id),
+    }
 }
