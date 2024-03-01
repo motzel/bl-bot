@@ -17,6 +17,8 @@ use crate::beatleader::pp::{curve_at_value, CLAN_WEIGHT_COEFFICIENT};
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
 use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
+use crate::storage::player::PlayerRepository;
+use crate::storage::player_scores::PlayerScoresRepository;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct ClanStats {
@@ -39,6 +41,8 @@ pub(crate) struct ClanSoldierStats {
 pub struct BlClanContributionWorker {
     context: serenity::Context,
     guild_settings_repository: Arc<GuildSettingsRepository>,
+    player_repository: Arc<PlayerRepository>,
+    player_scores_repository: Arc<PlayerScoresRepository>,
     refresh_interval: chrono::Duration,
     token: CancellationToken,
 }
@@ -53,6 +57,8 @@ impl BlClanContributionWorker {
         Self {
             context,
             guild_settings_repository: data.guild_settings_repository,
+            player_repository: data.players_repository,
+            player_scores_repository: data.player_scores_repository,
             refresh_interval,
             token,
         }

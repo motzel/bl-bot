@@ -1,20 +1,28 @@
-use crate::beatleader::oauth::OAuthAppCredentials;
-use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
-use crate::discord::{serenity, BotData};
-use crate::storage::guild::GuildSettingsRepository;
-use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use chrono::Utc;
 use poise::serenity_prelude::{
     AutoArchiveDuration, ChannelId, ChannelType, CreateAllowedMentions, CreateEmbed, CreateMessage,
-    CreateThread,
+    CreateThread, UserId,
 };
-use std::cmp::Ordering;
-use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+
+use crate::beatleader::oauth::OAuthAppCredentials;
+use crate::beatleader::player::PlayerId;
+use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
+use crate::discord::{serenity, BotData};
+use crate::storage::guild::GuildSettingsRepository;
+use crate::storage::player::PlayerRepository;
+use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
+use crate::storage::player_scores::PlayerScoresRepository;
 
 pub struct BlClanWarsMapsWorker {
     context: serenity::Context,
     guild_settings_repository: Arc<GuildSettingsRepository>,
+    player_repository: Arc<PlayerRepository>,
+    player_scores_repository: Arc<PlayerScoresRepository>,
     player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     oauth_credentials: Option<OAuthAppCredentials>,
     refresh_interval: chrono::Duration,
@@ -33,6 +41,8 @@ impl BlClanWarsMapsWorker {
         Self {
             context,
             guild_settings_repository: data.guild_settings_repository,
+            player_repository: data.players_repository,
+            player_scores_repository: data.player_scores_repository,
             player_oauth_token_repository: data.player_oauth_token_repository,
             oauth_credentials,
             refresh_interval,
@@ -72,6 +82,21 @@ impl BlClanWarsMapsWorker {
                                     clan_settings.get_clan()
                                 );
 
+                                let mut soldiers = HashMap::<PlayerId, UserId>::new();
+                                for user_id in clan_settings.get_clan_wars_soldiers().iter() {
+                                    match self.player_repository.get(user_id).await {
+                                        Some(player) => {
+                                            soldiers.insert(player.id, *user_id);
+                                        }
+                                        None => {
+                                            tracing::warn!(
+                                                "Can not get player for user @{}",
+                                                user_id
+                                            )
+                                        }
+                                    };
+                                }
+
                                 match ClanWars::fetch(
                                     clan_settings.get_clan(),
                                     ClanWarsSort::ToConquer,
@@ -85,6 +110,12 @@ impl BlClanWarsMapsWorker {
                                                 .partial_cmp(&b.pp_boundary)
                                                 .unwrap_or(Ordering::Equal)
                                         });
+
+                                        // for map in clan_wars.maps.iter_mut() {
+                                        //     map.scores.retain(|score| {
+                                        //         soldiers.contains_key(&score.player_id)
+                                        //     });
+                                        // }
 
                                         tracing::info!(
                                             "{} clan wars maps found. Posting maps to channel #{}",
@@ -141,15 +172,39 @@ impl BlClanWarsMapsWorker {
                                             }
                                         };
 
-                                        const MAX_DISCORD_MSG_LENGTH: usize = 2000;
-
                                         for map in clan_wars.maps.iter() {
                                             let map_description = map.to_string();
+
+                                            let not_played_by_soldiers = soldiers
+                                                .iter()
+                                                .filter_map(|(player_id, user_id)| {
+                                                    if map
+                                                        .scores
+                                                        .iter()
+                                                        .any(|s| &s.player_id == player_id)
+                                                    {
+                                                        None
+                                                    } else {
+                                                        Some(format!("<@{}>", user_id))
+                                                    }
+                                                })
+                                                .collect::<Vec<_>>();
+
+                                            let description = if !not_played_by_soldiers.is_empty()
+                                            {
+                                                format!(
+                                                    "{}\nMap not played by: {}",
+                                                    map_description,
+                                                    not_played_by_soldiers.join(" | ")
+                                                )
+                                            } else {
+                                                map_description
+                                            };
 
                                             if let Err(err) = post_msg(
                                                 &self.context,
                                                 channel_id,
-                                                map_description.as_str(),
+                                                description.as_str(),
                                             )
                                             .await
                                             {

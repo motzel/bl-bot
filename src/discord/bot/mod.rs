@@ -1149,6 +1149,10 @@ impl ClanSettings {
             self.soldiers.retain(|&id| id != user_id);
         }
     }
+
+    pub fn get_clan_wars_soldiers(&self) -> &Vec<UserId> {
+        &self.soldiers
+    }
 }
 
 impl std::fmt::Display for ClanSettings {

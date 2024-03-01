@@ -18,6 +18,7 @@ use crate::beatleader::pp::{
 };
 use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
 use crate::discord::bot::beatleader::player::Player;
+use crate::storage::player::PlayerRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::{beatleader, BL_CLIENT};
