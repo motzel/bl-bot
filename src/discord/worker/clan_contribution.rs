@@ -218,7 +218,7 @@ impl BlClanContributionWorker {
                                                 "Contributed PP".cell(),
                                                 "PP efficiency".cell(),
                                                 "Contribution".cell(),
-                                                "Credits".cell(),
+                                                "Score".cell(),
                                             ])
                                             .color_choice(ColorChoice::Never);
 
