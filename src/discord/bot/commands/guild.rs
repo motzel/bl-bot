@@ -16,7 +16,8 @@ use crate::Error;
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     let guild_settings = get_guild_settings(ctx, true).await?;
@@ -35,7 +36,8 @@ pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_set_log_channel(
     ctx: Context<'_>,
@@ -73,7 +75,8 @@ pub(crate) async fn cmd_set_log_channel(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_set_clan_wars_maps_channel(
     ctx: Context<'_>,
@@ -111,7 +114,8 @@ pub(crate) async fn cmd_set_clan_wars_maps_channel(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_set_clan_wars_contribution_channel(
     ctx: Context<'_>,
@@ -149,7 +153,8 @@ pub(crate) async fn cmd_set_clan_wars_contribution_channel(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_set_profile_verification(
     ctx: Context<'_>,
@@ -186,7 +191,8 @@ pub(crate) async fn cmd_set_profile_verification(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_add_auto_role(
     ctx: Context<'_>,
@@ -248,7 +254,8 @@ pub(crate) async fn cmd_add_auto_role(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_remove_auto_role(
     ctx: Context<'_>,

@@ -34,7 +34,8 @@ use poise::serenity_prelude::{CreateAttachment, Message, User};
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_set_clan_invitation(
     ctx: Context<'_>,
@@ -331,7 +332,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
     }
 }
 
-/// Generate clan wars playlist
+/// Generate clan wars playlist (clan members only)
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-clan-wars-playlist")]
 #[poise::command(slash_command, rename = "bl-clan-wars-playlist", guild_only)]
 pub(crate) async fn cmd_clan_wars_playlist(

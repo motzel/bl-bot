@@ -27,7 +27,8 @@ struct BotData {
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
     let is_bot_owner = ctx.framework().options().owners.contains(&ctx.author().id);
@@ -75,7 +76,8 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_import(
     ctx: Context<'_>,

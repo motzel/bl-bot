@@ -561,7 +561,8 @@ pub(crate) async fn cmd_replay(
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
     required_bot_permissions = "MANAGE_ROLES",
-    guild_only
+    guild_only,
+    hide_in_help
 )]
 pub(crate) async fn cmd_refresh_scores(ctx: Context<'_>) -> Result<(), Error> {
     say_without_ping(ctx, "Please wait...", true).await?;
