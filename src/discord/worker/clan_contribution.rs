@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use cli_table::{format::Justify, Cell, ColorChoice, Table};
-use poise::serenity_prelude::{CreateAllowedMentions, CreateAttachment, CreateMessage};
+use poise::serenity_prelude::{
+    AutoArchiveDuration, ChannelType, CreateAllowedMentions, CreateAttachment, CreateMessage,
+    CreateThread,
+};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
@@ -76,7 +79,7 @@ impl BlClanContributionWorker {
                     if last_posted_at.is_none()
                         || last_posted_at
                             .unwrap()
-                            .le(&(Utc::now() - self.refresh_interval))
+                            .le(&(Utc::now() - chrono::Duration::minutes(60)))
                     {
                         match self
                             .guild_settings_repository
@@ -213,37 +216,67 @@ impl BlClanContributionWorker {
                                                 "Maps".cell(),
                                                 "Total PP".cell(),
                                                 "Contributed PP".cell(),
-                                                "Efficiency".cell(),
+                                                "PP efficiency".cell(),
                                                 "Contribution".cell(),
-                                                "Score".cell(),
+                                                "Credits".cell(),
                                             ])
                                             .color_choice(ColorChoice::Never);
 
                                         match table.display() {
                                             Ok(table_display) => {
-                                                //
                                                 let file_contents = format!(
-                                                    "// {} //\n\nCaptured maps: {}\nTotal PP: {:.2}\n\n{}",
+                                                    "// {} //\n\nCaptured maps: {}\nTotal captured PP: {:.2}\n\n{}",
                                                     clan_stats.clan_tag,
                                                     clan_stats.maps_count,
                                                     clan_stats.total_pp,
                                                     table_display
                                                 );
 
+                                                // create new thread if possible
+                                                tracing::debug!("Creating clan wars contribution thread for the clan {}...", clan_stats.clan_tag.clone());
+
+                                                let channel_id = match clan_wars_channel_id
+                                                    .create_thread(
+                                                        &self.context,
+                                                        CreateThread::new(format!(
+                                                            "{} clan wars contribution",
+                                                            clan_stats.clan_tag,
+                                                        ))
+                                                        .auto_archive_duration(
+                                                            AutoArchiveDuration::OneHour,
+                                                        )
+                                                        .kind(ChannelType::PublicThread),
+                                                    )
+                                                    .await
+                                                {
+                                                    Ok(guild_channel) => {
+                                                        tracing::debug!("Clan wars contribution thread for the {} clan created.", clan_stats.clan_tag.clone());
+
+                                                        guild_channel.id
+                                                    }
+                                                    Err(err) => {
+                                                        tracing::error!("Can not create clan wars contribution thread for the {} clan on channel #{}: {}", clan_stats.clan_tag.clone(),clan_wars_channel_id, err);
+
+                                                        clan_wars_channel_id
+                                                    }
+                                                };
+
                                                 let message = CreateMessage::new()
                                                     .content(
-                                                        "The current contribution of players to the maps captured by the clan:",
+                                                        format!("Current player contributions to maps captured by the {} clan", clan_stats.clan_tag.clone()),
                                                     )
                                                     .add_file(CreateAttachment::bytes(
                                                         file_contents,
                                                         "contribution.txt".to_string(),
                                                     ))
                                                     .allowed_mentions(CreateAllowedMentions::new());
-                                                match clan_wars_channel_id
+                                                match channel_id
                                                     .send_message(&self.context, message)
                                                     .await
                                                 {
-                                                    Ok(_) => {}
+                                                    Ok(_) => {
+                                                        tracing::debug!("Clan wars contribution for the {} clan posted to channel #{}.", clan_stats.clan_tag.clone(), clan_wars_channel_id);
+                                                    }
                                                     Err(err) => {
                                                         tracing::error!("Can not post clan wars contribution to channel #{}: {}", clan_wars_channel_id, err);
                                                     }
