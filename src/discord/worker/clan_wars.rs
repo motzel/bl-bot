@@ -11,7 +11,6 @@ use poise::serenity_prelude::{
 use std::cmp::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
 
 pub struct BlClanWarsMapsWorker {
     context: serenity::Context,
@@ -47,7 +46,7 @@ impl BlClanWarsMapsWorker {
                 if let Some(clan_wars_channel_id) = clan_settings.get_clan_wars_maps_channel() {
                     let last_posted_at = clan_settings.get_clan_wars_posted_at();
 
-                    info!(
+                    tracing::info!(
                         "Refreshing clan {} wars maps, last posted at: {}...",
                         clan_settings.get_clan(),
                         if last_posted_at.is_some() {
@@ -68,7 +67,7 @@ impl BlClanWarsMapsWorker {
                             .await
                         {
                             Ok(_) => {
-                                info!(
+                                tracing::info!(
                                     "{} clan wars maps posted time set.",
                                     clan_settings.get_clan()
                                 );
@@ -87,7 +86,7 @@ impl BlClanWarsMapsWorker {
                                                 .unwrap_or(Ordering::Equal)
                                         });
 
-                                        info!(
+                                        tracing::info!(
                                             "{} clan wars maps found. Posting maps to channel #{}",
                                             clan_wars.maps.len(),
                                             clan_wars_channel_id
@@ -97,118 +96,86 @@ impl BlClanWarsMapsWorker {
                                             global_ctx: &serenity::Context,
                                             channel_id: ChannelId,
                                             description: &str,
-                                            content: &str,
-                                            thread_name: &str,
                                         ) -> Result<ChannelId, poise::serenity_prelude::Error>
                                         {
-                                            let mut message = CreateMessage::new()
+                                            let message = CreateMessage::new()
+                                                .embed(CreateEmbed::new().description(description))
                                                 .allowed_mentions(CreateAllowedMentions::new());
-
-                                            if !content.is_empty() {
-                                                message = message.content(content);
-                                            }
-
-                                            if !description.is_empty() {
-                                                message = message.embed(
-                                                    CreateEmbed::new().description(description),
-                                                );
-                                            }
 
                                             match channel_id
                                                 .send_message(global_ctx.clone(), message)
                                                 .await
                                             {
-                                                Ok(msg) => {
-                                                    //
-                                                    if !thread_name.is_empty() {
-                                                        return match channel_id
-                                                            .create_thread_from_message(
-                                                                global_ctx.clone(),
-                                                                msg.id,
-                                                                CreateThread::new(thread_name)
-                                                                    .auto_archive_duration(AutoArchiveDuration::OneHour)
-                                                                    .kind(ChannelType::PublicThread),
-                                                            )
-                                                            .await {
-                                                            Ok(guild_channel) => Ok(guild_channel.id),
-                                                            Err(_) => Ok(msg.channel_id)
-                                                        };
-                                                    }
-
-                                                    Ok(msg.channel_id)
-                                                }
-                                                Err(err) => {
-                                                    info!("Can not post clan wars map to channel #{}: {}", channel_id, err);
-                                                    Err(err)
-                                                }
+                                                Ok(msg) => Ok(msg.channel_id),
+                                                Err(err) => Err(err),
                                             }
                                         }
 
                                         // create new thread if possible
-                                        let header = format!(
-                                            "### **{} clan wars maps** (<t:{}:R>)",
-                                            clan_settings.get_clan(),
-                                            Utc::now().timestamp()
+                                        tracing::debug!(
+                                            "Creating clan wars maps thread for the clan {}...",
+                                            clan_settings.get_clan()
                                         );
-                                        let thread_name =
-                                            format!("{} clan wars maps", clan_settings.get_clan(),);
-                                        let channel_id = if let Ok(new_channel_id) = post_msg(
-                                            &self.context,
-                                            clan_wars_channel_id,
-                                            "",
-                                            header.as_str(),
-                                            thread_name.as_str(),
-                                        )
-                                        .await
+
+                                        let channel_id = match clan_wars_channel_id
+                                            .create_thread(
+                                                &self.context,
+                                                CreateThread::new(format!(
+                                                    "{} clan wars maps",
+                                                    clan_settings.get_clan(),
+                                                ))
+                                                .auto_archive_duration(AutoArchiveDuration::OneHour)
+                                                .kind(ChannelType::PublicThread),
+                                            )
+                                            .await
                                         {
-                                            new_channel_id
-                                        } else {
-                                            clan_wars_channel_id
+                                            Ok(guild_channel) => {
+                                                tracing::debug!("Clan wars maps thread for the {} clan created.", clan_settings.get_clan());
+
+                                                guild_channel.id
+                                            }
+                                            Err(err) => {
+                                                tracing::error!("Can not create clan wars maps thread for the {} clan on channel #{}: {}", clan_settings.get_clan(),clan_wars_channel_id, err);
+
+                                                clan_wars_channel_id
+                                            }
                                         };
 
                                         const MAX_DISCORD_MSG_LENGTH: usize = 2000;
 
-                                        let mut description = String::new();
-                                        let clan_wars_len = clan_wars.maps.len();
-                                        for (idx, map) in clan_wars.maps.iter().enumerate() {
+                                        for map in clan_wars.maps.iter() {
                                             let map_description = map.to_string();
 
-                                            if description.len()
-                                                + "\n\n".len()
-                                                + map_description.len()
-                                                + (if idx > 0 { 0 } else { header.len() })
-                                                >= MAX_DISCORD_MSG_LENGTH
-                                                || idx == clan_wars_len - 1
+                                            if let Err(err) = post_msg(
+                                                &self.context,
+                                                channel_id,
+                                                map_description.as_str(),
+                                            )
+                                            .await
                                             {
-                                                description.push_str(&map_description);
-
-                                                let _ = post_msg(
-                                                    &self.context,
+                                                tracing::error!(
+                                                    "Can not post clan wars map message to the channel #{}: {}",
                                                     channel_id,
-                                                    description.as_str(),
-                                                    if idx == 0 { header.as_str() } else { "" },
-                                                    thread_name.as_str(),
-                                                )
-                                                .await;
-
-                                                description = String::new();
-                                            } else {
-                                                description.push_str(&map_description);
+                                                    err
+                                                );
                                             }
                                         }
                                     }
                                     Err(err) => {
-                                        error!("Can not fetch clan wars map list: {:?}", err);
+                                        tracing::error!(
+                                            "Can not fetch clan wars map list: {:?}",
+                                            err
+                                        );
                                     }
                                 }
 
-                                info!(
+                                tracing::info!(
                                     "Clan wars maps for a clan {} refreshed and posted.",
                                     clan_settings.get_clan()
                                 );
                             }
                             Err(err) => {
-                                error!(
+                                tracing::error!(
                                     "Can not set clan wars posted time for clan {}: {:?}",
                                     clan_settings.get_clan(),
                                     err
@@ -216,7 +183,7 @@ impl BlClanWarsMapsWorker {
                             }
                         }
                     } else {
-                        info!(
+                        tracing::info!(
                             "Clan {} wars maps do not require posting yet.",
                             clan_settings.get_clan()
                         );
