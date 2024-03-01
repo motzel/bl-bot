@@ -124,7 +124,7 @@ impl UserRolesWorker {
             .filter_map(|(guild_id, player, roles)| {
                 guilds
                     .get(guild_id)
-                    .map(|guild_settings| guild_settings.get_role_updates(*guild_id, player, roles))
+                    .map(|guild_settings| guild_settings.get_role_updates(player, roles))
             })
             .collect::<Vec<UserRoleChanges>>();
 

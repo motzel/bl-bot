@@ -23,7 +23,7 @@ use crate::discord::bot::commands::player::{
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
 use crate::{Error, BL_CLIENT};
-use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, User};
+use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, Role, User};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]
@@ -913,6 +913,49 @@ pub(crate) async fn cmd_clan_wars_release(
         Ok(_) => {
             let message = format!("<@{}> has been released from service.", selected_user_id);
             say_without_ping(ctx, message.as_str(), ephemeral).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            let message = format!("An error occurred: {}", e);
+            say_without_ping(ctx, message.as_str(), true).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Set soldier role for clan wars
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-wars-soldier-role")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-wars-soldier-role",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only,
+    hide_in_help
+)]
+pub(crate) async fn cmd_set_clan_wars_soldier_role(
+    ctx: Context<'_>,
+    #[description = "Role to assign. Leve empty to remove."] role: Option<Role>,
+) -> Result<(), Error> {
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_wars_soldier_role(&guild_settings.guild_id, role.map(|r| r.id))
+        .await
+    {
+        Ok(guild_settings) => {
+            say_without_ping(ctx, format!("{}", guild_settings).as_str(), true).await?;
 
             Ok(())
         }

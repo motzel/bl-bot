@@ -236,12 +236,7 @@ impl<'a> GuildSettingsRepository {
             .get_and_modify_or_insert(
                 guild_id,
                 |guild_settings| guild_settings.add_clan_wars_soldier(user_id),
-                || {
-                    let mut guild_settings = GuildSettings::new(*guild_id);
-                    guild_settings.add_clan_wars_soldier(user_id);
-
-                    Some(guild_settings)
-                },
+                || Some(GuildSettings::new(*guild_id)),
             )
             .await?
         {
@@ -281,6 +276,39 @@ impl<'a> GuildSettingsRepository {
             debug!(
                 "Clan wars soldier @{} removed from guild {}.",
                 user_id, guild_id
+            );
+
+            Ok(guild_settings)
+        } else {
+            Err(StorageError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
+    pub(crate) async fn set_clan_wars_soldier_role(
+        &self,
+        guild_id: &GuildId,
+        role_id: Option<RoleId>,
+    ) -> Result<GuildSettings> {
+        trace!(
+            "Setting new clan wars soldier role {:?} for guild {}...",
+            role_id,
+            guild_id
+        );
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.set_clan_wars_soldier_role(role_id),
+                || Some(GuildSettings::new(*guild_id)),
+            )
+            .await?
+        {
+            debug!(
+                "Clan wars soldier role {:?} for guild {} set.",
+                role_id, guild_id
             );
 
             Ok(guild_settings)

@@ -853,6 +853,12 @@ impl GuildSettings {
         }
     }
 
+    pub fn set_clan_wars_soldier_role(&mut self, role_id: Option<RoleId>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_clan_wars_soldier_role(role_id);
+        }
+    }
+
     pub fn get_clan_settings(&self) -> Option<ClanSettings> {
         self.clan_settings.clone()
     }
@@ -942,7 +948,6 @@ impl GuildSettings {
 
     pub(crate) fn get_role_updates(
         &self,
-        guild_id: GuildId,
         player: &Player,
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
@@ -955,7 +960,8 @@ impl GuildSettings {
 
         let mut ru = UserRoleStatus::default();
 
-        self.role_groups
+        let mut auto_role_changes = self
+            .role_groups
             .values()
             .map(|roles| {
                 let mut roles_fulfillment = roles
@@ -990,7 +996,63 @@ impl GuildSettings {
 
                 acc
             })
-            .get_role_changes(guild_id, player, current_roles)
+            .get_role_changes(self.guild_id, player, current_roles);
+
+        let soldier_role_changes = self.get_soldier_role_changes(player, current_roles);
+        if !soldier_role_changes.to_add.is_empty() || !soldier_role_changes.to_remove.is_empty() {
+            auto_role_changes.to_add.extend(soldier_role_changes.to_add);
+            auto_role_changes
+                .to_remove
+                .extend(soldier_role_changes.to_remove);
+        }
+
+        auto_role_changes
+    }
+
+    pub(crate) fn get_soldier_role_changes(
+        &self,
+        player: &Player,
+        current_roles: &[RoleId],
+    ) -> UserRoleChanges {
+        if self.clan_settings.is_none()
+            || self.clan_settings.as_ref().unwrap().soldier_role.is_none()
+        {
+            return UserRoleChanges {
+                guild_id: self.guild_id,
+                user_id: player.user_id,
+                name: player.name.clone(),
+                to_add: Vec::new(),
+                to_remove: Vec::new(),
+            };
+        }
+
+        let clan_settings = self.clan_settings.as_ref().unwrap();
+        let soldier_role = clan_settings.soldier_role.unwrap();
+
+        let is_enlisted = clan_settings
+            .get_clan_wars_soldiers()
+            .iter()
+            .any(|s| s == &player.user_id);
+
+        let is_clan_member =
+            !player.clans.is_empty() && player.clans.first().unwrap() == &clan_settings.clan;
+
+        UserRoleChanges {
+            guild_id: self.guild_id,
+            user_id: player.user_id,
+            name: player.name.clone(),
+            to_add: if !current_roles.contains(&soldier_role) && is_enlisted && is_clan_member {
+                vec![soldier_role]
+            } else {
+                Vec::new()
+            },
+            to_remove: if current_roles.contains(&soldier_role) && (!is_enlisted || !is_clan_member)
+            {
+                vec![soldier_role]
+            } else {
+                Vec::new()
+            },
+        }
     }
 }
 
@@ -1058,6 +1120,7 @@ pub struct ClanSettings {
     clan_wars_maps_posted_at: Option<DateTime<Utc>>,
     clan_wars_contribution_channel_id: Option<ChannelId>,
     clan_wars_contribution_posted_at: Option<DateTime<Utc>>,
+    soldier_role: Option<RoleId>,
     soldiers: Vec<UserId>,
 }
 
@@ -1080,6 +1143,7 @@ impl ClanSettings {
             clan_wars_contribution_channel_id: None,
             clan_wars_maps_posted_at: None,
             clan_wars_contribution_posted_at: None,
+            soldier_role: None,
             soldiers: Vec::new(),
         }
     }
@@ -1150,6 +1214,10 @@ impl ClanSettings {
         }
     }
 
+    pub fn set_clan_wars_soldier_role(&mut self, role_id: Option<RoleId>) {
+        self.soldier_role = role_id;
+    }
+
     pub fn get_clan_wars_soldiers(&self) -> &Vec<UserId> {
         &self.soldiers
     }
@@ -1160,7 +1228,7 @@ impl std::fmt::Display for ClanSettings {
         if self.oauth_token_is_set {
             write!(
                 f,
-                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars maps channel: {}\nClan wars contribution channel: {}",
+                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars maps channel: {}\nClan wars contribution channel: {}\nClan wars soldier role: {}",
                 self.clan,
                 if !self.supports_self_invitation() {
                     " NOT"
@@ -1169,11 +1237,15 @@ impl std::fmt::Display for ClanSettings {
                 },
                 self.clan_wars_maps_channel_id.map_or_else(
                     || "**None**".to_owned(),
-                    |channel_id| format!("<#{}>", channel_id.to_owned())
+                    |channel_id| format!("<#{}>", channel_id)
                 ),
                 self.clan_wars_contribution_channel_id.map_or_else(
                     || "**None**".to_owned(),
-                    |channel_id| format!("<#{}>", channel_id.to_owned())
+                    |channel_id| format!("<#{}>", channel_id)
+                ),
+                self.soldier_role.map_or_else(
+                    || "**None**".to_owned(),
+                    |role_id| format!("<@&{}>", role_id)
                 ),
             )
         } else {
@@ -1745,7 +1817,6 @@ mod tests {
         };
 
         let mut roles_updates = gs.get_role_updates(
-            GuildId::new(1),
             &player,
             &vec![RoleId::new(1), RoleId::new(3), RoleId::new(7)],
         );
@@ -1761,8 +1832,7 @@ mod tests {
 
         player.top_accuracy = 89.0;
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId::new(1), &player, &vec![RoleId::new(1)]);
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(1)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1772,7 +1842,7 @@ mod tests {
 
         player.pp = 10000.0;
 
-        let mut roles_updates = gs.get_role_updates(GuildId::new(1), &player, &vec![]);
+        let mut roles_updates = gs.get_role_updates(&player, &vec![]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1782,8 +1852,7 @@ mod tests {
 
         player.rank = 1000;
 
-        let mut roles_updates =
-            gs.get_role_updates(GuildId::new(1), &player, &vec![RoleId::new(2)]);
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1793,11 +1862,7 @@ mod tests {
 
         player.rank = 500;
 
-        let mut roles_updates = gs.get_role_updates(
-            GuildId::new(1),
-            &player,
-            &vec![RoleId::new(2), RoleId::new(3)],
-        );
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1807,11 +1872,7 @@ mod tests {
 
         player.clans = vec!["Clan1".to_string()];
 
-        let mut roles_updates = gs.get_role_updates(
-            GuildId::new(1),
-            &player,
-            &vec![RoleId::new(2), RoleId::new(3)],
-        );
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1822,7 +1883,6 @@ mod tests {
         player.clans = vec!["Other".to_string()];
 
         let mut roles_updates = gs.get_role_updates(
-            GuildId::new(1),
             &player,
             &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
         );
@@ -1839,7 +1899,6 @@ mod tests {
         player.last_ranked_paused_at = Some(Utc::now() - Duration::days(50));
 
         let mut roles_updates = gs.get_role_updates(
-            GuildId::new(1),
             &player,
             &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
         );
