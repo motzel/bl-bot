@@ -5,11 +5,11 @@ use reqwest::Method;
 use serde::Deserialize;
 use std::time::Duration;
 
-pub struct RatingsResource<'a> {
+pub struct AiRatingsResource<'a> {
     client: &'a Client,
 }
 
-impl<'a> RatingsResource<'a> {
+impl<'a> AiRatingsResource<'a> {
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -19,7 +19,7 @@ impl<'a> RatingsResource<'a> {
         hash: &str,
         mode_name: &str,
         value: u32,
-    ) -> beatleader::Result<Ratings> {
+    ) -> beatleader::Result<AiRatings> {
         let url = format!(
             "https://stage.api.beatleader.net/ppai2/{}/{}/{}",
             hash, mode_name, value
@@ -36,7 +36,7 @@ impl<'a> RatingsResource<'a> {
         }
 
         match self.client.send_request(request.unwrap()).await {
-            Ok(response) => match response.json::<Ratings>().await {
+            Ok(response) => match response.json::<AiRatings>().await {
                 Ok(ratings) => Ok(ratings),
                 Err(e) => Err(Error::JsonDecode(e)),
             },
@@ -46,25 +46,25 @@ impl<'a> RatingsResource<'a> {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct Ratings {
-    pub none: ModifierRating,
+pub struct AiRatings {
+    pub none: AiModifierRating,
     #[serde(rename = "SS")]
-    pub ss: ModifierRating,
+    pub ss: AiModifierRating,
     #[serde(rename = "FS")]
-    pub fs: ModifierRating,
+    pub fs: AiModifierRating,
     #[serde(rename = "SFS")]
-    pub sf: ModifierRating,
+    pub sf: AiModifierRating,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct ModifierRating {
+pub struct AiModifierRating {
     pub predicted_acc: f64,
     pub acc_rating: f64,
     pub star_rating: f64,
-    pub lack_map_calculation: RatingMapCalculation,
+    pub lack_map_calculation: AiRatingMapCalculation,
 }
 #[derive(Deserialize, Debug, Clone)]
-pub struct RatingMapCalculation {
+pub struct AiRatingMapCalculation {
     pub multi_rating: f64,
     pub balanced_pass_diff: f64,
     pub linear_rating: f64,
@@ -72,4 +72,4 @@ pub struct RatingMapCalculation {
     pub low_note_nerf: f64,
 }
 
-impl BlApiResponse for Ratings {}
+impl BlApiResponse for AiRatings {}

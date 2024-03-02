@@ -146,12 +146,15 @@ pub async fn embed_score(
     image.paste_with_mask(avatar_pos_x, avatar_pos_y, &avatar, &mask);
 
     let mut difficulty_desc = "".to_owned();
-    if score.difficulty_rating.stars > 0.0 {
+    if score.difficulty_score_rating.is_some()
+        && score.difficulty_score_rating.as_ref().unwrap().stars > 0.0
+    {
+        let difficulty_rating = score.difficulty_score_rating.as_ref().unwrap();
         let stars = format!(
             "{:.2}*{}",
-            score.difficulty_rating.stars,
-            if score.difficulty_rating.modifier != MapRatingModifier::None {
-                format!(" ({})", score.difficulty_rating.modifier)
+            difficulty_rating.stars,
+            if difficulty_rating.modifier != MapRatingModifier::None {
+                format!(" ({})", difficulty_rating.modifier)
             } else {
                 "".to_owned()
             }
@@ -229,7 +232,10 @@ pub async fn embed_score(
         0,
     );
 
-    let speed_multiplier = score.difficulty_rating.modifier.speed_multiplier();
+    let speed_multiplier = match score.difficulty_score_rating.as_ref() {
+        Some(difficulty_rating) => difficulty_rating.modifier.speed_multiplier(),
+        None => MapRatingModifier::None.speed_multiplier(),
+    };
     draw_text_segment(
         &mut image,
         &mut TextSegment::new(
@@ -281,7 +287,13 @@ pub async fn embed_score(
         WIDTH - avatar_pos_x - AVATAR_SIZE - BORDER_SIZE / 2 - BORDER_RADIUS / 2 - PADDING * 4;
     let stats_pos_x = avatar_pos_x
         + AVATAR_SIZE
-        + if score.difficulty_rating.has_individual_rating() {
+        + if score.difficulty_score_rating.is_some()
+            && score
+                .difficulty_score_rating
+                .as_ref()
+                .unwrap()
+                .has_individual_rating()
+        {
             PADDING
         } else {
             PADDING * 4
@@ -399,9 +411,15 @@ pub async fn embed_score(
         stats_width,
     );
 
-    if score.difficulty_rating.has_individual_rating() {
+    if score.difficulty_score_rating.is_some()
+        && score
+            .difficulty_score_rating
+            .as_ref()
+            .unwrap()
+            .has_individual_rating()
+    {
         let map_triangle = MapTriangle::new(Vertex::new(436, 74), 50)
-            .with_map_rating(score.difficulty_rating.clone());
+            .with_map_rating(score.difficulty_score_rating.as_ref().unwrap().clone());
         image.draw(&map_triangle);
     }
 

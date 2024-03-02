@@ -15,10 +15,11 @@ use tracing::info;
 
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::player::{
-    DifficultyStatus, Duration, LeaderboardId, PlayerId, PlayerScoreParam, Score as BlScore,
+    Difficulty, DifficultyStatus, Duration, LeaderboardId, ModifiersRatings, PlayerId,
+    PlayerScoreParam, Score as BlScore,
 };
 use crate::beatleader::pp::{calculate_pp_boundary, WEIGHT_COEFFICIENT};
-use crate::beatleader::rating::Ratings;
+use crate::beatleader::rating::{AiModifierRating, AiRatingMapCalculation, AiRatings};
 use crate::beatleader::{BlContext, List as BlList};
 use crate::discord::bot::beatleader::player::Player;
 use crate::other::string_utils;
@@ -59,9 +60,10 @@ pub struct Score {
     pub difficulty_name: String,
     pub difficulty_nps: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub difficulty_original_rating: MapRating,
+    pub difficulty_original_rating: Option<MapRating>,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub difficulty_rating: MapRating,
+    #[serde(rename = "difficultyRating")]
+    pub difficulty_score_rating: Option<MapRating>,
     #[serde_as(deserialize_as = "DefaultOnError")]
     #[serde(default)]
     pub difficulty_status: DifficultyStatus,
@@ -75,7 +77,8 @@ pub struct Score {
 
 impl From<BlScore> for Score {
     fn from(bl_score: BlScore) -> Self {
-        let map_rating = (&bl_score).into();
+        let map_ratings = &(&bl_score.leaderboard.difficulty).into();
+        let difficulty_score_rating = (&bl_score).into();
 
         Score {
             id: bl_score.id,
@@ -107,14 +110,11 @@ impl From<BlScore> for Score {
             song_hash: bl_score.leaderboard.song.hash,
             difficulty_name: bl_score.leaderboard.difficulty.difficulty_name,
             difficulty_nps: bl_score.leaderboard.difficulty.nps,
-            difficulty_original_rating: MapRating::new(
+            difficulty_original_rating: MapRating::from_bl_ratings_and_modifier(
+                map_ratings,
                 MapRatingModifier::None,
-                bl_score.leaderboard.difficulty.stars,
-                bl_score.leaderboard.difficulty.tech_rating,
-                bl_score.leaderboard.difficulty.acc_rating,
-                bl_score.leaderboard.difficulty.pass_rating,
             ),
-            difficulty_rating: map_rating,
+            difficulty_score_rating,
             difficulty_status: bl_score.leaderboard.difficulty.status,
             difficulty_mode_name: bl_score.leaderboard.difficulty.mode_name,
             difficulty_value: bl_score.leaderboard.difficulty.value,
@@ -183,8 +183,10 @@ impl Score {
             self.difficulty_status
         ));
 
-        if self.difficulty_rating.stars > 0.0 {
-            desc.push_str(&format!(" / {:.2}⭐", self.difficulty_rating.stars));
+        if let Some(difficulty_rating) = self.difficulty_score_rating.as_ref() {
+            if difficulty_rating.stars > 0.0 {
+                desc.push_str(&format!(" / {:.2}⭐", difficulty_rating.stars));
+            }
         }
 
         if !self.modifiers.is_empty() {
@@ -271,12 +273,12 @@ pub(crate) async fn fetch_scores(
     Ok(BL_CLIENT.player().scores(player_id, params).await?.into())
 }
 
-pub(crate) async fn fetch_rating(
+pub(crate) async fn fetch_ai_ratings(
     hash: &str,
     mode_name: &str,
     value: u32,
-) -> Result<Ratings, BlError> {
-    BL_CLIENT.ratings().get(hash, mode_name, value).await
+) -> Result<AiRatings, BlError> {
+    BL_CLIENT.ai_ratings().get(hash, mode_name, value).await
 }
 
 #[derive(Debug, Default)]
@@ -317,8 +319,10 @@ pub(crate) async fn fetch_ranked_scores_stats(
         .collect::<Vec<f64>>();
 
     let top_stars = player_scores.scores.iter().fold(0.0, |acc, score| {
-        if acc < score.difficulty_rating.stars {
-            score.difficulty_rating.stars
+        if score.difficulty_score_rating.is_some()
+            && acc < score.difficulty_score_rating.as_ref().unwrap().stars
+        {
+            score.difficulty_score_rating.as_ref().unwrap().stars
         } else {
             acc
         }
@@ -389,6 +393,80 @@ impl Display for MapRatingModifier {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct MapRatings {
+    pub none: Option<MapRating>,
+    pub ss: Option<MapRating>,
+    pub fs: Option<MapRating>,
+    pub sf: Option<MapRating>,
+}
+
+impl From<&Difficulty> for MapRatings {
+    fn from(value: &Difficulty) -> Self {
+        Self {
+            none: if value.stars > 0.0 {
+                Some(MapRating {
+                    modifier: MapRatingModifier::None,
+                    stars: value.stars,
+                    tech: value.tech_rating,
+                    acc: value.acc_rating,
+                    pass: value.pass_rating,
+                })
+            } else {
+                None
+            },
+            ss: match value.modifiers_rating.as_ref() {
+                Some(modifiers_rating) => {
+                    if modifiers_rating.ss_stars > 0.0 {
+                        Some(MapRating {
+                            modifier: MapRatingModifier::SlowerSong,
+                            stars: modifiers_rating.ss_stars,
+                            tech: modifiers_rating.ss_tech_rating,
+                            acc: modifiers_rating.ss_acc_rating,
+                            pass: modifiers_rating.ss_pass_rating,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            },
+            fs: match value.modifiers_rating.as_ref() {
+                Some(modifiers_rating) => {
+                    if modifiers_rating.fs_stars > 0.0 {
+                        Some(MapRating {
+                            modifier: MapRatingModifier::FasterSong,
+                            stars: modifiers_rating.fs_stars,
+                            tech: modifiers_rating.fs_tech_rating,
+                            acc: modifiers_rating.fs_acc_rating,
+                            pass: modifiers_rating.fs_pass_rating,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            },
+            sf: match value.modifiers_rating.as_ref() {
+                Some(modifiers_rating) => {
+                    if modifiers_rating.sf_stars > 0.0 {
+                        Some(MapRating {
+                            modifier: MapRatingModifier::SuperFastSong,
+                            stars: modifiers_rating.sf_stars,
+                            tech: modifiers_rating.sf_tech_rating,
+                            acc: modifiers_rating.sf_acc_rating,
+                            pass: modifiers_rating.sf_pass_rating,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MapRating {
     pub modifier: MapRatingModifier,
@@ -409,7 +487,7 @@ impl MapRating {
         }
     }
 
-    pub fn from_ratings_and_modifier(ratings: &Ratings, modifier: MapRatingModifier) -> Self {
+    pub fn from_ai_ratings_and_modifier(ratings: &AiRatings, modifier: MapRatingModifier) -> Self {
         match modifier {
             MapRatingModifier::None => Self {
                 modifier,
@@ -442,6 +520,42 @@ impl MapRating {
         }
     }
 
+    pub fn from_bl_ratings_and_modifier(
+        ratings: &MapRatings,
+        modifier: MapRatingModifier,
+    ) -> Option<Self> {
+        match modifier {
+            MapRatingModifier::None => ratings.none.as_ref().map(|rating| Self {
+                modifier,
+                stars: rating.stars,
+                tech: rating.tech,
+                acc: rating.acc,
+                pass: rating.pass,
+            }),
+            MapRatingModifier::SlowerSong => ratings.none.as_ref().map(|rating| Self {
+                modifier,
+                stars: rating.stars,
+                tech: rating.tech,
+                acc: rating.acc,
+                pass: rating.pass,
+            }),
+            MapRatingModifier::FasterSong => ratings.none.as_ref().map(|rating| Self {
+                modifier,
+                stars: rating.stars,
+                tech: rating.tech,
+                acc: rating.acc,
+                pass: rating.pass,
+            }),
+            MapRatingModifier::SuperFastSong => ratings.none.as_ref().map(|rating| Self {
+                modifier,
+                stars: rating.stars,
+                tech: rating.tech,
+                acc: rating.acc,
+                pass: rating.pass,
+            }),
+        }
+    }
+
     pub fn has_individual_rating(&self) -> bool {
         self.tech > 0.0 || self.acc > 0.0 || self.pass > 0.0
     }
@@ -467,35 +581,45 @@ impl MapRating {
     }
 }
 
-impl From<&BlScore> for MapRating {
+impl From<&BlScore> for Option<MapRating> {
     fn from(bl_score: &BlScore) -> Self {
-        let mut map_rating = MapRating::new(
-            MapRatingModifier::None,
-            bl_score.leaderboard.difficulty.stars,
-            bl_score.leaderboard.difficulty.tech_rating,
-            bl_score.leaderboard.difficulty.acc_rating,
-            bl_score.leaderboard.difficulty.pass_rating,
-        );
+        let mut map_rating = if bl_score.leaderboard.difficulty.stars > 0.0 {
+            Some(MapRating::new(
+                MapRatingModifier::None,
+                bl_score.leaderboard.difficulty.stars,
+                bl_score.leaderboard.difficulty.tech_rating,
+                bl_score.leaderboard.difficulty.acc_rating,
+                bl_score.leaderboard.difficulty.pass_rating,
+            ))
+        } else {
+            None
+        };
 
         if let Some(ref ratings) = bl_score.leaderboard.difficulty.modifiers_rating {
             if bl_score.modifiers.contains("SS") && ratings.ss_stars > 0.00 {
-                map_rating.modifier = MapRatingModifier::SlowerSong;
-                map_rating.stars = ratings.ss_stars;
-                map_rating.tech = ratings.ss_tech_rating;
-                map_rating.acc = ratings.ss_acc_rating;
-                map_rating.pass = ratings.ss_pass_rating;
+                map_rating = Some(MapRating::new(
+                    MapRatingModifier::SlowerSong,
+                    ratings.ss_stars,
+                    ratings.ss_tech_rating,
+                    ratings.ss_acc_rating,
+                    ratings.ss_pass_rating,
+                ));
             } else if bl_score.modifiers.contains("FS") && ratings.fs_stars > 0.00 {
-                map_rating.modifier = MapRatingModifier::FasterSong;
-                map_rating.stars = ratings.fs_stars;
-                map_rating.tech = ratings.fs_tech_rating;
-                map_rating.acc = ratings.fs_acc_rating;
-                map_rating.pass = ratings.fs_pass_rating;
+                map_rating = Some(MapRating::new(
+                    MapRatingModifier::FasterSong,
+                    ratings.fs_stars,
+                    ratings.fs_tech_rating,
+                    ratings.fs_acc_rating,
+                    ratings.fs_pass_rating,
+                ));
             } else if bl_score.modifiers.contains("SF") && ratings.sf_stars > 0.00 {
-                map_rating.modifier = MapRatingModifier::SuperFastSong;
-                map_rating.stars = ratings.sf_stars;
-                map_rating.tech = ratings.sf_tech_rating;
-                map_rating.acc = ratings.sf_acc_rating;
-                map_rating.pass = ratings.sf_pass_rating;
+                map_rating = Some(MapRating::new(
+                    MapRatingModifier::SuperFastSong,
+                    ratings.sf_stars,
+                    ratings.sf_tech_rating,
+                    ratings.sf_acc_rating,
+                    ratings.sf_pass_rating,
+                ));
             }
         }
 

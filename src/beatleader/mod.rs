@@ -20,14 +20,14 @@ use std::result;
 
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
-use crate::beatleader::rating::RatingsResource;
+use crate::beatleader::rating::AiRatingsResource;
 
 pub mod clan;
 pub mod error;
 pub mod oauth;
 pub mod player;
 pub mod pp;
-pub(crate) mod rating;
+pub mod rating;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -76,8 +76,8 @@ impl Client {
         ClanResource::new(self)
     }
 
-    pub fn ratings(&self) -> RatingsResource {
-        RatingsResource::new(self)
+    pub fn ai_ratings(&self) -> AiRatingsResource {
+        AiRatingsResource::new(self)
     }
 
     pub fn with_oauth<T: OAuthTokenRepository>(

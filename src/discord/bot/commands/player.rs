@@ -7,7 +7,7 @@ use crate::discord::bot::beatleader::player::{
     fetch_player_from_bl_by_user_id, Player as BotPlayer, Player,
 };
 use crate::discord::bot::beatleader::score::{
-    fetch_rating, fetch_scores, MapRating, MapRatingModifier, Score,
+    fetch_ai_ratings, fetch_scores, MapRating, MapRatingModifier, Score,
 };
 use crate::discord::bot::commands::get_user_id_with_required_permission;
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
@@ -646,7 +646,13 @@ async fn post_replays(
 
         let mut score = score.clone();
 
-        if !score.difficulty_rating.has_individual_rating() {
+        if score.difficulty_score_rating.is_none()
+            || !score
+                .difficulty_score_rating
+                .as_ref()
+                .unwrap()
+                .has_individual_rating()
+        {
             info!("Fetching ratings for {}", &score.song_name);
 
             msg_contents.push_str(&format!("Fetching ratings for {}...", score.song_name));
@@ -655,22 +661,25 @@ async fn post_replays(
             msg.edit(ctx, CreateReply::default().content(msg_contents_clone))
                 .await?;
 
-            let ratings = fetch_rating(
+            let ai_ratings = fetch_ai_ratings(
                 &score.song_hash,
                 &score.difficulty_mode_name,
                 score.difficulty_value,
             )
             .await;
 
-            match ratings {
-                Ok(ratings) => {
+            match ai_ratings {
+                Ok(ai_ratings) => {
                     score.difficulty_original_rating =
-                        MapRating::from_ratings_and_modifier(&ratings, MapRatingModifier::None);
+                        Some(MapRating::from_ai_ratings_and_modifier(
+                            &ai_ratings,
+                            MapRatingModifier::None,
+                        ));
 
-                    score.difficulty_rating = MapRating::from_ratings_and_modifier(
-                        &ratings,
+                    score.difficulty_score_rating = Some(MapRating::from_ai_ratings_and_modifier(
+                        &ai_ratings,
                         score.modifiers.as_str().into(),
-                    );
+                    ));
 
                     msg_contents.push_str("OK\n");
                 }
