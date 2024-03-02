@@ -336,9 +336,6 @@ impl ClanWars {
                 }
             })
             .await?;
-        if data.data.is_empty() {
-            return Err(BlError::NotFound);
-        }
 
         let clan_id = data.other_data.unwrap_or_default().id;
 

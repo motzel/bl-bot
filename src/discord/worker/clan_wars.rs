@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::beatleader::player::PlayerId;
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
+use crate::discord::bot::ClanSettings;
 use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
@@ -82,24 +83,7 @@ impl BlClanWarsMapsWorker {
                                     clan_settings.get_clan()
                                 );
 
-                                let mut soldiers = HashMap::<PlayerId, UserId>::new();
-                                for user_id in clan_settings.get_clan_wars_soldiers().iter() {
-                                    match self.player_repository.get(user_id).await {
-                                        Some(player) => {
-                                            if player
-                                                .is_primary_clan_member(&clan_settings.get_clan())
-                                            {
-                                                soldiers.insert(player.id, *user_id);
-                                            }
-                                        }
-                                        None => {
-                                            tracing::warn!(
-                                                "Can not get player for user @{}",
-                                                user_id
-                                            )
-                                        }
-                                    };
-                                }
+                                let soldiers = self.get_clan_soldiers(&clan_settings).await;
 
                                 match ClanWars::fetch(
                                     clan_settings.get_clan(),
@@ -108,18 +92,12 @@ impl BlClanWarsMapsWorker {
                                 )
                                 .await
                                 {
-                                    Ok(mut clan_wars) => {
+                                    Ok(mut clan_wars) if !clan_wars.maps.is_empty() => {
                                         clan_wars.maps.sort_unstable_by(|a, b| {
                                             a.pp_boundary
                                                 .partial_cmp(&b.pp_boundary)
                                                 .unwrap_or(Ordering::Equal)
                                         });
-
-                                        // for map in clan_wars.maps.iter_mut() {
-                                        //     map.scores.retain(|score| {
-                                        //         soldiers.contains_key(&score.player_id)
-                                        //     });
-                                        // }
 
                                         tracing::info!(
                                             "{} clan wars maps found. Posting maps to channel #{}",
@@ -220,6 +198,9 @@ impl BlClanWarsMapsWorker {
                                             }
                                         }
                                     }
+                                    Ok(_) => {
+                                        tracing::warn!("No clan wars maps found",);
+                                    }
                                     Err(err) => {
                                         tracing::error!(
                                             "Can not fetch clan wars map list: {:?}",
@@ -250,5 +231,25 @@ impl BlClanWarsMapsWorker {
                 }
             }
         }
+    }
+
+    pub(crate) async fn get_clan_soldiers(
+        &self,
+        clan_settings: &ClanSettings,
+    ) -> HashMap<PlayerId, UserId> {
+        let mut soldiers = HashMap::<PlayerId, UserId>::new();
+        for user_id in clan_settings.get_clan_wars_soldiers().iter() {
+            match self.player_repository.get(user_id).await {
+                Some(player) => {
+                    if player.is_primary_clan_member(&clan_settings.get_clan()) {
+                        soldiers.insert(player.id, *user_id);
+                    }
+                }
+                None => {
+                    tracing::warn!("Can not get player for user @{}", user_id)
+                }
+            };
+        }
+        soldiers
     }
 }
