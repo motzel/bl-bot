@@ -20,7 +20,7 @@ use bytes::Bytes;
 use poise::serenity_prelude::{
     ComponentInteractionDataKind, CreateActionRow, CreateAttachment, CreateEmbed,
     CreateEmbedFooter, CreateMessage, CreateSelectMenu, CreateSelectMenuKind,
-    CreateSelectMenuOption, GuildId, Permissions, User, UserId,
+    CreateSelectMenuOption, EditInteractionResponse, GuildId, Permissions, User, UserId,
 };
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use serenity::builder::CreateAllowedMentions;
@@ -469,9 +469,6 @@ pub(crate) async fn cmd_replay(
             {
                 trace!("Interaction response: {:?}", mci.data);
 
-                mci.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
-                    .await?;
-
                 match mci.data.custom_id.as_str() {
                     "score_id" => {
                         score_ids = match &mci.data.kind {
@@ -486,6 +483,9 @@ pub(crate) async fn cmd_replay(
                                 .ephemeral(true),
                         )
                         .await?;
+
+                        mci.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+                            .await?;
                     }
                     "post_btn" => {
                         if !score_ids.is_empty() {
@@ -498,11 +498,20 @@ pub(crate) async fn cmd_replay(
                                 &msg,
                             )
                             .await?;
+                        } else {
+                            mci.create_response(
+                                ctx,
+                                serenity::CreateInteractionResponse::Acknowledge,
+                            )
+                            .await?;
                         }
 
                         replay_posted = true;
                     }
-                    _ => {}
+                    _ => {
+                        mci.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge)
+                            .await?;
+                    }
                 }
             }
 
