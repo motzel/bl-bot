@@ -15,6 +15,7 @@ use crate::beatleader::clan::{ClanPlayer, ClanTag};
 use crate::beatleader::player::PlayerId;
 use crate::beatleader::pp::{curve_at_value, CLAN_WEIGHT_COEFFICIENT};
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
+use crate::discord::bot::post_long_msg_in_parts;
 use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
@@ -234,9 +235,22 @@ impl BlClanContributionWorker {
                                             .map(|s| {
                                                 vec![
                                                     s.player.name.as_str().cell(),
+                                                    format!(
+                                                        "{}/{}",
+                                                        s.maps_count,
+                                                        captured_clan_stats.maps_count
+                                                    )
+                                                    .cell()
+                                                    .justify(Justify::Right),
                                                     format!("{:.2}", s.points)
                                                         .cell()
                                                         .justify(Justify::Right),
+                                                    format!(
+                                                        "{}/{}",
+                                                        s.bonus_maps_count, bonus_maps_count,
+                                                    )
+                                                    .cell()
+                                                    .justify(Justify::Right),
                                                     format!(
                                                         "{:.2}",
                                                         s.bonus_points * CLAN_WEIGHT_COEFFICIENT
@@ -246,65 +260,26 @@ impl BlClanContributionWorker {
                                                     format!("{:.2}", s.total_points)
                                                         .cell()
                                                         .justify(Justify::Right),
-                                                    format!(
-                                                        "{}/{}",
-                                                        s.maps_count,
-                                                        captured_clan_stats.maps_count
-                                                    )
-                                                    .cell()
-                                                    .justify(Justify::Right),
-                                                    format!(
-                                                        "{}/{}",
-                                                        s.bonus_maps_count, bonus_maps_count,
-                                                    )
-                                                    .cell()
-                                                    .justify(Justify::Right),
-                                                    format!("{:.2}", s.total_pp)
-                                                        .cell()
-                                                        .justify(Justify::Right),
-                                                    format!("{:.2}", s.total_weighted_pp)
-                                                        .cell()
-                                                        .justify(Justify::Right),
-                                                    format!("{:.2}%", s.efficiency)
-                                                        .cell()
-                                                        .justify(Justify::Right),
-                                                    if captured_clan_stats.total_pp > 0.0 {
-                                                        format!(
-                                                            "{:.2}%",
-                                                            s.total_weighted_pp
-                                                                / captured_clan_stats.total_pp
-                                                                * 100.0
-                                                        )
-                                                        .cell()
-                                                        .justify(Justify::Right)
-                                                    } else {
-                                                        "0.00%".cell().justify(Justify::Center)
-                                                    },
                                                 ]
                                             })
                                             .collect::<Vec<_>>()
                                             .table()
                                             .title(vec![
                                                 "Soldier".cell(),
+                                                "Cap. maps".cell(),
                                                 "Cap. points".cell(),
+                                                "Bonus maps".cell(),
                                                 "Bonus points".cell(),
                                                 "Total points".cell(),
-                                                "Cap. maps".cell(),
-                                                "Bonus maps".cell(),
-                                                "Total PP".cell(),
-                                                "Contrib. PP".cell(),
-                                                "PP eff.".cell(),
-                                                "Contrib.".cell(),
                                             ])
                                             .color_choice(ColorChoice::Never);
 
                                         match table.display() {
                                             Ok(table_display) => {
                                                 let file_contents = format!(
-                                                    "// {} //\n\nCaptured maps: {}\nTotal captured PP: {:.2}\nBonus (to conquer) maps: {}\n\n{}",
+                                                    "// {} //\n\nCaptured maps: {}\nBonus (to conquer) maps: {}\n\n{}",
                                                     captured_clan_stats.clan_tag,
                                                     captured_clan_stats.maps_count,
-                                                    captured_clan_stats.total_pp,
                                                     bonus_maps_count,
                                                     table_display
                                                 );
@@ -352,10 +327,44 @@ impl BlClanContributionWorker {
                                                     .await
                                                 {
                                                     Ok(_) => {
-                                                        tracing::debug!("Clan wars contribution for the {} clan posted to channel #{}.", captured_clan_stats.clan_tag.clone(), clan_wars_channel_id);
+                                                        tracing::debug!("Clan wars contribution file for the {} clan posted to channel #{}.", captured_clan_stats.clan_tag.clone(), clan_wars_channel_id);
+
+                                                        let soldiers_pad = captured_clan_stats
+                                                            .soldiers
+                                                            .len()
+                                                            .div_ceil(10);
+                                                        let content = captured_clan_stats
+                                                            .soldiers
+                                                            .iter()
+                                                            .enumerate()
+                                                            .map(|(idx, s)| {
+                                                                format!(
+                                                                    "{:0pad$}. {} **{:.2} points**\n",
+                                                                    idx + 1,
+                                                                    s.player.name.clone(),
+                                                                    s.total_points,
+                                                                    pad = soldiers_pad
+                                                                )
+                                                            })
+                                                            .collect::<Vec<_>>();
+
+                                                        match post_long_msg_in_parts(
+                                                            &self.context,
+                                                            channel_id,
+                                                            content,
+                                                        )
+                                                        .await
+                                                        {
+                                                            Ok(_) => {
+                                                                tracing::debug!("Clan wars contribution ranking for the {} clan posted to channel #{}.", captured_clan_stats.clan_tag.clone(), clan_wars_channel_id);
+                                                            }
+                                                            Err(err) => {
+                                                                tracing::error!("Can not post clan wars contribution ranking to channel #{}: {}", clan_wars_channel_id, err);
+                                                            }
+                                                        }
                                                     }
                                                     Err(err) => {
-                                                        tracing::error!("Can not post clan wars contribution to channel #{}: {}", clan_wars_channel_id, err);
+                                                        tracing::error!("Can not post clan wars contribution file to channel #{}: {}", clan_wars_channel_id, err);
                                                     }
                                                 };
                                             }
@@ -471,10 +480,13 @@ impl BlClanContributionWorker {
                         };
 
                         s.points = if clan_stats.maps_count > 0 {
+                            // map 0-1 range into 70-98% acc
                             let percent_of_maps_played =
-                                (s.maps_count as f64 / clan_stats.maps_count as f64 - 0.05)
-                                    .max(0.01);
-                            s.map_percentages * curve_at_value(percent_of_maps_played)
+                                (s.maps_count as f64 / clan_stats.maps_count as f64) / 100.0 * 0.28
+                                    + 0.7;
+                            s.map_percentages
+                                * curve_at_value(percent_of_maps_played)
+                                * std::f64::consts::PI
                         } else {
                             0.0
                         };

@@ -10,7 +10,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use futures::future::BoxFuture;
-use poise::serenity_prelude::{ChannelId, UserId};
+use poise::serenity_prelude::{
+    ChannelId, CreateAllowedMentions, CreateEmbed, CreateMessage, Message, UserId,
+};
 use poise::SlashArgument;
 use poise::{async_trait, serenity_prelude as serenity};
 use reqwest::Method;
@@ -1376,6 +1378,38 @@ pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
             _ => Err(BlError::Unknown),
         },
     }
+}
+
+const MAX_DISCORD_MESSAGE_LENGTH: usize = 2000;
+pub(crate) async fn post_long_msg_in_parts(
+    global_ctx: &serenity::Context,
+    channel_id: ChannelId,
+    embed: Vec<String>,
+) -> Result<(), poise::serenity_prelude::Error> {
+    let len = embed.len();
+
+    let mut current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
+
+    for (idx, str) in embed.iter().enumerate() {
+        if current_str.len() + str.len() >= MAX_DISCORD_MESSAGE_LENGTH || idx == len - 1 {
+            current_str = current_str + str;
+
+            channel_id
+                .send_message(
+                    global_ctx.clone(),
+                    CreateMessage::new()
+                        .embed(CreateEmbed::new().description(current_str))
+                        .allowed_mentions(CreateAllowedMentions::new()),
+                )
+                .await?;
+
+            current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
+        } else {
+            current_str = current_str + str;
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
