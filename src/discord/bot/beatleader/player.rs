@@ -4,6 +4,7 @@ use poise::serenity_prelude::{GuildId, UserId};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, trace};
 
+use crate::beatleader::clan::ClanTag;
 use crate::beatleader::error::Error as BlError;
 use crate::beatleader::player::{
     MapType, Player as BlPlayer, PlayerId, PlayerScoreParam, PlayerScoreSort,
@@ -168,6 +169,14 @@ impl Player {
                 None
             },
         }
+    }
+
+    pub(crate) fn is_clan_member(&self, clan_tag: &ClanTag) -> bool {
+        !self.clans.is_empty() && self.clans.contains(clan_tag)
+    }
+
+    pub(crate) fn is_primary_clan_member(&self, clan_tag: &ClanTag) -> bool {
+        !self.clans.is_empty() && self.clans.first().unwrap() == clan_tag
     }
 
     pub(crate) fn is_linked_to_any_guild(&self) -> bool {

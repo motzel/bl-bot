@@ -86,7 +86,11 @@ impl BlClanWarsMapsWorker {
                                 for user_id in clan_settings.get_clan_wars_soldiers().iter() {
                                     match self.player_repository.get(user_id).await {
                                         Some(player) => {
-                                            soldiers.insert(player.id, *user_id);
+                                            if player
+                                                .is_primary_clan_member(&clan_settings.get_clan())
+                                            {
+                                                soldiers.insert(player.id, *user_id);
+                                            }
                                         }
                                         None => {
                                             tracing::warn!(
