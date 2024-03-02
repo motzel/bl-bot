@@ -12,12 +12,13 @@ use crate::beatleader::clan::{
     Clan, ClanId, ClanMap, ClanMapParam, ClanMapScore, ClanMapsParam, ClanMapsSort, ClanTag,
 };
 use crate::beatleader::error::Error as BlError;
-use crate::beatleader::player::PlayerId;
+use crate::beatleader::player::{Difficulty, PlayerId};
 use crate::beatleader::pp::{
     calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
 };
 use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
 use crate::discord::bot::beatleader::player::Player;
+use crate::discord::bot::beatleader::score::{MapRatingModifier, MapRatings};
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
@@ -252,7 +253,7 @@ impl ClanMapWithScores {
 impl Display for ClanMapWithScores {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f,
-               "### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n {} SS / **{}** / {} FS / {} SF\n",
+               "### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n",
                self.map.rank,
                self.map.leaderboard.song.name,
                self
@@ -266,6 +267,7 @@ impl Display for ClanMapWithScores {
                if self.scores.len() > 1 { "s" } else { "" },
                self.map.pp,
                self.pp_boundary,
+               <&Difficulty as Into<MapRatings>>::into(&self.map.leaderboard.difficulty).to_stars_string(Some(MapRatingModifier::None)),
                match self.acc_boundary.ss {
                    None => "Not possible".to_owned(),
                    Some(acc) => format!("{:.2}%", acc * 100.0),

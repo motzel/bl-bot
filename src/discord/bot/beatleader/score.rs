@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use chrono::serde::ts_seconds;
@@ -401,6 +401,59 @@ pub struct MapRatings {
     pub sf: Option<MapRating>,
 }
 
+impl MapRatings {
+    pub fn to_stars_string(&self, bold_modifier: Option<MapRatingModifier>) -> String {
+        let ss = self
+            .ss
+            .as_ref()
+            .map_or_else(|| "-".to_owned(), |s| s.to_stars_string());
+        let none = self
+            .none
+            .as_ref()
+            .map_or_else(|| "-".to_owned(), |s| s.to_stars_string());
+        let fs = self
+            .fs
+            .as_ref()
+            .map_or_else(|| "-".to_owned(), |s| s.to_stars_string());
+        let sf = self
+            .sf
+            .as_ref()
+            .map_or_else(|| "-".to_owned(), |s| s.to_stars_string());
+
+        format!(
+            "{} SS / {} / {} FS / {} SF",
+            if bold_modifier.is_some()
+                && bold_modifier.as_ref().unwrap() == &MapRatingModifier::SlowerSong
+            {
+                format!("**{}**", ss)
+            } else {
+                ss
+            },
+            if bold_modifier.is_some()
+                && bold_modifier.as_ref().unwrap() == &MapRatingModifier::None
+            {
+                format!("**{}**", none)
+            } else {
+                none
+            },
+            if bold_modifier.is_some()
+                && bold_modifier.as_ref().unwrap() == &MapRatingModifier::FasterSong
+            {
+                format!("**{}**", fs)
+            } else {
+                fs
+            },
+            if bold_modifier.is_some()
+                && bold_modifier.as_ref().unwrap() == &MapRatingModifier::SuperFastSong
+            {
+                format!("**{}**", sf)
+            } else {
+                sf
+            },
+        )
+    }
+}
+
 impl From<&Difficulty> for MapRatings {
     fn from(value: &Difficulty) -> Self {
         Self {
@@ -485,6 +538,10 @@ impl MapRating {
             acc,
             pass,
         }
+    }
+
+    pub fn to_stars_string(&self) -> String {
+        format!("{:.2}⭐", self.stars)
     }
 
     pub fn from_ai_ratings_and_modifier(ratings: &AiRatings, modifier: MapRatingModifier) -> Self {
