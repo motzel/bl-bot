@@ -369,11 +369,10 @@ where
 
         page_def.page += 1;
 
-        // TODO: commented due to BL API bug (https://github.com/BeatLeader/beatleader-server/blob/b047f703ca63b08920c9747ca40c5d7ba8fc97ff/Controllers/ClanController.cs#L229)
-        // if let Some(actual_items_per_page) = page_data.items_per_page {
-        //     page_def.items_per_page = actual_items_per_page;
-        //     data.items_per_page = Some(actual_items_per_page);
-        // }
+        if let Some(actual_items_per_page) = page_data.items_per_page {
+            page_def.items_per_page = actual_items_per_page;
+            data.items_per_page = Some(actual_items_per_page);
+        }
 
         if let Some(actual_total) = page_data.total {
             total = actual_total;
