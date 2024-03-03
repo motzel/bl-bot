@@ -55,8 +55,8 @@ impl UserRolesWorker {
                 } {
                     tracing::debug!(
                         "User {} roles in the guild {} are not managed by the bot, skipping.",
+                        &bot_player.name,
                         guild_id,
-                        &bot_player.name
                     );
 
                     continue;
