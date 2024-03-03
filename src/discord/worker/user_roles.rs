@@ -45,7 +45,13 @@ impl UserRolesWorker {
 
             let mut guilds_to_unlink = vec![];
             for guild_id in &bot_player.linked_guilds {
-                // TODO: do not get user roles if guild does not have automatic roles enabled
+                if !match self.guild_settings_repository.get(guild_id).await {
+                    Ok(guild_settings) => guild_settings.manages_roles(),
+                    Err(_) => false,
+                } {
+                    continue;
+                }
+
                 let member = match self
                     .context
                     .http

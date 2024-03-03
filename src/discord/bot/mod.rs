@@ -861,6 +861,12 @@ impl GuildSettings {
         }
     }
 
+    pub fn manages_roles(&self) -> bool {
+        !self.role_groups.is_empty()
+            || (self.clan_settings.is_some()
+                && !self.clan_settings.as_ref().unwrap().soldiers.is_empty())
+    }
+
     pub fn get_clan_settings(&self) -> Option<ClanSettings> {
         self.clan_settings.clone()
     }
