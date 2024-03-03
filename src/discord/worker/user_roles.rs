@@ -7,7 +7,6 @@ use poise::serenity_prelude::{
     http, CreateAllowedMentions, CreateAttachment, CreateMessage, ErrorResponse, GuildId,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
 
 use crate::discord::bot::beatleader::player::Player;
 use crate::discord::bot::commands::player::get_player_embed;
@@ -34,73 +33,87 @@ impl UserRolesWorker {
     }
 
     pub async fn run(&self, bot_players: Vec<Player>) {
-        info!("Updating players roles ({})...", bot_players.len());
+        tracing::info!("Updating players roles ({})...", bot_players.len());
 
         let mut current_players_roles = Vec::new();
         for bot_player in bot_players {
-            debug!(
+            tracing::debug!(
                 "Fetching user {} ({}) roles...",
-                &bot_player.user_id, &bot_player.name
+                &bot_player.user_id,
+                &bot_player.name
             );
 
             let mut guilds_to_unlink = vec![];
             for guild_id in &bot_player.linked_guilds {
                 if !match self.guild_settings_repository.get(guild_id).await {
                     Ok(guild_settings) => guild_settings.manages_roles(),
-                    Err(_) => false,
+                    Err(err) => {
+                        tracing::error!("Can not fetch guild {} settings due to error: {:?}. Skipping fetching user {} roles.", guild_id, err, &bot_player.name);
+
+                        false
+                    }
                 } {
+                    tracing::debug!(
+                        "User {} roles in the guild {} are not managed by the bot, skipping.",
+                        guild_id,
+                        &bot_player.name
+                    );
+
                     continue;
                 }
 
-                let member = match self
-                    .context
-                    .http
-                    .get_member(GuildId::from(guild_id), bot_player.user_id)
-                    .await
-                {
-                    Ok(member) => member,
-                    Err(err) => {
-                        error!(
+                let member =
+                    match self
+                        .context
+                        .http
+                        .get_member(GuildId::from(guild_id), bot_player.user_id)
+                        .await
+                    {
+                        Ok(member) => member,
+                        Err(err) => {
+                            tracing::error!(
                             "Can not fetch user {} membership in {} guild due to an error: {:?}.",
                             bot_player.user_id, &guild_id, err
                         );
 
-                        match err {
-                            SerenityError::Http(http::HttpError::UnsuccessfulRequest(
-                                ErrorResponse {
-                                    error: discord_err, ..
-                                },
-                            )) => {
-                                {
-                                    // see: https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
-                                    if discord_err.code == 10007 {
-                                        debug!(
+                            match err {
+                                SerenityError::Http(http::HttpError::UnsuccessfulRequest(
+                                    ErrorResponse {
+                                        error: discord_err, ..
+                                    },
+                                )) => {
+                                    {
+                                        // see: https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
+                                        if discord_err.code == 10007 {
+                                            tracing::debug!(
                                             "User {} ({}) is not a member of the guild {} anymore.",
                                             &bot_player.user_id, &bot_player.name, &guild_id
                                         );
-                                        guilds_to_unlink.push(u64::from(*guild_id));
-                                    }
+                                            guilds_to_unlink.push(u64::from(*guild_id));
+                                        }
 
-                                    continue;
+                                        continue;
+                                    }
                                 }
+                                _ => continue,
                             }
-                            _ => continue,
                         }
-                    }
-                };
+                    };
 
                 current_players_roles.push((*guild_id, bot_player.clone(), member.roles));
 
                 if self.token.is_cancelled() {
-                    warn!("User roles task is shutting down...");
+                    tracing::warn!("User roles task is shutting down...");
                     return;
                 }
             }
 
             if !guilds_to_unlink.is_empty() {
-                info!(
+                tracing::info!(
                     "Unlinking user {} ({}) from guilds {:?}...",
-                    &bot_player.user_id, &bot_player.name, &guilds_to_unlink
+                    &bot_player.user_id,
+                    &bot_player.name,
+                    &guilds_to_unlink
                 );
 
                 let _ = self
@@ -142,7 +155,7 @@ impl UserRolesWorker {
                             .get(&rc.guild_id)
                             .map_or_else(|| None, |guild_settings| guild_settings.get_channel())
                         {
-                            info!("Logging changes to channel #{}", bot_channel_id);
+                            tracing::info!("Logging changes to channel #{}", bot_channel_id);
 
                             match self.players_repository.get(&rc.user_id).await {
                                 Some(player) => {
@@ -165,9 +178,10 @@ impl UserRolesWorker {
                                     {
                                         Ok(_) => {}
                                         Err(err) => {
-                                            info!(
+                                            tracing::info!(
                                                 "Can not post log update to channel #{}: {}",
-                                                bot_channel_id, err
+                                                bot_channel_id,
+                                                err
                                             );
                                         }
                                     };
@@ -184,9 +198,10 @@ impl UserRolesWorker {
                                     {
                                         Ok(_) => {}
                                         Err(err) => {
-                                            info!(
+                                            tracing::info!(
                                                 "Can not post log update to channel #{}: {}",
-                                                bot_channel_id, err
+                                                bot_channel_id,
+                                                err
                                             );
                                         }
                                     };
@@ -196,16 +211,16 @@ impl UserRolesWorker {
                     }
                 }
                 Err(e) => {
-                    error!("Failed to update roles for user {}: {}", rc.user_id, e);
+                    tracing::error!("Failed to update roles for user {}: {}", rc.user_id, e);
                 }
             }
 
             if self.token.is_cancelled() {
-                warn!("User roles task is shutting down...");
+                tracing::warn!("User roles task is shutting down...");
                 return;
             }
         }
 
-        info!("Players roles updated.");
+        tracing::info!("Players roles updated.");
     }
 }
