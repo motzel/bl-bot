@@ -6,15 +6,16 @@ use chrono::Utc;
 use cli_table::{format::Justify, Cell, ColorChoice, Table};
 use poise::serenity_prelude::{
     AutoArchiveDuration, ChannelType, CreateAllowedMentions, CreateAttachment, CreateMessage,
-    CreateThread, UserId,
+    CreateThread,
 };
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::beatleader::clan::{ClanPlayer, ClanTag};
-use crate::beatleader::player::PlayerId;
+use crate::beatleader::clan::{ClanMapScore, ClanPlayer, ClanTag};
+use crate::beatleader::player::{LeaderboardId, PlayerId};
 use crate::beatleader::pp::{curve_at_value, CLAN_WEIGHT_COEFFICIENT};
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
+use crate::discord::bot::beatleader::player::Player;
 use crate::discord::bot::post_long_msg_in_parts;
 use crate::discord::{serenity, BotData};
 use crate::storage::guild::GuildSettingsRepository;
@@ -103,14 +104,14 @@ impl BlClanContributionWorker {
                                     clan_settings.get_clan()
                                 );
 
-                                let mut soldiers = HashMap::<PlayerId, UserId>::new();
+                                let mut soldiers = HashMap::<PlayerId, Player>::new();
                                 for user_id in clan_settings.get_clan_wars_soldiers().iter() {
                                     match self.player_repository.get(user_id).await {
                                         Some(player) => {
                                             if player
                                                 .is_primary_clan_member(&clan_settings.get_clan())
                                             {
-                                                soldiers.insert(player.id, *user_id);
+                                                soldiers.insert(player.id.clone(), player);
                                             }
                                         }
                                         None => {
@@ -122,13 +123,14 @@ impl BlClanContributionWorker {
                                     };
                                 }
 
-                                match Self::get_stats(
-                                    clan_settings.get_clan(),
-                                    ClanWarsSort::ToHold,
-                                    None,
-                                    &soldiers,
-                                )
-                                .await
+                                match self
+                                    .get_stats(
+                                        clan_settings.get_clan(),
+                                        ClanWarsSort::ToHold,
+                                        None,
+                                        &soldiers,
+                                    )
+                                    .await
                                 {
                                     Some(mut captured_clan_stats) => {
                                         tracing::info!(
@@ -139,23 +141,24 @@ impl BlClanContributionWorker {
 
                                         const MIN_BONUS_MAPS_COUNT: u32 = 20;
                                         const MAX_BONUS_MAPS_COUNT: u32 = 50;
-                                        let conquer_clan_stats = match Self::get_stats(
-                                            clan_settings.get_clan(),
-                                            ClanWarsSort::ToConquer,
-                                            Some(
-                                                if captured_clan_stats.maps_count
-                                                    < MIN_BONUS_MAPS_COUNT
-                                                {
-                                                    MIN_BONUS_MAPS_COUNT
-                                                } else {
-                                                    captured_clan_stats
-                                                        .maps_count
-                                                        .min(MAX_BONUS_MAPS_COUNT)
-                                                },
-                                            ),
-                                            &soldiers,
-                                        )
-                                        .await
+                                        let conquer_clan_stats = match self
+                                            .get_stats(
+                                                clan_settings.get_clan(),
+                                                ClanWarsSort::ToConquer,
+                                                Some(
+                                                    if captured_clan_stats.maps_count
+                                                        < MIN_BONUS_MAPS_COUNT
+                                                    {
+                                                        MIN_BONUS_MAPS_COUNT
+                                                    } else {
+                                                        captured_clan_stats
+                                                            .maps_count
+                                                            .min(MAX_BONUS_MAPS_COUNT)
+                                                    },
+                                                ),
+                                                &soldiers,
+                                            )
+                                            .await
                                         {
                                             None => None,
                                             Some(conquer_clan_stats) => {
@@ -406,17 +409,96 @@ impl BlClanContributionWorker {
     }
 
     async fn get_stats(
+        &self,
         clan_tag: ClanTag,
         sort: ClanWarsSort,
         count: Option<u32>,
-        soldiers: &HashMap<PlayerId, UserId>,
+        soldiers: &HashMap<PlayerId, Player>,
     ) -> Option<ClanStats> {
-        match ClanWars::fetch(clan_tag.clone(), sort.clone(), count).await {
-            Ok(clan_wars) => {
+        match ClanWars::fetch(clan_tag.clone(), sort.clone(), count, true).await {
+            Ok(mut clan_wars) => {
                 let mut clan_stats = ClanStats {
                     clan_tag,
                     ..Default::default()
                 };
+
+                // get all relevant leaderboard ids
+                let leaderboard_ids = clan_wars
+                    .maps
+                    .iter()
+                    .map(|m| m.map.leaderboard.id.clone())
+                    .collect::<Vec<_>>();
+
+                // fetch soldiers scores for relevant leaderboards and add to the clan wars
+                for (player_id, player) in soldiers.iter() {
+                    match self.player_scores_repository.get(player_id).await {
+                        Some(player_scores) => player_scores
+                            .scores
+                            .into_iter()
+                            .filter_map(|score| {
+                                if !leaderboard_ids.contains(&score.leaderboard_id) {
+                                    return None;
+                                }
+
+                                Some((
+                                    score.leaderboard_id,
+                                    ClanMapScore {
+                                        id: 0,
+                                        player_id: score.player_id.clone(),
+                                        player: ClanPlayer {
+                                            id: score.player_id.clone(),
+                                            name: player.name.clone(),
+                                            avatar: player.avatar.clone(),
+                                            country: player.country.clone(),
+                                            rank: player.rank,
+                                            country_rank: player.country_rank,
+                                            pp: player.pp,
+                                        },
+                                        accuracy: score.accuracy,
+                                        pp: score.pp,
+                                        rank: score.rank,
+                                        bad_cuts: 0,
+                                        bomb_cuts: 0,
+                                        missed_notes: 0,
+                                        walls_hit: 0,
+                                        full_combo: score.full_combo,
+                                        modifiers: score.modifiers,
+                                        timeset: score.timeset,
+                                        timepost: score.timepost,
+                                    },
+                                ))
+                            })
+                            .collect::<HashMap<LeaderboardId, ClanMapScore>>(),
+                        None => HashMap::new(),
+                    }
+                    .into_iter()
+                    .for_each(|(leaderboard_id, clan_map_score)| {
+                        match clan_wars
+                            .maps
+                            .iter()
+                            .position(|m| m.map.leaderboard.id == leaderboard_id)
+                        {
+                            None => {
+                                tracing::warn!(
+                                    "Can not find an index for clan wars maps for leaderboardId {}",
+                                    &leaderboard_id
+                                );
+                            }
+                            Some(idx) => {
+                                clan_wars.maps[idx].scores.push(clan_map_score);
+                            }
+                        };
+                    });
+                }
+
+                // sort scores for all clan wars maps by pp desc
+                for map in clan_wars.maps.iter_mut() {
+                    map.scores.sort_unstable_by(|a, b| {
+                        b.pp.partial_cmp(&a.pp).unwrap_or(Ordering::Equal)
+                    });
+                }
+
+                drop(leaderboard_ids);
 
                 let mut player_stats = HashMap::<PlayerId, ClanSoldierStats>::new();
 

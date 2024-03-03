@@ -171,9 +171,9 @@ impl DiscordClient {
                                         discord_user_roles_worker.run(bot_players).await;
                                     }
 
-                                    bl_clan_wars_maps_worker.run().await;
-
                                     bl_clan_contribution_maps_worker.run().await;
+
+                                    bl_clan_wars_maps_worker.run().await;
 
                                     tokio::select! {
                                         _ = token_clone.cancelled() => {

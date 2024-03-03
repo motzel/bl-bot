@@ -89,6 +89,7 @@ impl BlClanWarsMapsWorker {
                                     clan_settings.get_clan(),
                                     ClanWarsSort::ToConquer,
                                     Some(30),
+                                    false,
                                 )
                                 .await
                                 {

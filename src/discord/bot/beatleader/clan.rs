@@ -301,6 +301,7 @@ impl ClanWars {
         clan_tag: ClanTag,
         sort: ClanWarsSort,
         items_count: Option<u32>,
+        without_scores: bool,
     ) -> Result<Self, BlError> {
         let clan_tag_clone = clan_tag.clone();
         let sort_clone = sort.clone();
@@ -356,7 +357,7 @@ impl ClanWars {
 
             let requested_scores_per_page = 50;
 
-            map.scores =
+            map.scores = if !without_scores {
                 beatleader::fetch_paged_items(requested_scores_per_page, None, move |page_def| {
                     let leaderboard_id = leaderboard_id.clone();
 
@@ -382,7 +383,10 @@ impl ClanWars {
                     }
                 })
                 .await?
-                .data;
+                .data
+            } else {
+                vec![]
+            };
 
             map.calc_pp_boundary(None);
         }

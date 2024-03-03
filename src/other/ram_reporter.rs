@@ -15,7 +15,7 @@ impl RamReporter {
     }
 
     pub async fn start(self) {
-        let interval = std::time::Duration::from_secs(70);
+        let interval = std::time::Duration::from_secs(60);
         info!("Run RAM reporter task that reports every {:?}", interval);
 
         'outer: loop {
