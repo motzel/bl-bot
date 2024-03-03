@@ -322,12 +322,15 @@ pub struct Song {
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub author: String,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
     pub duration: Duration,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
     pub bpm: f32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub cover_image: String,
     #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
     pub full_cover_image: String,
 }
 

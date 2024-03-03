@@ -296,6 +296,8 @@ pub(crate) async fn fetch_all_player_scores(
                 }
             }
             Err(e) => {
+                tracing::error!("Can not fetch scores page: {:?}", e);
+
                 return Err(e);
             }
         };
