@@ -152,8 +152,9 @@ impl DiscordClient {
                             let bl_clan_contribution_maps_worker = BlClanContributionWorker::new(
                                 ctx.clone(),
                                 data.clone().into(),
-                                // TODO:
-                                chrono::Duration::minutes(settings.clan_wars_interval as i64),
+                                chrono::Duration::minutes(
+                                    settings.clan_wars_contribution_interval as i64,
+                                ),
                                 token_clone.clone(),
                             );
 

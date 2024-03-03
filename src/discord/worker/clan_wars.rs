@@ -70,7 +70,7 @@ impl BlClanWarsMapsWorker {
                     if last_posted_at.is_none()
                         || last_posted_at
                             .unwrap()
-                            .le(&(Utc::now() - chrono::Duration::minutes(60)))
+                            .le(&(Utc::now() - self.refresh_interval))
                     {
                         match self
                             .guild_settings_repository

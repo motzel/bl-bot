@@ -77,6 +77,7 @@ pub(crate) struct Settings {
     pub storage_path: String,
     pub clan_wars_interval: u64,
     pub clan_wars_maps_count: u16,
+    pub clan_wars_contribution_interval: u64,
     pub oauth: Option<OAuthSettings>,
     pub server: ServerSettings,
     pub tracing: TracingSettings,
@@ -91,6 +92,7 @@ impl Settings {
             .set_default("storage_path", "./.storage")?
             .set_default("clan_wars_interval", 360)?
             .set_default("clan_wars_maps_count", 30)?
+            .set_default("clan_wars_contribution_interval", 180)?
             .set_default(
                 "server",
                 ValueKind::Array(vec![
@@ -121,6 +123,12 @@ impl Settings {
                 if config.clan_wars_maps_count > 100 {
                     return Err(ConfigError::Message(
                         "CLAN_WARS_MAPS_COUNT should not be greater than 100".to_owned(),
+                    ));
+                }
+
+                if config.clan_wars_contribution_interval < 30 {
+                    return Err(ConfigError::Message(
+                        "CLAN_WARS_CONTRIBUTION_INTERVAL should be at least 30 minutes".to_owned(),
                     ));
                 }
 
