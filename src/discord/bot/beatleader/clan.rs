@@ -595,25 +595,15 @@ impl Playlist {
     pub fn songs_from_scores(scores: Vec<ClanMap>) -> Vec<PlaylistItem> {
         scores
             .into_iter()
-            .fold(
-                HashMap::<String, Vec<PlaylistDifficulty>>::new(),
-                |mut acc, score| {
-                    let diff = PlaylistDifficulty {
-                        characteristic: score.leaderboard.difficulty.mode_name,
-                        name: Playlist::lower_fist_char(
-                            score.leaderboard.difficulty.difficulty_name.as_str(),
-                        ),
-                    };
-
-                    acc.entry(score.leaderboard.song.hash)
-                        .and_modify(|playlist_difficulty| playlist_difficulty.push(diff.clone()))
-                        .or_insert(vec![diff]);
-
-                    acc
-                },
-            )
-            .into_iter()
-            .map(|(hash, difficulties)| PlaylistItem { hash, difficulties })
+            .map(|score| PlaylistItem {
+                hash: score.leaderboard.song.hash,
+                difficulties: vec![PlaylistDifficulty {
+                    characteristic: score.leaderboard.difficulty.mode_name,
+                    name: Playlist::lower_fist_char(
+                        score.leaderboard.difficulty.difficulty_name.as_str(),
+                    ),
+                }],
+            })
             .collect::<Vec<_>>()
     }
 
