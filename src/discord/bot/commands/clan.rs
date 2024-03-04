@@ -15,10 +15,12 @@ use crate::discord::bot::beatleader::clan::{
     fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsPlayDate, ClanWarsSort, Playlist,
 };
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
-use crate::discord::bot::commands::get_user_id_with_required_permission;
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
+};
+use crate::discord::bot::commands::{
+    get_leaderboard_ids_from_message, get_user_id_with_required_permission,
 };
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
@@ -528,32 +530,15 @@ pub(crate) async fn cmd_capture(
         return Ok(());
     }
 
-    let contents = format!(
-        "{}\n{}",
-        message.content,
-        message
-            .embeds
-            .into_iter()
-            .map(|e| e.description.unwrap_or_default())
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+    let leaderboard_ids = get_leaderboard_ids_from_message(message);
 
-    let matches = regex::Regex::new(
-        r"beatleader.(?:xyz|net)/leaderboard/.*?/(?<leaderboard_id>[^\/\?$)\s>]+)",
-    )
-    .unwrap()
-    .captures_iter(&contents)
-    .filter_map(|c| c.name("leaderboard_id"))
-    .collect::<Vec<_>>();
-
-    if matches.is_empty() {
+    if leaderboard_ids.is_empty() {
         say_without_ping(ctx, "Are you sure you wanted to capture this map? I can't find any link to the leaderboard in this message.", false).await?;
 
         return Ok(());
     }
 
-    if matches.len() > 1 {
+    if leaderboard_ids.len() > 1 {
         say_without_ping(ctx, "There is more than one link to the leaderboard in this message. I know you'd like to capture all these maps, but unfortunately I can't help.", false).await?;
 
         return Ok(());
@@ -611,7 +596,7 @@ pub(crate) async fn cmd_capture(
                 .say("Sure, lemme check! Oil your gun properly while I check this map for you.")
                 .await?;
 
-            let leaderboard_id = matches.first().unwrap().clone().as_str();
+            let leaderboard_id = leaderboard_ids.first().unwrap();
 
             let map = match BL_CLIENT
                 .clan()

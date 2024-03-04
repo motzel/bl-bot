@@ -11,7 +11,8 @@ pub(crate) use guild::{
     cmd_show_settings,
 };
 pub(crate) use player::{cmd_link, cmd_profile, cmd_refresh_scores, cmd_replay, cmd_unlink};
-use poise::serenity_prelude::{Permissions, User, UserId};
+use poise::serenity_prelude::{Message, Permissions, User, UserId};
+use regex::Match;
 pub(crate) use register::cmd_register;
 
 pub(crate) mod backup;
@@ -92,4 +93,24 @@ pub(crate) async fn get_user_id_with_required_permission(
         },
         None => Ok(ctx.author().id),
     }
+}
+
+pub(crate) fn get_leaderboard_ids_from_message(message: Message) -> Vec<String> {
+    let contents = format!(
+        "{}\n{}",
+        message.content,
+        message
+            .embeds
+            .into_iter()
+            .map(|e| e.description.unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    regex::Regex::new(r"beatleader.(?:xyz|net)/leaderboard/.*?/(?<leaderboard_id>[^\/\?$)\s>]+)")
+        .unwrap()
+        .captures_iter(&contents)
+        .filter_map(|c| c.name("leaderboard_id"))
+        .map(|m| m.as_str().to_string())
+        .collect::<Vec<_>>()
 }
