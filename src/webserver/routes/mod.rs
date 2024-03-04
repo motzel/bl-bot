@@ -171,6 +171,7 @@ async fn playlist(
                     custom_data.count,
                     custom_data.max_stars,
                     custom_data.max_clan_pp_diff,
+                    custom_data.fc_status
                 )
                 .await
                 {

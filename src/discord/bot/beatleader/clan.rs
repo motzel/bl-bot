@@ -96,6 +96,27 @@ impl From<ClanWarsPlayDate> for Option<DateTime<Utc>> {
     }
 }
 
+#[derive(Debug, poise::ChoiceParameter, Default, Clone, Serialize, Deserialize)]
+pub(crate) enum ClanWarsFc {
+    #[name = "No matter"]
+    #[default]
+    NoMatter,
+    #[name = "Not FC only"]
+    NotFc,
+    #[name = "FC only"]
+    Fc,
+}
+
+impl From<ClanWarsFc> for Option<bool> {
+    fn from(value: ClanWarsFc) -> Self {
+        match value {
+            ClanWarsFc::NoMatter => None,
+            ClanWarsFc::NotFc => Some(false),
+            ClanWarsFc::Fc => Some(true),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
@@ -438,6 +459,7 @@ pub(crate) struct PlaylistCustomData {
     pub count: u32,
     pub max_stars: Option<f64>,
     pub max_clan_pp_diff: Option<f64>,
+    pub fc_status: Option<bool>,
 }
 
 pub(crate) type PlaylistId = String;
@@ -467,6 +489,7 @@ impl Playlist {
         count: u32,
         max_stars: Option<f64>,
         max_clan_pp_diff: Option<f64>,
+        fc_status: Option<bool>,
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
@@ -496,8 +519,8 @@ impl Playlist {
             .unwrap_or_default()
             .scores
             .into_iter()
-            .map(|score| (score.leaderboard_id, score.timepost))
-            .collect::<HashMap<String, DateTime<Utc>>>();
+            .map(|score| (score.leaderboard_id, (score.timepost, score.full_combo)))
+            .collect::<HashMap<String, (DateTime<Utc>, bool)>>();
 
         let played_filter: Option<DateTime<Utc>> = last_played.clone().into();
 
@@ -509,15 +532,24 @@ impl Playlist {
             .data
             .into_iter()
             .filter(|score| {
-                let score_timepost = player_leaderboard_ids.get(&score.leaderboard.id);
+                let score_timepost = player_leaderboard_ids
+                    .get(&score.leaderboard.id)
+                    .map(|v| v.0);
+                let score_fc = player_leaderboard_ids
+                    .get(&score.leaderboard.id)
+                    .map(|v| v.1);
                 let map_clan_pp_diff = score.pp.abs();
                 let map_stars = score.leaderboard.difficulty.stars;
 
                 (score_timepost.is_none()
                     || (played_filter.is_some()
-                        && played_filter.unwrap() > *score_timepost.unwrap()))
+                        && played_filter.unwrap() > score_timepost.unwrap()))
                     && (max_stars_value == 0.0 || map_stars <= max_stars_value)
                     && (max_clan_pp_diff_value == 0.0 || map_clan_pp_diff <= max_clan_pp_diff_value)
+                    && (score_fc.is_none()
+                        || fc_status.is_none()
+                        || (fc_status == Some(false) && score_fc == Some(false))
+                        || (fc_status == Some(true) && score_fc == Some(true)))
             })
             .take(count as usize)
             .collect::<Vec<_>>();
@@ -547,6 +579,7 @@ impl Playlist {
                 count,
                 max_stars,
                 max_clan_pp_diff,
+                fc_status,
             }),
             ..Playlist::default()
         })

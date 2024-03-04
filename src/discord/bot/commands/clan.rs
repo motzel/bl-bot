@@ -12,7 +12,8 @@ use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
 use crate::beatleader::DataWithMeta;
 use crate::discord::bot::beatleader::clan::{
-    fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsPlayDate, ClanWarsSort, Playlist,
+    fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsFc, ClanWarsPlayDate, ClanWarsSort,
+    Playlist,
 };
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
@@ -346,6 +347,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
     #[description = "Maps clan pp difference (default: player's top pp)"] max_clan_pp_diff: Option<
         f64,
     >,
+    #[description = "FC status"] fc: Option<ClanWarsFc>,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
@@ -356,6 +358,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
         Some(v) if v > 0 && v <= 100 => v,
         Some(_others) => 100,
     };
+    let fc_status: Option<bool> = fc.unwrap_or(ClanWarsFc::NoMatter).into();
 
     let guild_settings = get_guild_settings(ctx, true).await?;
     if guild_settings.clan_settings.is_none() {
@@ -440,6 +443,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 count as u32,
                 max_stars,
                 max_clan_pp_diff,
+                fc_status,
             )
             .await
             {
