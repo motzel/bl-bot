@@ -96,6 +96,23 @@ impl From<ClanWarsPlayDate> for Option<DateTime<Utc>> {
     }
 }
 
+impl Display for ClanWarsPlayDate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ClanWarsPlayDate::Never => "never played",
+                ClanWarsPlayDate::Month => "1 month",
+                ClanWarsPlayDate::ThreeMonths => "3 months",
+                ClanWarsPlayDate::SixMonths => "6 months",
+                ClanWarsPlayDate::Year => "+ year",
+                ClanWarsPlayDate::NoMatter => "no matter",
+            }
+        )
+    }
+}
+
 #[derive(Debug, poise::ChoiceParameter, Default, Clone, Serialize, Deserialize)]
 pub(crate) enum ClanWarsFc {
     #[name = "No matter"]
@@ -555,9 +572,29 @@ impl Playlist {
             .collect::<Vec<_>>();
 
         let playlist_title = format!(
-            "{}-clan wars-{}",
+            "{}-clan wars-{}-{}{}{}{}",
             clan_tag,
-            playlist_type.to_string().to_lowercase()
+            playlist_type.to_string().to_lowercase(),
+            last_played,
+            if max_stars.is_some() {
+                format!("-{:.2}*", max_stars.unwrap())
+            } else {
+                "".to_owned()
+            },
+            if max_clan_pp_diff.is_some() {
+                format!("-{:.2}pp", max_clan_pp_diff.unwrap())
+            } else {
+                "".to_owned()
+            },
+            if fc_status.is_some() {
+                if fc_status.unwrap() {
+                    "-fc"
+                } else {
+                    "-not-fc"
+                }
+            } else {
+                ""
+            },
         );
         let id = Playlist::generate_id();
 
