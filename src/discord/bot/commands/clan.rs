@@ -537,7 +537,7 @@ pub(crate) async fn cmd_capture(
     let leaderboard_ids = get_leaderboard_ids_from_message(message);
 
     if leaderboard_ids.is_empty() {
-        say_without_ping(ctx, "Are you sure you wanted to capture this map? I can't find any link to the leaderboard in this message.", false).await?;
+        say_without_ping(ctx, "Are you sure you wanted to capture map from this message? I can't find any link to the leaderboard here.", false).await?;
 
         return Ok(());
     }

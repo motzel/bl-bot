@@ -102,7 +102,13 @@ pub(crate) fn get_leaderboard_ids_from_message(message: Message) -> Vec<String> 
         message
             .embeds
             .into_iter()
-            .map(|e| e.description.unwrap_or_default())
+            .map(|e| format!(
+                "{}\n{}\n{}\n{}",
+                &e.title.unwrap_or_default(),
+                &e.description.unwrap_or_default(),
+                &e.url.unwrap_or_default(),
+                &e.footer.map(|f| f.text).unwrap_or_default()
+            ))
             .collect::<Vec<_>>()
             .join("\n")
     );
