@@ -2,32 +2,32 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use magic_crypt::{MagicCryptTrait, new_magic_crypt};
-use poise::CreateReply;
+use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, Role, User};
+use poise::CreateReply;
 
-use crate::{BL_CLIENT, Error};
 use crate::beatleader::clan::Clan;
 use crate::beatleader::clan::ClanMapParam;
 use crate::beatleader::clan::ClanRankingParam;
-use crate::beatleader::DataWithMeta;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
-use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
+use crate::beatleader::DataWithMeta;
 use crate::discord::bot::beatleader::clan::{
-    AccBoundary, ClanMapWithScores, ClanWarsFc, ClanWarsPlayDate, ClanWarsSort, fetch_clan,
+    fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsFc, ClanWarsPlayDate, ClanWarsSort,
     Playlist,
 };
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
-use crate::discord::bot::commands::{
-    get_leaderboard_ids_from_message, get_user_id_with_required_permission,
-};
 use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
 use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
 };
+use crate::discord::bot::commands::{
+    get_leaderboard_ids_from_message, get_user_id_with_required_permission,
+};
+use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
+use crate::{Error, BL_CLIENT};
 
 /// Set up sending of clan invitations
 #[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-invitation")]

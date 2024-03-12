@@ -1,4 +1,6 @@
+use std::future::Future;
 use std::num::NonZeroU32;
+use std::result;
 use std::time::Duration;
 
 use governor::clock::DefaultClock;
@@ -10,14 +12,12 @@ use reqwest::{
     Url,
 };
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, trace};
 
-use crate::beatleader::clan::ClanResource;
 use player::PlayerResource;
-use serde::{Deserialize, Serialize};
-use std::future::Future;
-use std::result;
 
+use crate::beatleader::clan::ClanResource;
 use crate::beatleader::error::Error;
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthAppCredentials, OAuthTokenRepository};
 use crate::beatleader::rating::AiRatingsResource;
@@ -175,6 +175,7 @@ impl Client {
                 );
 
                 match response.status().as_u16() {
+                    204 => Err(Error::NoContent),
                     200..=299 => Ok(response),
                     401 | 403 => Err(Error::Unauthorized),
                     404 => Err(Error::NotFound),

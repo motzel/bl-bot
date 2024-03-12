@@ -1,12 +1,15 @@
-use crate::beatleader::oauth::OAuthErrorResponse;
-use chrono::{DateTime, Utc};
 use std::{error, fmt};
+
+use chrono::{DateTime, Utc};
+
+use crate::beatleader::oauth::OAuthErrorResponse;
 
 #[derive(Debug)]
 pub enum Error {
     Request(reqwest::Error),
     Network(reqwest::Error),
     NotFound,
+    NoContent,
     Unauthorized,
     Client(Option<String>),
     OAuth(Option<OAuthErrorResponse>),
@@ -23,7 +26,8 @@ impl fmt::Display for Error {
         match self {
             Error::Request(e) => write!(f, "BL request building error: {}", e),
             Error::Network(e) => write!(f, "network error ({})", e),
-            Error::NotFound => write!(f, "BL player not found"),
+            Error::NoContent => write!(f, "no content"),
+            Error::NotFound => write!(f, "not found"),
             Error::Unauthorized => write!(f, "BL unauthorized error"),
             Error::Client(_) => write!(f, "BL client error"),
             Error::Server => write!(f, "BL server error"),
@@ -51,6 +55,7 @@ impl error::Error for Error {
             Error::Request(e) | Error::Network(e) => Some(e),
             Error::JsonDecode(e) => Some(e),
             Error::NotFound
+            | Error::NoContent
             | Error::Unauthorized
             | Error::Client(_)
             | Error::Server
