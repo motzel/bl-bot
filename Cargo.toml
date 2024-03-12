@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.17.15"
+version = "0.17.16"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
@@ -19,14 +19,14 @@ futures = "^0.3.29"
 lazy_static = "^1.4.0"
 peak_alloc = "^0.2.0"
 governor = "^0.6.0"
-serde_with = {version = "^3.4.0", features = ["chrono"]}
+serde_with = { version = "^3.4.0", features = ["chrono"] }
 regex = "^1.10.2"
-chrono = {version = "^0.4.31", features = ["serde"] }
+chrono = { version = "^0.4.31", features = ["serde"] }
 serde_repr = "^0.1.17"
 ril = { version = "^0.10.1", features = ["all"] }
 stackblur-iter = "^0.2.0"
 bytes = "^1.5.0"
-relativetime = {version = "^0.1.4", features = ["chrono"] }
+relativetime = { version = "^0.1.4", features = ["chrono"] }
 thiserror = { version = "1.0.50", features = [] }
 async-trait = "^0.1.74"
 ttf-parser = "^0.20.0"
