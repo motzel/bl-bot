@@ -495,6 +495,12 @@ pub(crate) struct PlaylistDifficulty {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PlaylistItem {
+    #[serde(default)]
+    song_name: String,
+    #[serde(default)]
+    level_author_name: String,
+    #[serde(default)]
+    levelid: String,
     hash: String,
     difficulties: Vec<PlaylistDifficulty>,
 }
@@ -704,6 +710,14 @@ impl Playlist {
         scores
             .into_iter()
             .map(|score| PlaylistItem {
+                song_name: score.leaderboard.song.name,
+                level_author_name: score.leaderboard.song.author,
+                levelid: format!(
+                    "custom_level_{}_{}_{}",
+                    &score.leaderboard.song.hash,
+                    &score.leaderboard.difficulty.mode_name,
+                    &score.leaderboard.difficulty.difficulty_name
+                ),
                 hash: score.leaderboard.song.hash,
                 difficulties: vec![PlaylistDifficulty {
                     characteristic: score.leaderboard.difficulty.mode_name,
