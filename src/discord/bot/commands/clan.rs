@@ -543,12 +543,6 @@ pub(crate) async fn cmd_capture(
         return Ok(());
     }
 
-    if leaderboard_ids.len() > 1 {
-        say_without_ping(ctx, "There is more than one link to the leaderboard in this message. I know you'd like to capture all these maps, but unfortunately I can't help.", false).await?;
-
-        return Ok(());
-    }
-
     let clan_settings = guild_settings.clan_settings.clone().unwrap();
 
     let current_user = ctx.author();
