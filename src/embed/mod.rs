@@ -70,11 +70,20 @@ pub async fn embed_score(
     );
     gaussian_blur(&mut bg.data, WIDTH as usize, HEIGHT as usize, BLUR_RADIUS);
 
-    // load avatar
-    let Ok(mut avatar) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+    let res = std::panic::catch_unwind(|| {
+        // load avatar
+        let Ok(mut avatar) = Image::<Rgba>::from_bytes_inferred(player_avatar_bytes) else {
+            return None;
+        };
+        avatar.resize(AVATAR_SIZE, AVATAR_SIZE, ResizeAlgorithm::Lanczos3);
+
+        Some(avatar)
+    });
+    if res.is_err() || res.as_ref().unwrap().is_none() {
         return None;
-    };
-    avatar.resize(AVATAR_SIZE, AVATAR_SIZE, ResizeAlgorithm::Lanczos3);
+    }
+
+    let avatar = res.unwrap().unwrap();
 
     // create image
     let mut image = Image::<Rgba>::new(WIDTH, HEIGHT, Rgba::new(66, 66, 66, 1))

@@ -17,6 +17,7 @@ use crate::embed::{embed_profile, embed_score};
 use crate::storage::StorageError;
 use crate::Error;
 use bytes::Bytes;
+use futures::FutureExt;
 use poise::serenity_prelude::{
     ComponentInteractionDataKind, CreateActionRow, CreateAttachment, CreateEmbed,
     CreateEmbedFooter, CreateMessage, CreateSelectMenu, CreateSelectMenuKind,
@@ -923,7 +924,9 @@ pub(crate) async fn get_player_embed(player: &BotPlayer) -> Option<Vec<u8>> {
                 player_cover.as_ref()
             },
         )
+        .catch_unwind()
         .await
+        .ok()?
     } else {
         None
     }
