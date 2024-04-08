@@ -3,7 +3,9 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, Role, User};
+use poise::serenity_prelude::{
+    ChannelId, CreateAttachment, Message, Permissions, Role, User, UserId,
+};
 use poise::CreateReply;
 
 use crate::beatleader::clan::Clan;
@@ -938,6 +940,48 @@ pub(crate) async fn cmd_set_clan_wars_soldier_role(
         Err(e) => {
             let message = format!("An error occurred: {}", e);
             say_without_ping(ctx, message.as_str(), true).await?;
+
+            Ok(())
+        }
+    }
+}
+
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-commander-role")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-commander-role",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only,
+    hide_in_help
+)]
+pub(crate) async fn cmd_set_clan_commander_role(
+    ctx: Context<'_>,
+    #[description = "The role of a user who will be able to manage the clan's maps. Leave empty to disable."]
+    role: Option<Role>,
+) -> Result<(), Error> {
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_commander_role(&guild_settings.guild_id, role.map(|r| r.id))
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
 
             Ok(())
         }

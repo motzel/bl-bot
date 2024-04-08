@@ -825,6 +825,12 @@ impl GuildSettings {
         }
     }
 
+    pub fn set_clan_commander_role(&mut self, role_id: Option<RoleId>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_clan_commander_role(role_id);
+        }
+    }
+
     pub fn set_clan_wars_posted_at(&mut self, posted_at: DateTime<Utc>) {
         if let Some(ref mut clan_settings) = self.clan_settings {
             clan_settings.set_clan_wars_posted_at(posted_at);
@@ -1130,6 +1136,8 @@ pub struct ClanSettings {
     clan_wars_contribution_posted_at: Option<DateTime<Utc>>,
     soldier_role: Option<RoleId>,
     soldiers: Vec<UserId>,
+    #[serde(rename = "clanCommanderRole")]
+    commander_role: Option<RoleId>,
 }
 
 impl ClanSettings {
@@ -1153,6 +1161,7 @@ impl ClanSettings {
             clan_wars_contribution_posted_at: None,
             soldier_role: None,
             soldiers: Vec::new(),
+            commander_role: None,
         }
     }
 
@@ -1185,6 +1194,10 @@ impl ClanSettings {
     }
     pub fn set_clan_wars_maps_channel(&mut self, channel_id: Option<ChannelId>) {
         self.clan_wars_maps_channel_id = channel_id;
+    }
+
+    pub fn set_clan_commander_role(&mut self, role_id: Option<RoleId>) {
+        self.commander_role = role_id;
     }
 
     pub fn get_clan_wars_contribution_channel(&self) -> Option<ChannelId> {
@@ -1236,7 +1249,7 @@ impl std::fmt::Display for ClanSettings {
         if self.oauth_token_is_set {
             write!(
                 f,
-                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars maps channel: {}\nClan wars contribution channel: {}\nClan wars soldier role: {}",
+                "Set up for the clan {}. Users can{} send themselves invitations.\nClan wars maps channel: {}\nClan wars contribution channel: {}\nClan wars commander role: {}\nClan wars soldier role: {}",
                 self.clan,
                 if !self.supports_self_invitation() {
                     " NOT"
@@ -1250,6 +1263,10 @@ impl std::fmt::Display for ClanSettings {
                 self.clan_wars_contribution_channel_id.map_or_else(
                     || "**None**".to_owned(),
                     |channel_id| format!("<#{}>", channel_id)
+                ),
+                self.commander_role.map_or_else(
+                    || "**None**".to_owned(),
+                    |role_id| format!("<@&{}>", role_id)
                 ),
                 self.soldier_role.map_or_else(
                     || "**None**".to_owned(),
