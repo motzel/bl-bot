@@ -12,6 +12,7 @@ use crate::beatleader::clan::Clan;
 use crate::beatleader::clan::ClanMapParam;
 use crate::beatleader::clan::ClanRankingParam;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
+use crate::beatleader::player::DifficultyStatus;
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
 use crate::beatleader::DataWithMeta;
@@ -29,6 +30,7 @@ use crate::discord::bot::commands::{
 };
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
+use crate::storage::bsmaps::{BsMap, BsMapType, BsMapsRepository};
 use crate::{Error, BL_CLIENT};
 
 /// Set up sending of clan invitations
@@ -987,3 +989,159 @@ pub(crate) async fn cmd_set_clan_commander_role(
         }
     }
 }
+
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:commanders-order")]
+#[poise::command(
+    context_menu_command = "Commander's order",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_commanders_order(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", false).await?;
+
+        return Ok(());
+    }
+
+    let leaderboard_ids = get_leaderboard_ids_from_message(message);
+
+    if leaderboard_ids.is_empty() {
+        say_without_ping(ctx, "Are you sure you want to add the commander's order from this message? I can't find any link to the leaderboard here.", false).await?;
+
+        return Ok(());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    let current_user = ctx.author();
+
+    let is_owner_or_commander = //clan_settings.user_id == current_user.id ||
+        if clan_settings.commander_role.is_some() {
+            let commander_role = clan_settings.commander_role.unwrap();
+            let member = ctx.author_member().await;
+
+            member.is_some()
+                && member
+                    .unwrap()
+                    .roles
+                    .contains(&commander_role)
+        } else {
+            false
+        };
+
+    if !is_owner_or_commander {
+        say_without_ping(
+            ctx,
+            "Only clan owner or commander can add commander's order.",
+            false,
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match BL_CLIENT.clan().leaderboard(leaderboard_id, &[]).await {
+        Ok(leaderboard) => {
+            if leaderboard.difficulty.status != DifficultyStatus::Ranked
+                && leaderboard.difficulty.status != DifficultyStatus::Qualified
+                && leaderboard.difficulty.status != DifficultyStatus::Nominated
+            {
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Leaderboard must have nominated, qualified or ranked status."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            match ctx
+                .data()
+                .maps_repository
+                .get_commander_order(&leaderboard.id)
+                .await
+            {
+                Ok(commander_order) => {
+                    let map_link = format!(
+                        "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+                        &leaderboard.song.name,
+                        &leaderboard.difficulty.difficulty_name,
+                        &leaderboard.id,
+                    );
+
+                    if commander_order.is_some() {
+                        msg.edit(
+                            ctx,
+                            CreateReply::default().content(format!(
+                                "{} is already added to commander's order.",
+                                &map_link
+                            )),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+
+                    match ctx
+                        .data()
+                        .maps_repository
+                        .save(BsMap::new(
+                            current_user.id,
+                            leaderboard,
+                            BsMapType::CommanderOrder,
+                            None,
+                        ))
+                        .await
+                    {
+                        Ok(_) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("{} added to commander's order.", &map_link)),
+                            )
+                            .await?;
+                        }
+                        Err(err) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("Oh snap! An error occurred: {}", err)),
+                            )
+                            .await?;
+                        }
+                    }
+
+                    Ok(())
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            }
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+
+            Ok(())
+        }
+    }
+}
+
+// TODO: Revoke commander's order

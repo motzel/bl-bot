@@ -4,6 +4,7 @@ use tracing::info;
 
 use crate::beatleader::BlContext;
 use crate::config::Settings;
+use crate::storage::bsmaps::BsMapsRepository;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::persist::PersistInstance;
 use crate::storage::player::PlayerRepository;
@@ -18,6 +19,7 @@ pub struct CommonData {
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
+    pub maps_repository: Arc<BsMapsRepository>,
     pub settings: Settings,
 }
 
@@ -66,12 +68,17 @@ pub async fn init(settings: Settings) -> CommonData {
         Arc::new(PlaylistRepository::new(Arc::clone(&persist)).await.unwrap());
     info!("Playlists repository initialized.");
 
+    info!("Initializing maps repository...");
+    let maps_repository = Arc::new(BsMapsRepository::new(Arc::clone(&persist)).await.unwrap());
+    info!("Maps repository initialized.");
+
     CommonData {
         guild_settings_repository,
         players_repository,
         player_oauth_token_repository,
         player_scores_repository,
         playlists_repository,
+        maps_repository,
         settings,
     }
 }
