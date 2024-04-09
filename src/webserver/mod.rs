@@ -10,6 +10,7 @@ use tracing::{info, warn};
 
 use crate::config::Settings;
 use crate::persist::CommonData;
+use crate::storage::bsmaps::BsMapsRepository;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -25,6 +26,7 @@ pub struct WebServer {
     pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
+    pub maps_repository: Arc<BsMapsRepository>,
     pub settings: Settings,
     tracker: TaskTracker,
     token: CancellationToken,
@@ -37,6 +39,7 @@ pub(crate) struct AppState {
     pub players_repository: Arc<PlayerRepository>,
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
+    pub maps_repository: Arc<BsMapsRepository>,
     pub settings: Settings,
 }
 
@@ -48,6 +51,7 @@ impl WebServer {
             players_repository: data.players_repository,
             player_scores_repository: data.player_scores_repository,
             playlists_repository: data.playlists_repository,
+            maps_repository: data.maps_repository,
             settings: data.settings,
             tracker,
             token,
@@ -70,6 +74,7 @@ impl WebServer {
             players_repository: self.players_repository,
             player_scores_repository: self.player_scores_repository,
             playlists_repository: self.playlists_repository,
+            maps_repository: self.maps_repository,
             settings: self.settings,
         };
 

@@ -1,15 +1,19 @@
+#![allow(clippy::too_many_arguments)]
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-use poise::serenity_prelude::{ChannelId, CreateAttachment, Message, Permissions, Role, User};
+use poise::serenity_prelude::{
+    ChannelId, CreateAttachment, Message, Permissions, Role, User, UserId,
+};
 use poise::CreateReply;
 
 use crate::beatleader::clan::Clan;
 use crate::beatleader::clan::ClanMapParam;
 use crate::beatleader::clan::ClanRankingParam;
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
+use crate::beatleader::player::DifficultyStatus;
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
 use crate::beatleader::DataWithMeta;
@@ -27,6 +31,7 @@ use crate::discord::bot::commands::{
 };
 use crate::discord::bot::{ClanSettings, GuildOAuthTokenRepository};
 use crate::discord::Context;
+use crate::storage::bsmaps::{BsMap, BsMapType, BsMapsRepository};
 use crate::{Error, BL_CLIENT};
 
 /// Set up sending of clan invitations
@@ -349,6 +354,9 @@ pub(crate) async fn cmd_clan_wars_playlist(
         f64,
     >,
     #[description = "FC status"] fc: Option<ClanWarsFc>,
+    #[description = "Skip the commander's orders (default: false)"] skip_commander_order: Option<
+        bool,
+    >,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
@@ -436,6 +444,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
 
             match Playlist::for_clan_player(
                 &ctx.data().player_scores_repository.clone(),
+                &ctx.data().maps_repository.clone(),
                 &ctx.data().settings.server.url.clone(),
                 clan_tag,
                 player,
@@ -445,6 +454,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 max_stars,
                 max_clan_pp_diff,
                 fc_status,
+                skip_commander_order,
             )
             .await
             {
@@ -942,4 +952,285 @@ pub(crate) async fn cmd_set_clan_wars_soldier_role(
             Ok(())
         }
     }
+}
+
+#[tracing::instrument(skip(ctx), level=tracing::Level::INFO, name="bot_command:bl-set-clan-commander-role")]
+#[poise::command(
+    slash_command,
+    rename = "bl-set-clan-commander-role",
+    ephemeral,
+    required_permissions = "MANAGE_ROLES",
+    default_member_permissions = "MANAGE_ROLES",
+    required_bot_permissions = "MANAGE_ROLES",
+    guild_only,
+    hide_in_help
+)]
+pub(crate) async fn cmd_set_clan_commander_role(
+    ctx: Context<'_>,
+    #[description = "The role of a user who will be able to manage the clan's maps. Leave empty to disable."]
+    role: Option<Role>,
+) -> Result<(), Error> {
+    let guild_settings = get_guild_settings(ctx, true).await?;
+    if guild_settings.clan_settings.is_none() {
+        say_without_ping(ctx, "Clan is not set up in this guild.", true).await?;
+
+        return Ok(());
+    }
+
+    match ctx
+        .data()
+        .guild_settings_repository
+        .set_clan_commander_role(&guild_settings.guild_id, role.map(|r| r.id))
+        .await
+    {
+        Ok(guild_settings) => {
+            ctx.say(format!("{}", guild_settings)).await?;
+
+            Ok(())
+        }
+        Err(e) => {
+            ctx.say(format!("An error occurred: {}", e)).await?;
+
+            Ok(())
+        }
+    }
+}
+
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:commanders-order")]
+#[poise::command(
+    context_menu_command = "Commander's order",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_commanders_order(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+
+            return Ok(());
+        }
+    };
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match BL_CLIENT.clan().leaderboard(leaderboard_id, &[]).await {
+        Ok(leaderboard) => {
+            if leaderboard.difficulty.status != DifficultyStatus::Ranked
+                && leaderboard.difficulty.status != DifficultyStatus::Qualified
+                && leaderboard.difficulty.status != DifficultyStatus::Nominated
+            {
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Leaderboard must have nominated, qualified or ranked status."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            match ctx
+                .data()
+                .maps_repository
+                .get_commander_order(&leaderboard.id)
+                .await
+            {
+                Ok(commander_order) => {
+                    let map_link = format!(
+                        "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+                        &leaderboard.song.name,
+                        &leaderboard.difficulty.difficulty_name,
+                        &leaderboard.id,
+                    );
+
+                    if commander_order.is_some() {
+                        msg.edit(
+                            ctx,
+                            CreateReply::default().content(format!(
+                                "{} is already added to commander's order.",
+                                &map_link
+                            )),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+
+                    match ctx
+                        .data()
+                        .maps_repository
+                        .save(BsMap::new(
+                            ctx.author().id,
+                            leaderboard,
+                            BsMapType::CommanderOrder,
+                            None,
+                        ))
+                        .await
+                    {
+                        Ok(_) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("{} added to commander's order.", &map_link)),
+                            )
+                            .await?;
+                        }
+                        Err(err) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("Oh snap! An error occurred: {}", err)),
+                            )
+                            .await?;
+                        }
+                    }
+
+                    Ok(())
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            }
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+
+            Ok(())
+        }
+    }
+}
+
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:revoke-commanders-order")]
+#[poise::command(
+    context_menu_command = "Revoke commander's order",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_revoke_commanders_order(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+
+            return Ok(());
+        }
+    };
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match ctx
+        .data()
+        .maps_repository
+        .get_commander_order(leaderboard_id)
+        .await
+    {
+        Ok(commander_order) => {
+            if commander_order.is_none() {
+                msg.edit(
+                    ctx,
+                    CreateReply::default().content("This map is not among the commander's orders."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            let commander_order = commander_order.unwrap();
+
+            match ctx
+                .data()
+                .maps_repository
+                .remove(commander_order.get_id())
+                .await
+            {
+                Ok(_) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default().content(format!(
+                            "{} removed from commander's order.",
+                            &commander_order.to_string()
+                        )),
+                    )
+                    .await?;
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                }
+            }
+
+            Ok(())
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+}
+
+async fn get_leaderboard_id_for_commander(
+    ctx: Context<'_>,
+    message: Message,
+) -> Result<Vec<String>, Error> {
+    ctx.defer().await?;
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+
+    if guild_settings.clan_settings.is_none() {
+        return Err("Clan is not set up in this guild".to_owned().into());
+    }
+
+    let leaderboard_ids = get_leaderboard_ids_from_message(message);
+
+    if leaderboard_ids.is_empty() {
+        return Err("I can't find any link to the leaderboard here."
+            .to_owned()
+            .into());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    let is_owner_or_commander = clan_settings.user_id == ctx.author().id
+        || if clan_settings.commander_role.is_some() {
+            let commander_role = clan_settings.commander_role.unwrap();
+            let member = ctx.author_member().await;
+
+            member.is_some() && member.unwrap().roles.contains(&commander_role)
+        } else {
+            false
+        };
+
+    if !is_owner_or_commander {
+        return Err("Only clan owner or commander can use this command."
+            .to_owned()
+            .into());
+    }
+
+    Ok(leaderboard_ids)
 }

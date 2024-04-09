@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use crate::discord::bot::beatleader::player::Player as BotPlayer;
 use crate::discord::bot::GuildSettings;
 use crate::discord::Context;
+use crate::storage::bsmaps::BsMap;
 use crate::storage::player_oauth_token::PlayerOAuthToken;
 use crate::Error;
 
@@ -16,6 +17,7 @@ struct BotData {
     guilds: Vec<GuildSettings>,
     players: Vec<BotPlayer>,
     player_oauth_tokens: Vec<PlayerOAuthToken>,
+    maps: Vec<BsMap>,
 }
 
 /// Export bot data
@@ -44,6 +46,7 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
         guilds: ctx.data().guild_settings_repository.all().await,
         players: ctx.data().players_repository.all().await,
         player_oauth_tokens: ctx.data().player_oauth_token_repository.all().await,
+        maps: ctx.data().maps_repository.all().await,
     };
 
     match serde_json::to_string::<BotData>(&data) {
@@ -131,6 +134,13 @@ pub(crate) async fn cmd_import(
                             err
                         ))
                         .await?;
+
+                        return Ok(());
+                    }
+
+                    if let Err(err) = ctx.data().maps_repository.restore(data.maps).await {
+                        ctx.say(format!("An error occurred during restoring maps: {}", err))
+                            .await?;
 
                         return Ok(());
                     }

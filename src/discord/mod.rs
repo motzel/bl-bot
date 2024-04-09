@@ -17,6 +17,7 @@ use crate::discord::worker::clan_wars::BlClanWarsMapsWorker;
 use crate::discord::worker::player_stats::BlPlayersStatsWorker;
 use crate::discord::worker::user_roles::UserRolesWorker;
 use crate::persist::CommonData;
+use crate::storage::bsmaps::BsMapsRepository;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -32,6 +33,7 @@ pub(crate) struct BotData {
     pub player_scores_repository: Arc<PlayerScoresRepository>,
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
+    pub maps_repository: Arc<BsMapsRepository>,
     pub settings: Settings,
 }
 
@@ -56,6 +58,7 @@ impl From<CommonData> for BotData {
             player_scores_repository: value.player_scores_repository,
             player_oauth_token_repository: value.player_oauth_token_repository,
             playlists_repository: value.playlists_repository,
+            maps_repository: value.maps_repository,
             settings: value.settings,
         }
     }

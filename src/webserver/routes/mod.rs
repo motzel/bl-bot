@@ -163,6 +163,7 @@ async fn playlist(
 
                 match Playlist::for_clan_player(
                     &app_state.player_scores_repository,
+                    &app_state.maps_repository,
                     app_state.settings.server.url.as_str(),
                     custom_data.clan_tag.clone(),
                     player,
@@ -171,7 +172,8 @@ async fn playlist(
                     custom_data.count,
                     custom_data.max_stars,
                     custom_data.max_clan_pp_diff,
-                    custom_data.fc_status
+                    custom_data.fc_status,
+                    custom_data.skip_commander_orders,
                 )
                 .await
                 {

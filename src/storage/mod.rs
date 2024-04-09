@@ -11,6 +11,7 @@ use tracing::{debug, error, trace, warn};
 
 use crate::storage::persist::{PersistError, PersistInstance};
 
+pub(crate) mod bsmaps;
 pub(crate) mod guild;
 pub(crate) mod persist;
 pub(crate) mod player;
@@ -155,6 +156,7 @@ where
         read_lock.keys().cloned().collect::<Vec<_>>()
     }
 
+    // TODO: should return Result<Vec<V>>
     pub(super) async fn values(&self) -> Vec<V> {
         let storage_name = self.storage.get_name();
 
@@ -173,6 +175,11 @@ where
         trace!("All {} storage data cloned and returned.", storage_name);
 
         ret
+    }
+
+    // TODO: should return Result<Vec<V>>
+    async fn filtered(&self, func: impl Fn(&V) -> bool) -> Vec<V> {
+        self.values().await.into_iter().filter(func).collect()
     }
 
     pub(super) async fn contains_key(&self, key: &K) -> bool {
