@@ -1000,50 +1000,14 @@ pub(crate) async fn cmd_commanders_order(
     ctx: Context<'_>,
     #[description = "Message to analyze"] message: Message,
 ) -> Result<(), Error> {
-    ctx.defer().await?;
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
 
-    let guild_settings = get_guild_settings(ctx, true).await?;
-    if guild_settings.clan_settings.is_none() {
-        say_without_ping(ctx, "Clan is not set up in this guild.", false).await?;
-
-        return Ok(());
-    }
-
-    let leaderboard_ids = get_leaderboard_ids_from_message(message);
-
-    if leaderboard_ids.is_empty() {
-        say_without_ping(ctx, "Are you sure you want to add the commander's order from this message? I can't find any link to the leaderboard here.", false).await?;
-
-        return Ok(());
-    }
-
-    let clan_settings = guild_settings.clan_settings.clone().unwrap();
-
-    let current_user = ctx.author();
-
-    let is_owner_or_commander = //clan_settings.user_id == current_user.id ||
-        if clan_settings.commander_role.is_some() {
-            let commander_role = clan_settings.commander_role.unwrap();
-            let member = ctx.author_member().await;
-
-            member.is_some()
-                && member
-                    .unwrap()
-                    .roles
-                    .contains(&commander_role)
-        } else {
-            false
-        };
-
-    if !is_owner_or_commander {
-        say_without_ping(
-            ctx,
-            "Only clan owner or commander can add commander's order.",
-            false,
-        )
-        .await?;
-        return Ok(());
-    }
+            return Ok(());
+        }
+    };
 
     let msg = ctx.say("Sure, give me a moment to check this map.").await?;
 
@@ -1094,7 +1058,7 @@ pub(crate) async fn cmd_commanders_order(
                         .data()
                         .maps_repository
                         .save(BsMap::new(
-                            current_user.id,
+                            ctx.author().id,
                             leaderboard,
                             BsMapType::CommanderOrder,
                             None,
@@ -1144,4 +1108,123 @@ pub(crate) async fn cmd_commanders_order(
     }
 }
 
-// TODO: Revoke commander's order
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:revoke-commanders-order")]
+#[poise::command(
+    context_menu_command = "Revoke commander's order",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_revoke_commanders_order(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+
+            return Ok(());
+        }
+    };
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match ctx
+        .data()
+        .maps_repository
+        .get_commander_order(leaderboard_id)
+        .await
+    {
+        Ok(commander_order) => {
+            if commander_order.is_none() {
+                msg.edit(
+                    ctx,
+                    CreateReply::default().content("This map is not among the commander's orders."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            let commander_order = commander_order.unwrap();
+
+            match ctx
+                .data()
+                .maps_repository
+                .remove(commander_order.get_id())
+                .await
+            {
+                Ok(_) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default().content(format!(
+                            "{} removed from commander's order.",
+                            &commander_order.to_string()
+                        )),
+                    )
+                    .await?;
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                }
+            }
+
+            Ok(())
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+}
+
+async fn get_leaderboard_id_for_commander(
+    ctx: Context<'_>,
+    message: Message,
+) -> Result<Vec<String>, Error> {
+    ctx.defer().await?;
+
+    let guild_settings = get_guild_settings(ctx, true).await?;
+
+    if guild_settings.clan_settings.is_none() {
+        return Err("Clan is not set up in this guild".to_owned().into());
+    }
+
+    let leaderboard_ids = get_leaderboard_ids_from_message(message);
+
+    if leaderboard_ids.is_empty() {
+        return Err("I can't find any link to the leaderboard here."
+            .to_owned()
+            .into());
+    }
+
+    let clan_settings = guild_settings.clan_settings.clone().unwrap();
+
+    let is_owner_or_commander = clan_settings.user_id == ctx.author().id
+        || if clan_settings.commander_role.is_some() {
+            let commander_role = clan_settings.commander_role.unwrap();
+            let member = ctx.author_member().await;
+
+            member.is_some() && member.unwrap().roles.contains(&commander_role)
+        } else {
+            false
+        };
+
+    if !is_owner_or_commander {
+        return Err("Only clan owner or commander can use this command."
+            .to_owned()
+            .into());
+    }
+
+    Ok(leaderboard_ids)
+}

@@ -1,7 +1,8 @@
 use crate::discord::bot::commands::clan::{
     cmd_capture, cmd_clan_wars_enlist, cmd_clan_wars_playlist, cmd_clan_wars_release,
-    cmd_commanders_order, cmd_set_clan_commander_role, cmd_set_clan_wars_contribution_channel,
-    cmd_set_clan_wars_maps_channel, cmd_set_clan_wars_soldier_role,
+    cmd_commanders_order, cmd_revoke_commanders_order, cmd_set_clan_commander_role,
+    cmd_set_clan_wars_contribution_channel, cmd_set_clan_wars_maps_channel,
+    cmd_set_clan_wars_soldier_role,
 };
 use crate::discord::{BotData, Context};
 pub(crate) use backup::{cmd_export, cmd_import};
@@ -43,6 +44,7 @@ pub(crate) fn commands() -> Vec<poise::Command<BotData, crate::Error>> {
         cmd_set_clan_commander_role(),
         cmd_capture(),
         cmd_commanders_order(),
+        cmd_revoke_commanders_order(),
         // cmd_invite_player(),
         cmd_register(),
         cmd_export(),

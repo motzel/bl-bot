@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
 use poise::serenity_prelude::UserId;
@@ -9,19 +10,19 @@ use crate::storage::{CachedStorage, Storage, StorageValue};
 
 use super::Result;
 
-pub(crate) type MapId = String;
+pub(crate) type BsMapId = String;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) enum BsMapType {
     CommanderOrder,
-    MapListBan,
+    MapListSkip,
     Personal,
     PersonalBan,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct BsMap {
-    map_id: MapId,
+    map_id: BsMapId,
     created_by: UserId,
     leaderboard_id: LeaderboardId,
     user_id: Option<UserId>,
@@ -54,7 +55,7 @@ impl BsMap {
         }
     }
 
-    pub fn get_id(&self) -> &MapId {
+    pub fn get_id(&self) -> &BsMapId {
         &self.map_id
     }
 
@@ -66,7 +67,7 @@ impl BsMap {
         self.user_id.as_ref()
     }
 
-    fn generate_map_id() -> MapId {
+    fn generate_map_id() -> BsMapId {
         uuid::Uuid::new_v4()
             .hyphenated()
             .encode_lower(&mut uuid::Uuid::encode_buffer())
@@ -74,15 +75,25 @@ impl BsMap {
     }
 }
 
-impl StorageValue<MapId> for BsMap {
-    fn get_key(&self) -> MapId {
+impl Display for BsMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+            &self.song_name, &self.diff_name, &self.leaderboard_id,
+        )
+    }
+}
+
+impl StorageValue<BsMapId> for BsMap {
+    fn get_key(&self) -> BsMapId {
         self.get_id().clone()
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct BsMapsRepository {
-    storage: CachedStorage<MapId, BsMap>,
+    storage: CachedStorage<BsMapId, BsMap>,
 }
 
 impl<'a> BsMapsRepository {
@@ -115,7 +126,7 @@ impl<'a> BsMapsRepository {
     }
 
     pub(crate) async fn map_list_bans(&self) -> Result<Vec<BsMap>> {
-        Ok(self.by_map_type(&BsMapType::MapListBan).await)
+        Ok(self.by_map_type(&BsMapType::MapListSkip).await)
     }
 
     pub(crate) async fn get_map_list_ban(
@@ -126,7 +137,7 @@ impl<'a> BsMapsRepository {
             .by_leaderboard(leaderboard_id)
             .await?
             .into_iter()
-            .filter(|map| Self::filter_map_type(map, &BsMapType::MapListBan))
+            .filter(|map| Self::filter_map_type(map, &BsMapType::MapListSkip))
             .collect::<Vec<_>>()
             .first()
             .cloned())
@@ -152,7 +163,7 @@ impl<'a> BsMapsRepository {
         self.storage.len().await
     }
 
-    pub(crate) async fn get(&self, map_id: &MapId) -> Option<BsMap> {
+    pub(crate) async fn get(&self, map_id: &BsMapId) -> Option<BsMap> {
         self.storage.get(map_id).await
     }
 
@@ -162,6 +173,10 @@ impl<'a> BsMapsRepository {
         self.storage.update_index().await?;
 
         Ok(result)
+    }
+
+    pub(crate) async fn remove(&self, key: &BsMapId) -> Result<bool> {
+        self.storage.remove(key).await
     }
 
     pub(crate) async fn restore(&self, values: Vec<BsMap>) -> Result<()> {
