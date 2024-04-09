@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -353,6 +354,9 @@ pub(crate) async fn cmd_clan_wars_playlist(
         f64,
     >,
     #[description = "FC status"] fc: Option<ClanWarsFc>,
+    #[description = "Skip the commander's orders (default: false)"] skip_commander_order: Option<
+        bool,
+    >,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
@@ -440,6 +444,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
 
             match Playlist::for_clan_player(
                 &ctx.data().player_scores_repository.clone(),
+                &ctx.data().maps_repository.clone(),
                 &ctx.data().settings.server.url.clone(),
                 clan_tag,
                 player,
@@ -449,6 +454,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 max_stars,
                 max_clan_pp_diff,
                 fc_status,
+                skip_commander_order,
             )
             .await
             {

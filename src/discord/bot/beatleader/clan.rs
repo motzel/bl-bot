@@ -18,7 +18,8 @@ use crate::beatleader::pp::{
 };
 use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
 use crate::discord::bot::beatleader::player::Player;
-use crate::discord::bot::beatleader::score::{MapRatingModifier, MapRatings};
+use crate::discord::bot::beatleader::score::{MapRating, MapRatingModifier, MapRatings};
+use crate::storage::bsmaps::{BsMap, BsMapsRepository};
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::{beatleader, BL_CLIENT};
@@ -504,6 +505,20 @@ pub(crate) struct PlaylistItem {
     difficulties: Vec<PlaylistDifficulty>,
 }
 
+impl From<BsMap> for PlaylistItem {
+    fn from(value: BsMap) -> Self {
+        PlaylistItem {
+            song_name: value.song_name,
+            level_author_name: value.level_author_name,
+            hash: value.hash,
+            difficulties: vec![PlaylistDifficulty {
+                characteristic: value.diff_characteristic,
+                name: value.diff_name,
+            }],
+        }
+    }
+}
+
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PlaylistCustomData {
@@ -520,6 +535,7 @@ pub(crate) struct PlaylistCustomData {
     pub max_stars: Option<f64>,
     pub max_clan_pp_diff: Option<f64>,
     pub fc_status: Option<bool>,
+    pub skip_commander_orders: Option<bool>,
 }
 
 pub(crate) type PlaylistId = String;
@@ -541,6 +557,7 @@ pub(crate) struct Playlist {
 impl Playlist {
     pub async fn for_clan_player(
         player_scores_repository: &Arc<PlayerScoresRepository>,
+        maps_repository: &Arc<BsMapsRepository>,
         server_url: &str,
         clan_tag: ClanTag,
         player: Player,
@@ -550,6 +567,7 @@ impl Playlist {
         max_stars: Option<f64>,
         max_clan_pp_diff: Option<f64>,
         fc_status: Option<bool>,
+        skip_commander_orders: Option<bool>,
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
@@ -611,7 +629,6 @@ impl Playlist {
                         || (fc_status == Some(false) && score_fc == Some(false))
                         || (fc_status == Some(true) && score_fc == Some(true)))
             })
-            .take(count as usize)
             .collect::<Vec<_>>();
 
         let playlist_title = format!(
@@ -641,12 +658,50 @@ impl Playlist {
         );
         let id = Playlist::generate_id();
 
+        let commander_orders: Vec<PlaylistItem> = if playlist_type == ClanWarsSort::ToConquer
+            && (skip_commander_orders.is_none() || !skip_commander_orders.unwrap())
+        {
+            maps_repository
+                .commander_orders()
+                .await
+                .unwrap_or_else(|_| vec![])
+                .into_iter()
+                .filter_map(|map| {
+                    let leaderboard_id = map.get_leaderboard_id();
+                    let score_timepost = player_leaderboard_ids.get(leaderboard_id).map(|v| v.0);
+                    let score_fc = player_leaderboard_ids.get(leaderboard_id).map(|v| v.1);
+                    let map_stars = map.stars;
+
+                    let filters_match = (score_timepost.is_none()
+                        || (played_filter.is_some()
+                            && played_filter.unwrap() > score_timepost.unwrap()))
+                        && (max_stars_value == 0.0 || map_stars <= max_stars_value)
+                        && (score_fc.is_none()
+                            || fc_status.is_none()
+                            || (fc_status == Some(false) && score_fc == Some(false))
+                            || (fc_status == Some(true) && score_fc == Some(true)));
+
+                    if filters_match {
+                        Some(map.into())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+        let songs =
+            Playlist::songs_from_scores(playlist_maps.into_iter().take(count as usize).collect());
+
         Ok(Playlist {
             id: id.clone(),
             playlist_title: playlist_title.clone(),
-            songs: Playlist::songs_from_scores(
-                playlist_maps.into_iter().take(count as usize).collect(),
-            ),
+            songs: commander_orders
+                .into_iter()
+                .chain(songs.into_iter())
+                .take(count as usize)
+                .collect(),
             custom_data: Some(PlaylistCustomData {
                 sync_url: format!("{}/playlist/{}/{}", server_url, player_id, id.clone()),
                 owner: format!("{}/{}", clan_tag, player_id),
@@ -660,6 +715,7 @@ impl Playlist {
                 max_stars,
                 max_clan_pp_diff,
                 fc_status,
+                skip_commander_orders,
             }),
             ..Playlist::default()
         })

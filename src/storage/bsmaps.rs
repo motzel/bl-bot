@@ -20,17 +20,18 @@ pub(crate) enum BsMapType {
     PersonalBan,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct BsMap {
     map_id: BsMapId,
     created_by: UserId,
     leaderboard_id: LeaderboardId,
     user_id: Option<UserId>,
-    song_name: String,
-    level_author_name: String,
-    hash: String,
-    diff_characteristic: String,
-    diff_name: String,
+    pub song_name: String,
+    pub level_author_name: String,
+    pub hash: String,
+    pub diff_characteristic: String,
+    pub diff_name: String,
+    pub stars: f64,
     map_type: BsMapType,
 }
 
@@ -51,6 +52,7 @@ impl BsMap {
             hash: leaderboard.song.hash,
             diff_characteristic: leaderboard.difficulty.mode_name,
             diff_name: leaderboard.difficulty.difficulty_name,
+            stars: leaderboard.difficulty.stars,
             map_type,
         }
     }
