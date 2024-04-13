@@ -379,6 +379,7 @@ impl ClanWars {
         sort: ClanWarsSort,
         items_count: Option<u32>,
         without_scores: bool,
+        skip_leaderboard_ids: Option<Vec<String>>,
     ) -> Result<Self, BlError> {
         let clan_tag_clone = clan_tag.clone();
         let sort_clone = sort.clone();
@@ -389,6 +390,8 @@ impl ClanWars {
             beatleader::fetch_paged_items(requested_maps_per_page, items_count, move |page_def| {
                 let clan_tag_clone = clan_tag.clone();
                 let sort_param = sort.clone().into();
+
+                let skip_leaderboard_ids = skip_leaderboard_ids.clone();
 
                 async move {
                     let maps = BL_CLIENT
@@ -405,11 +408,22 @@ impl ClanWars {
                         )
                         .await?;
 
+                    let clan = maps.clan;
+                    let mut list = maps.list;
+
+                    match skip_leaderboard_ids {
+                        None => {}
+                        Some(leaderboard_ids) => {
+                            list.data
+                                .retain(|map| !leaderboard_ids.contains(&map.leaderboard.id));
+                        }
+                    }
+
                     Ok(DataWithMeta {
-                        data: maps.list.data,
-                        items_per_page: Some(maps.list.items_per_page),
-                        total: Some(maps.list.total),
-                        other_data: Some(maps.clan),
+                        data: list.data,
+                        items_per_page: Some(list.items_per_page),
+                        total: Some(list.total),
+                        other_data: Some(clan),
                     })
                 }
             })

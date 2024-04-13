@@ -415,7 +415,7 @@ impl BlClanContributionWorker {
         count: Option<u32>,
         soldiers: &HashMap<PlayerId, Player>,
     ) -> Option<ClanStats> {
-        match ClanWars::fetch(clan_tag.clone(), sort.clone(), count, true).await {
+        match ClanWars::fetch(clan_tag.clone(), sort.clone(), count, true, None).await {
             Ok(mut clan_wars) => {
                 let mut clan_stats = ClanStats {
                     clan_tag,

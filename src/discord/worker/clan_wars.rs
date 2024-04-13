@@ -14,6 +14,7 @@ use crate::beatleader::player::PlayerId;
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
 use crate::discord::bot::ClanSettings;
 use crate::discord::{serenity, BotData};
+use crate::storage::bsmaps::{BsMapType, BsMapsRepository};
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -25,9 +26,11 @@ pub struct BlClanWarsMapsWorker {
     player_repository: Arc<PlayerRepository>,
     player_scores_repository: Arc<PlayerScoresRepository>,
     player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
+    maps_repository: Arc<BsMapsRepository>,
     oauth_credentials: Option<OAuthAppCredentials>,
     refresh_interval: chrono::Duration,
     token: CancellationToken,
+    count: u16,
 }
 
 impl BlClanWarsMapsWorker {
@@ -45,9 +48,11 @@ impl BlClanWarsMapsWorker {
             player_repository: data.players_repository,
             player_scores_repository: data.player_scores_repository,
             player_oauth_token_repository: data.player_oauth_token_repository,
+            maps_repository: data.maps_repository,
             oauth_credentials,
             refresh_interval,
             token,
+            count: data.settings.clan_wars_maps_count,
         }
     }
 
@@ -72,6 +77,29 @@ impl BlClanWarsMapsWorker {
                             .unwrap()
                             .le(&(Utc::now() - self.refresh_interval))
                     {
+                        tracing::debug!("Fetching maps removed from the map list...");
+
+                        let skip_leaderboard_ids = match self
+                            .maps_repository
+                            .by_map_type(&BsMapType::MapListSkip)
+                            .await
+                        {
+                            Ok(maps) => Some(
+                                maps.into_iter()
+                                    .map(|m| m.leaderboard_id)
+                                    .collect::<Vec<_>>(),
+                            ),
+                            Err(_) => None,
+                        };
+
+                        let skip_leaderboards_count =
+                            skip_leaderboard_ids.as_ref().map(|v| v.len()).unwrap_or(0);
+
+                        tracing::debug!(
+                            "{} maps removed from the map list found.",
+                            skip_leaderboards_count
+                        );
+
                         match self
                             .guild_settings_repository
                             .set_clan_wars_posted_at(&guild.get_key(), Utc::now())
@@ -88,8 +116,9 @@ impl BlClanWarsMapsWorker {
                                 match ClanWars::fetch(
                                     clan_settings.get_clan(),
                                     ClanWarsSort::ToConquer,
-                                    Some(30),
+                                    Some(self.count.into()),
                                     false,
+                                    skip_leaderboard_ids,
                                 )
                                 .await
                                 {

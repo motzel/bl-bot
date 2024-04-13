@@ -24,7 +24,7 @@ pub(crate) enum BsMapType {
 pub(crate) struct BsMap {
     map_id: BsMapId,
     created_by: UserId,
-    leaderboard_id: LeaderboardId,
+    pub leaderboard_id: LeaderboardId,
     user_id: Option<UserId>,
     pub song_name: String,
     pub level_author_name: String,
@@ -110,7 +110,7 @@ impl<'a> BsMapsRepository {
     }
 
     pub(crate) async fn commander_orders(&self) -> Result<Vec<BsMap>> {
-        Ok(self.by_map_type(&BsMapType::CommanderOrder).await)
+        self.by_map_type(&BsMapType::CommanderOrder).await
     }
 
     pub(crate) async fn get_commander_order(
@@ -128,7 +128,7 @@ impl<'a> BsMapsRepository {
     }
 
     pub(crate) async fn map_list_bans(&self) -> Result<Vec<BsMap>> {
-        Ok(self.by_map_type(&BsMapType::MapListSkip).await)
+        self.by_map_type(&BsMapType::MapListSkip).await
     }
 
     pub(crate) async fn get_map_list_ban(
@@ -149,13 +149,12 @@ impl<'a> BsMapsRepository {
         &self,
         leaderboard_id: &LeaderboardId,
     ) -> Result<Vec<BsMap>> {
-        Ok(self
-            .storage
+        self.storage
             .filtered(|map| Self::filter_leaderboard(map, leaderboard_id))
-            .await)
+            .await
     }
 
-    pub(crate) async fn by_map_type(&self, map_type: &BsMapType) -> Vec<BsMap> {
+    pub(crate) async fn by_map_type(&self, map_type: &BsMapType) -> Result<Vec<BsMap>> {
         self.storage
             .filtered(|map| Self::filter_map_type(map, map_type))
             .await

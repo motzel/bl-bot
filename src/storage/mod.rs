@@ -177,9 +177,8 @@ where
         ret
     }
 
-    // TODO: should return Result<Vec<V>>
-    async fn filtered(&self, func: impl Fn(&V) -> bool) -> Vec<V> {
-        self.values().await.into_iter().filter(func).collect()
+    async fn filtered(&self, func: impl Fn(&V) -> bool) -> Result<Vec<V>> {
+        Ok(self.values().await.into_iter().filter(func).collect())
     }
 
     pub(super) async fn contains_key(&self, key: &K) -> bool {

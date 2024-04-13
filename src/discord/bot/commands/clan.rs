@@ -1200,6 +1200,204 @@ pub(crate) async fn cmd_revoke_commanders_order(
     }
 }
 
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:remove-from-map-list")]
+#[poise::command(
+    context_menu_command = "Remove from the map list",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_remove_from_map_list(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+
+            return Ok(());
+        }
+    };
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match BL_CLIENT.clan().leaderboard(leaderboard_id, &[]).await {
+        Ok(leaderboard) => {
+            if leaderboard.difficulty.status != DifficultyStatus::Ranked
+                && leaderboard.difficulty.status != DifficultyStatus::Qualified
+                && leaderboard.difficulty.status != DifficultyStatus::Nominated
+            {
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Leaderboard must have nominated, qualified or ranked status."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            match ctx
+                .data()
+                .maps_repository
+                .get_map_list_ban(&leaderboard.id)
+                .await
+            {
+                Ok(map) => {
+                    let map_link = format!(
+                        "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+                        &leaderboard.song.name,
+                        &leaderboard.difficulty.difficulty_name,
+                        &leaderboard.id,
+                    );
+
+                    if map.is_some() {
+                        msg.edit(
+                            ctx,
+                            CreateReply::default().content(format!(
+                                "{} is already removed from the map list.",
+                                &map_link
+                            )),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+
+                    match ctx
+                        .data()
+                        .maps_repository
+                        .save(BsMap::new(
+                            ctx.author().id,
+                            leaderboard,
+                            BsMapType::MapListSkip,
+                            None,
+                        ))
+                        .await
+                    {
+                        Ok(_) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("{} removed from the map list.", &map_link)),
+                            )
+                            .await?;
+                        }
+                        Err(err) => {
+                            msg.edit(
+                                ctx,
+                                CreateReply::default()
+                                    .content(format!("Oh snap! An error occurred: {}", err)),
+                            )
+                            .await?;
+                        }
+                    }
+
+                    Ok(())
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            }
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+
+            Ok(())
+        }
+    }
+}
+
+#[tracing::instrument(skip(ctx, message), level=tracing::Level::INFO, name="bot_command:restore-to-map-list")]
+#[poise::command(
+    context_menu_command = "Restore to the map list",
+    guild_only,
+    member_cooldown = 5
+)]
+pub(crate) async fn cmd_restore_to_map_list(
+    ctx: Context<'_>,
+    #[description = "Message to analyze"] message: Message,
+) -> Result<(), Error> {
+    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok(leaderboard_ids) => leaderboard_ids,
+        Err(e) => {
+            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+
+            return Ok(());
+        }
+    };
+
+    let msg = ctx.say("Sure, give me a moment to check this map.").await?;
+
+    let leaderboard_id = leaderboard_ids.first().unwrap();
+
+    match ctx
+        .data()
+        .maps_repository
+        .get_map_list_ban(leaderboard_id)
+        .await
+    {
+        Ok(map) => {
+            if map.is_none() {
+                msg.edit(
+                    ctx,
+                    CreateReply::default().content("This map is not removed from the map list."),
+                )
+                .await?;
+                return Ok(());
+            }
+
+            let commander_order = map.unwrap();
+
+            match ctx
+                .data()
+                .maps_repository
+                .remove(commander_order.get_id())
+                .await
+            {
+                Ok(_) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default().content(format!(
+                            "{} restored to the map list.",
+                            &commander_order.to_string()
+                        )),
+                    )
+                    .await?;
+                }
+                Err(err) => {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default()
+                            .content(format!("Oh snap! An error occurred: {}", err)),
+                    )
+                    .await?;
+                }
+            }
+
+            Ok(())
+        }
+        Err(err) => {
+            msg.edit(
+                ctx,
+                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+}
+
 async fn get_leaderboard_id_for_commander(
     ctx: Context<'_>,
     message: Message,
