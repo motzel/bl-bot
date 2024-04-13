@@ -174,6 +174,7 @@ async fn playlist(
                     custom_data.max_clan_pp_diff,
                     custom_data.fc_status,
                     custom_data.skip_commander_orders,
+                    Some(repository_playlist.get_title().clone()),
                 )
                 .await
                 {
@@ -194,7 +195,7 @@ async fn playlist(
                             header::CONTENT_DISPOSITION,
                             format!(
                                 "attachment; filename=\"{}.json",
-                                refreshed_playlist.get_title().replace([' ', '-'], "_")
+                                refreshed_playlist.get_title().replace([' ', '-', '/', '\\', ':'], "_")
                             ).parse().unwrap(),
                         );
 

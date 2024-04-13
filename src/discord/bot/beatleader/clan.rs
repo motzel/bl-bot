@@ -568,6 +568,7 @@ impl Playlist {
         max_clan_pp_diff: Option<f64>,
         fc_status: Option<bool>,
         skip_commander_orders: Option<bool>,
+        playlist_name: Option<String>,
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
@@ -631,31 +632,35 @@ impl Playlist {
             })
             .collect::<Vec<_>>();
 
-        let playlist_title = format!(
-            "{}-clan wars-{}-{}{}{}{}",
-            clan_tag,
-            playlist_type.to_string().to_lowercase(),
-            last_played,
-            if max_stars.is_some() {
-                format!("-{:.2}*", max_stars.unwrap())
-            } else {
-                "".to_owned()
-            },
-            if max_clan_pp_diff.is_some() {
-                format!("-{:.2}pp", max_clan_pp_diff.unwrap())
-            } else {
-                "".to_owned()
-            },
-            if fc_status.is_some() {
-                if fc_status.unwrap() {
-                    "-fc"
+        let playlist_title = match playlist_name {
+            Some(playlist_name) => playlist_name,
+            None => format!(
+                "{}-clan wars-{}-{}{}{}{}",
+                clan_tag,
+                playlist_type.to_string().to_lowercase(),
+                last_played,
+                if max_stars.is_some() {
+                    format!("-{:.2}*", max_stars.unwrap())
                 } else {
-                    "-not-fc"
-                }
-            } else {
-                ""
-            },
-        );
+                    "".to_owned()
+                },
+                if max_clan_pp_diff.is_some() {
+                    format!("-{:.2}pp", max_clan_pp_diff.unwrap())
+                } else {
+                    "".to_owned()
+                },
+                if fc_status.is_some() {
+                    if fc_status.unwrap() {
+                        "-fc"
+                    } else {
+                        "-not-fc"
+                    }
+                } else {
+                    ""
+                },
+            ),
+        };
+
         let id = Playlist::generate_id();
 
         let commander_orders: Vec<PlaylistItem> = if playlist_type == ClanWarsSort::ToConquer
