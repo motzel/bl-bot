@@ -646,6 +646,11 @@ impl Playlist {
             })
             .collect::<Vec<_>>();
 
+        let playlist_maps_leaderboard_ids = playlist_maps
+            .iter()
+            .map(|m| m.leaderboard.id.to_lowercase())
+            .collect::<Vec<_>>();
+
         let playlist_title = match playlist_name {
             Some(playlist_name) => playlist_name,
             None => format!(
@@ -686,14 +691,15 @@ impl Playlist {
                 .unwrap_or_else(|_| vec![])
                 .into_iter()
                 .filter_map(|map| {
-                    let leaderboard_id = map.get_leaderboard_id();
-                    let score_timepost = player_leaderboard_ids.get(leaderboard_id).map(|v| v.0);
-                    let score_fc = player_leaderboard_ids.get(leaderboard_id).map(|v| v.1);
+                    let leaderboard_id = map.get_leaderboard_id().to_lowercase();
+                    let score_timepost = player_leaderboard_ids.get(&leaderboard_id).map(|v| v.0);
+                    let score_fc = player_leaderboard_ids.get(&leaderboard_id).map(|v| v.1);
                     let map_stars = map.stars;
 
-                    let filters_match = (score_timepost.is_none()
-                        || (played_filter.is_some()
-                            && played_filter.unwrap() > score_timepost.unwrap()))
+                    let filters_match = !playlist_maps_leaderboard_ids.contains(&leaderboard_id)
+                        && (score_timepost.is_none()
+                            || (played_filter.is_some()
+                                && played_filter.unwrap() > score_timepost.unwrap()))
                         && (max_stars_value == 0.0 || map_stars <= max_stars_value)
                         && (score_fc.is_none()
                             || fc_status.is_none()
