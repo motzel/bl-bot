@@ -446,6 +446,12 @@ impl ClanWars {
             let leaderboard_id = map.map.leaderboard.id.clone();
             let clan_map_id = map.map.clan_map_id;
 
+            let map_data = BL_CLIENT.clan().clan_ranking(&leaderboard_id, &[]).await?;
+            if !map_data.list.data.is_empty() {
+                let first = map_data.list.data.first().unwrap();
+                map.map.leaderboard.difficulty = first.leaderboard.difficulty.clone();
+            }
+
             let requested_scores_per_page = 50;
 
             map.scores = if !without_scores {

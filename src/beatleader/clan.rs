@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull, TimestampSeconds};
 
 use crate::beatleader::oauth::{ClientWithOAuth, OAuthTokenRepository};
-use crate::beatleader::player::{Leaderboard, LeaderboardId, Player, PlayerId};
+use crate::beatleader::player::{Difficulty, Leaderboard, LeaderboardId, Player, PlayerId, Song};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, BlContext, Client, List, MetaData, QueryParam, Result,
     SortOrder,
@@ -238,6 +238,8 @@ pub struct BlApiClanRankingResponse {
     pub clan_ranking_count: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub clan_ranking: Vec<ClanMap>,
+    pub song: Song,
+    pub difficulty: Difficulty,
 }
 
 impl BlApiResponse for BlApiClanRankingResponse {}
@@ -258,7 +260,16 @@ impl From<BlApiClanRankingResponse> for ClanWithList<ClanMap> {
         Self {
             clan: value.clan,
             list: List {
-                data: value.clan_ranking,
+                data: value
+                    .clan_ranking
+                    .into_iter()
+                    .map(|mut cr| {
+                        cr.leaderboard.difficulty = value.difficulty.clone();
+                        cr.leaderboard.song = value.song.clone();
+
+                        cr
+                    })
+                    .collect(),
                 page: 0,
                 items_per_page: 0,
                 total: value.clan_ranking_count,
