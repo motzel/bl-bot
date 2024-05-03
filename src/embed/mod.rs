@@ -731,7 +731,7 @@ pub async fn embed_profile(
                 if player.last_ranked_paused_at.is_some() {
                     let mut relative_time = player.last_ranked_paused_at.unwrap().to_relative();
                     if relative_time == "1 months ago" {
-                        relative_time = "1 month ago".to_owned();
+                        "1 month ago".clone_into(&mut relative_time);
                     }
                     format!("Last paused {}", relative_time)
                 } else {

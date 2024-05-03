@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::future::Future;
 use std::num::NonZeroU32;
 use std::result;
@@ -225,12 +226,16 @@ pub enum SortOrder {
     Descending,
 }
 
-impl ToString for SortOrder {
-    fn to_string(&self) -> String {
-        match self {
-            SortOrder::Ascending => "asc".to_owned(),
-            SortOrder::Descending => "desc".to_owned(),
-        }
+impl Display for SortOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SortOrder::Ascending => "asc",
+                SortOrder::Descending => "desc",
+            }
+        )
     }
 }
 
@@ -248,14 +253,18 @@ pub enum BlContext {
     Golf,
 }
 
-impl ToString for BlContext {
-    fn to_string(&self) -> String {
-        match self {
-            BlContext::General => "general".to_owned(),
-            BlContext::NoModifiers => "nomods".to_owned(),
-            BlContext::NoPauses => "nopause".to_owned(),
-            BlContext::Golf => "golf".to_owned(),
-        }
+impl Display for BlContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BlContext::General => "general".to_owned(),
+                BlContext::NoModifiers => "nomods".to_owned(),
+                BlContext::NoPauses => "nopause".to_owned(),
+                BlContext::Golf => "golf".to_owned(),
+            }
+        )
     }
 }
 

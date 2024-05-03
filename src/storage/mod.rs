@@ -64,7 +64,7 @@ impl Display for StorageError {
 }
 
 pub(crate) trait StorageKey:
-    Serialize + for<'b> Deserialize<'b> + Hash + Eq + ToString + Send + Sync + Clone + Display
+    Serialize + for<'b> Deserialize<'b> + Hash + Eq + Send + Sync + Clone + Display
 {
 }
 pub(crate) trait StorageValue<K: StorageKey>:

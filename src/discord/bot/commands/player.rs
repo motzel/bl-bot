@@ -132,7 +132,7 @@ pub(crate) async fn cmd_link(
     let mut player_id = bl_player_id;
     let re = regex::Regex::new(r"beatleader.xyz/u/(?<player_id>[^\/\?$]+)").unwrap();
     if let Some(caps) = re.captures(&player_id) {
-        player_id = caps["player_id"].to_owned().clone();
+        player_id.clone_from(&caps["player_id"].to_owned())
     }
 
     ctx.defer().await?;

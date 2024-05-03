@@ -41,10 +41,7 @@ impl<'a> PlayerScoresRepository {
         bl_context: BlContext,
     ) -> Result<PlayerScoresRepository> {
         Ok(Self {
-            storage: Storage::new(
-                format!("player-scores-{}", bl_context.to_string()).as_str(),
-                persist,
-            ),
+            storage: Storage::new(format!("player-scores-{}", bl_context).as_str(), persist),
             bl_context,
         })
     }

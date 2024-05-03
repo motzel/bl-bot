@@ -83,7 +83,7 @@ impl<'a> PlayerOAuthTokenRepository {
 
             modify_func(token_mutex_guard).await;
 
-            token_mutex_guard.player_id = player_id.clone();
+            token_mutex_guard.player_id.clone_from(player_id);
 
             return self
                 .storage
@@ -100,7 +100,7 @@ impl<'a> PlayerOAuthTokenRepository {
 
             modify_func(&mut value_mutex_guard).await;
 
-            value_mutex_guard.player_id = player_id.clone();
+            value_mutex_guard.player_id.clone_from(player_id);
 
             value_clone = value_mutex_guard.clone();
         }
