@@ -175,6 +175,7 @@ async fn playlist(
                     custom_data.fc_status,
                     custom_data.skip_commander_orders,
                     Some(repository_playlist.get_title().clone()),
+                    true
                 )
                 .await
                 {

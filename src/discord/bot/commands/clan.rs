@@ -459,6 +459,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 fc_status,
                 skip_commander_order,
                 playlist_name,
+                false,
             )
             .await
             {

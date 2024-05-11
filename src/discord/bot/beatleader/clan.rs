@@ -12,11 +12,13 @@ use crate::beatleader::clan::{
     Clan, ClanId, ClanMap, ClanMapParam, ClanMapScore, ClanMapsParam, ClanMapsSort, ClanTag,
 };
 use crate::beatleader::error::Error as BlError;
-use crate::beatleader::player::{Difficulty, PlayerId};
+use crate::beatleader::player::{
+    Difficulty, MapType, PlayerId, PlayerScoreParam, PlayerScoreSort, Score,
+};
 use crate::beatleader::pp::{
     calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
 };
-use crate::beatleader::{BlContext, DataWithMeta, SortOrder};
+use crate::beatleader::{BlContext, DataWithMeta, List, SortOrder};
 use crate::discord::bot::beatleader::player::Player;
 use crate::discord::bot::beatleader::score::{MapRating, MapRatingModifier, MapRatings};
 use crate::storage::bsmaps::{BsMap, BsMapsRepository};
@@ -589,6 +591,7 @@ impl Playlist {
         fc_status: Option<bool>,
         skip_commander_orders: Option<bool>,
         playlist_name: Option<String>,
+        with_newest_scores: bool,
     ) -> Result<Self, String> {
         let maps_list = BL_CLIENT
             .clan()
@@ -612,13 +615,57 @@ impl Playlist {
 
         let player_id = player.id.clone();
 
-        let player_leaderboard_ids = player_scores_repository
-            .get(&player_id)
-            .await
-            .unwrap_or_default()
-            .scores
-            .into_iter()
-            .map(|score| (score.leaderboard_id, (score.timepost, score.full_combo)))
+        let player_newest_scores = if with_newest_scores {
+            BL_CLIENT
+                .with_timeout(3)
+                .player()
+                .scores(
+                    &player_id,
+                    &[
+                        PlayerScoreParam::Page(0),
+                        PlayerScoreParam::Count(10),
+                        PlayerScoreParam::Sort(PlayerScoreSort::Date),
+                        PlayerScoreParam::Order(SortOrder::Descending),
+                        PlayerScoreParam::Type(MapType::Ranked),
+                        PlayerScoreParam::Context(BlContext::General),
+                    ],
+                )
+                .await
+                .unwrap_or(List {
+                    data: vec![],
+                    page: 0,
+                    items_per_page: 0,
+                    total: 0,
+                })
+                .data
+                .into_iter()
+                .map(|score| (score.leaderboard.id, (score.timepost, score.full_combo)))
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        let player_leaderboard_ids = player_newest_scores
+            .iter()
+            .cloned()
+            .chain(
+                player_scores_repository
+                    .get(&player_id)
+                    .await
+                    .unwrap_or_default()
+                    .scores
+                    .into_iter()
+                    .filter_map(|score| {
+                        if player_newest_scores
+                            .iter()
+                            .any(|(leaderboard_id, _)| leaderboard_id == &score.leaderboard_id)
+                        {
+                            return None;
+                        }
+
+                        Some((score.leaderboard_id, (score.timepost, score.full_combo)))
+                    }),
+            )
             .collect::<HashMap<String, (DateTime<Utc>, bool)>>();
 
         let played_filter: Option<DateTime<Utc>> = last_played.clone().into();

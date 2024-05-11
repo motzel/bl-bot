@@ -81,6 +81,10 @@ impl Client {
         AiRatingsResource::new(self)
     }
 
+    pub fn with_timeout(&self, timeout: u64) -> Client {
+        Client::new(self.base_url.clone(), timeout)
+    }
+
     pub fn with_oauth<T: OAuthTokenRepository>(
         &self,
         oauth_credentials: OAuthAppCredentials,
