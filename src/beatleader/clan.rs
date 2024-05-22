@@ -178,6 +178,16 @@ pub struct ClanMapScore {
 }
 
 #[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClanLeaderboard {
+    pub id: LeaderboardId,
+    pub clan_id: ClanId,
+    pub play_count: u32,
+    pub plays: u32,
+}
+
+#[serde_as]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct BlApiClanRankingScoresResponse {
@@ -191,7 +201,7 @@ pub struct BlApiClanRankingScoresResponse {
     #[serde(with = "ts_seconds")]
     pub last_update_time: DateTime<Utc>,
     #[serde_as(deserialize_as = "DefaultOnNull")]
-    pub leaderboard: Leaderboard,
+    pub leaderboard: ClanLeaderboard,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub associated_scores_count: u32,
     #[serde_as(deserialize_as = "DefaultOnNull")]

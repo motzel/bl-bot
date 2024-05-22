@@ -659,7 +659,7 @@ pub(crate) async fn cmd_capture(
                     data: scores.associated_scores,
                     items_per_page: None,
                     total: Some(scores.associated_scores_count),
-                    other_data: Some((scores.clan, scores.pp)),
+                    other_data: Some((scores.clan, scores.pp, scores.leaderboard)),
                 })
             })
             .await
@@ -671,10 +671,8 @@ pub(crate) async fn cmd_capture(
                     };
 
                     let mut is_captured = false;
-                    if let Some((clan, ..)) = data.other_data {
-                        if clan.captured_leaderboards.is_some()
-                            && !clan.captured_leaderboards.unwrap().is_empty()
-                        {
+                    if let Some((clan, .., leaderboard)) = data.other_data {
+                        if clan.id == leaderboard.clan_id {
                             is_captured = true;
                         }
                     }
