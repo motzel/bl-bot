@@ -78,6 +78,7 @@ pub(crate) struct Settings {
     pub clan_wars_interval: u64,
     pub clan_wars_maps_count: u16,
     pub clan_wars_contribution_interval: u64,
+    pub commander_orders_retention: u64,
     pub oauth: Option<OAuthSettings>,
     pub server: ServerSettings,
     pub tracing: TracingSettings,
@@ -93,6 +94,7 @@ impl Settings {
             .set_default("clan_wars_interval", 360)?
             .set_default("clan_wars_maps_count", 30)?
             .set_default("clan_wars_contribution_interval", 180)?
+            .set_default("commander_orders_retention", 30)?
             .set_default(
                 "server",
                 ValueKind::Array(vec![

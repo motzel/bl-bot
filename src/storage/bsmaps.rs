@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -24,6 +25,7 @@ pub(crate) enum BsMapType {
 pub(crate) struct BsMap {
     map_id: BsMapId,
     created_by: UserId,
+    pub created_at: Option<DateTime<Utc>>,
     pub leaderboard_id: LeaderboardId,
     user_id: Option<UserId>,
     pub song_name: String,
@@ -54,6 +56,7 @@ impl BsMap {
             diff_name: leaderboard.difficulty.difficulty_name,
             stars: leaderboard.difficulty.stars,
             map_type,
+            created_at: Some(Utc::now()),
         }
     }
 
