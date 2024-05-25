@@ -35,7 +35,7 @@ impl CommanderOrdersWorker {
         'outer: loop {
             let commander_orders = self
                 .maps_repository
-                .commander_orders()
+                .all_commander_orders()
                 .await
                 .unwrap_or_else(|_| vec![]);
 

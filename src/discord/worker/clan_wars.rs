@@ -14,7 +14,7 @@ use crate::beatleader::player::PlayerId;
 use crate::discord::bot::beatleader::clan::{ClanWars, ClanWarsSort};
 use crate::discord::bot::ClanSettings;
 use crate::discord::{serenity, BotData};
-use crate::storage::bsmaps::{BsMapType, BsMapsRepository};
+use crate::storage::bsmaps::BsMapsRepository;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -81,7 +81,7 @@ impl BlClanWarsMapsWorker {
 
                         let skip_leaderboard_ids = match self
                             .maps_repository
-                            .by_map_type(&BsMapType::MapListSkip)
+                            .map_list_bans(&clan_settings.get_clan())
                             .await
                         {
                             Ok(maps) => Some(

@@ -739,7 +739,7 @@ impl Playlist {
             && (skip_commander_orders.is_none() || !skip_commander_orders.unwrap())
         {
             maps_repository
-                .commander_orders()
+                .commander_orders(&clan_tag)
                 .await
                 .unwrap_or_else(|_| vec![])
                 .into_iter()

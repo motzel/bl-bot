@@ -9,9 +9,9 @@ use poise::serenity_prelude::{
 };
 use poise::CreateReply;
 
-use crate::beatleader::clan::Clan;
 use crate::beatleader::clan::ClanMapParam;
 use crate::beatleader::clan::ClanRankingParam;
+use crate::beatleader::clan::{Clan, ClanTag};
 use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::player::DifficultyStatus;
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
@@ -1011,7 +1011,7 @@ pub(crate) async fn cmd_commanders_order(
     ctx: Context<'_>,
     #[description = "Message to analyze"] message: Message,
 ) -> Result<(), Error> {
-    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
+    let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
         Ok(leaderboard_ids) => leaderboard_ids,
         Err(e) => {
             say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
@@ -1042,7 +1042,7 @@ pub(crate) async fn cmd_commanders_order(
             match ctx
                 .data()
                 .maps_repository
-                .get_commander_order(&leaderboard.id)
+                .get_commander_order(&leaderboard.id, &clan_tag)
                 .await
             {
                 Ok(commander_order) => {
@@ -1073,6 +1073,7 @@ pub(crate) async fn cmd_commanders_order(
                             leaderboard,
                             BsMapType::CommanderOrder,
                             None,
+                            Some(clan_tag),
                         ))
                         .await
                     {
@@ -1129,8 +1130,8 @@ pub(crate) async fn cmd_revoke_commanders_order(
     ctx: Context<'_>,
     #[description = "Message to analyze"] message: Message,
 ) -> Result<(), Error> {
-    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
-        Ok(leaderboard_ids) => leaderboard_ids,
+    let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
             say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
 
@@ -1145,7 +1146,7 @@ pub(crate) async fn cmd_revoke_commanders_order(
     match ctx
         .data()
         .maps_repository
-        .get_commander_order(leaderboard_id)
+        .get_commander_order(leaderboard_id, &clan_tag)
         .await
     {
         Ok(commander_order) => {
@@ -1209,8 +1210,8 @@ pub(crate) async fn cmd_remove_from_map_list(
     ctx: Context<'_>,
     #[description = "Message to analyze"] message: Message,
 ) -> Result<(), Error> {
-    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
-        Ok(leaderboard_ids) => leaderboard_ids,
+    let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
             say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
 
@@ -1240,7 +1241,7 @@ pub(crate) async fn cmd_remove_from_map_list(
             match ctx
                 .data()
                 .maps_repository
-                .get_map_list_ban(&leaderboard.id)
+                .get_map_list_ban(&leaderboard.id, &clan_tag)
                 .await
             {
                 Ok(map) => {
@@ -1271,6 +1272,7 @@ pub(crate) async fn cmd_remove_from_map_list(
                             leaderboard,
                             BsMapType::MapListSkip,
                             None,
+                            Some(clan_tag),
                         ))
                         .await
                     {
@@ -1327,8 +1329,8 @@ pub(crate) async fn cmd_restore_to_map_list(
     ctx: Context<'_>,
     #[description = "Message to analyze"] message: Message,
 ) -> Result<(), Error> {
-    let leaderboard_ids = match get_leaderboard_id_for_commander(ctx, message).await {
-        Ok(leaderboard_ids) => leaderboard_ids,
+    let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
+        Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
             say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
 
@@ -1343,7 +1345,7 @@ pub(crate) async fn cmd_restore_to_map_list(
     match ctx
         .data()
         .maps_repository
-        .get_map_list_ban(leaderboard_id)
+        .get_map_list_ban(leaderboard_id, &clan_tag)
         .await
     {
         Ok(map) => {
@@ -1356,21 +1358,14 @@ pub(crate) async fn cmd_restore_to_map_list(
                 return Ok(());
             }
 
-            let commander_order = map.unwrap();
+            let map = map.unwrap();
 
-            match ctx
-                .data()
-                .maps_repository
-                .remove(commander_order.get_id())
-                .await
-            {
+            match ctx.data().maps_repository.remove(map.get_id()).await {
                 Ok(_) => {
                     msg.edit(
                         ctx,
-                        CreateReply::default().content(format!(
-                            "{} restored to the map list.",
-                            &commander_order.to_string()
-                        )),
+                        CreateReply::default()
+                            .content(format!("{} restored to the map list.", &map.to_string())),
                     )
                     .await?;
                 }
@@ -1400,7 +1395,7 @@ pub(crate) async fn cmd_restore_to_map_list(
 async fn get_leaderboard_id_for_commander(
     ctx: Context<'_>,
     message: Message,
-) -> Result<Vec<String>, Error> {
+) -> Result<(Vec<String>, ClanTag), Error> {
     ctx.defer().await?;
 
     let guild_settings = get_guild_settings(ctx, true).await?;
@@ -1435,5 +1430,5 @@ async fn get_leaderboard_id_for_commander(
             .into());
     }
 
-    Ok(leaderboard_ids)
+    Ok((leaderboard_ids, clan_settings.clan))
 }

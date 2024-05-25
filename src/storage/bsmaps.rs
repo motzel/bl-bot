@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use std::fmt::Display;
 use std::sync::Arc;
 
+use crate::beatleader::clan::ClanTag;
 use poise::serenity_prelude::UserId;
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,7 @@ pub(crate) struct BsMap {
     pub diff_name: String,
     pub stars: f64,
     map_type: BsMapType,
+    pub clan_tag: Option<ClanTag>,
 }
 
 impl BsMap {
@@ -43,6 +45,7 @@ impl BsMap {
         leaderboard: Leaderboard,
         map_type: BsMapType,
         user_id: Option<UserId>,
+        clan_tag: Option<ClanTag>,
     ) -> Self {
         Self {
             map_id: Self::generate_map_id(),
@@ -57,6 +60,7 @@ impl BsMap {
             stars: leaderboard.difficulty.stars,
             map_type,
             created_at: Some(Utc::now()),
+            clan_tag,
         }
     }
 
@@ -112,37 +116,59 @@ impl<'a> BsMapsRepository {
         self.storage.values().await
     }
 
-    pub(crate) async fn commander_orders(&self) -> Result<Vec<BsMap>> {
+    pub(crate) async fn commander_orders(&self, clan_tag: &ClanTag) -> Result<Vec<BsMap>> {
+        Ok(self
+            .by_map_type(&BsMapType::CommanderOrder)
+            .await?
+            .into_iter()
+            .filter(|m| m.clan_tag == Some(clan_tag.clone()))
+            .collect::<Vec<_>>())
+    }
+
+    pub(crate) async fn all_commander_orders(&self) -> Result<Vec<BsMap>> {
         self.by_map_type(&BsMapType::CommanderOrder).await
     }
 
     pub(crate) async fn get_commander_order(
         &self,
         leaderboard_id: &LeaderboardId,
+        clan_tag: &ClanTag,
     ) -> Result<Option<BsMap>> {
         Ok(self
             .by_leaderboard(leaderboard_id)
             .await?
             .into_iter()
-            .filter(|map| Self::filter_map_type(map, &BsMapType::CommanderOrder))
+            .filter(|map| {
+                Self::filter_map_type(map, &BsMapType::CommanderOrder)
+                    && map.clan_tag == Some(clan_tag.clone())
+            })
             .collect::<Vec<_>>()
             .first()
             .cloned())
     }
 
-    pub(crate) async fn map_list_bans(&self) -> Result<Vec<BsMap>> {
-        self.by_map_type(&BsMapType::MapListSkip).await
+    pub(crate) async fn map_list_bans(&self, clan_tag: &ClanTag) -> Result<Vec<BsMap>> {
+        Ok(self
+            .by_map_type(&BsMapType::MapListSkip)
+            .await?
+            .into_iter()
+            .filter(|m| m.clan_tag == Some(clan_tag.clone()))
+            .collect::<Vec<_>>())
     }
 
     pub(crate) async fn get_map_list_ban(
         &self,
         leaderboard_id: &LeaderboardId,
+        clan_tag: &ClanTag,
     ) -> Result<Option<BsMap>> {
         Ok(self
             .by_leaderboard(leaderboard_id)
             .await?
             .into_iter()
-            .filter(|map| Self::filter_map_type(map, &BsMapType::MapListSkip))
+            .filter(|map| {
+                Self::filter_map_type(map, &BsMapType::MapListSkip)
+                    && map.clan_tag == Some(clan_tag.clone())
+            })
             .collect::<Vec<_>>()
             .first()
             .cloned())
