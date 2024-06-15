@@ -699,11 +699,6 @@ impl Playlist {
             })
             .collect::<Vec<_>>();
 
-        let playlist_maps_leaderboard_ids = playlist_maps
-            .iter()
-            .map(|m| m.leaderboard.id.to_lowercase())
-            .collect::<Vec<_>>();
-
         let playlist_title = match playlist_name {
             Some(playlist_name) => playlist_name,
             None => format!(
@@ -735,6 +730,7 @@ impl Playlist {
 
         let id = Playlist::generate_id();
 
+        let mut commander_orders_leaderboard_id = vec![];
         let commander_orders: Vec<PlaylistItem> = if playlist_type == ClanWarsSort::ToConquer
             && (skip_commander_orders.is_none() || !skip_commander_orders.unwrap())
         {
@@ -749,10 +745,9 @@ impl Playlist {
                     let score_fc = player_leaderboard_ids.get(&leaderboard_id).map(|v| v.1);
                     let map_stars = map.stars;
 
-                    let filters_match = !playlist_maps_leaderboard_ids.contains(&leaderboard_id)
-                        && (score_timepost.is_none()
-                            || (played_filter.is_some()
-                                && played_filter.unwrap() > score_timepost.unwrap()))
+                    let filters_match = (score_timepost.is_none()
+                        || (played_filter.is_some()
+                            && played_filter.unwrap() > score_timepost.unwrap()))
                         && (max_stars_value == 0.0 || map_stars <= max_stars_value)
                         && (score_fc.is_none()
                             || fc_status.is_none()
@@ -760,6 +755,7 @@ impl Playlist {
                             || (fc_status == Some(true) && score_fc == Some(true)));
 
                     if filters_match {
+                        commander_orders_leaderboard_id.push(leaderboard_id);
                         Some(map.into())
                     } else {
                         None
@@ -769,8 +765,13 @@ impl Playlist {
         } else {
             vec![]
         };
-        let songs =
-            Playlist::songs_from_scores(playlist_maps.into_iter().take(count as usize).collect());
+        let songs = Playlist::songs_from_scores(
+            playlist_maps
+                .into_iter()
+                .filter(|score| !commander_orders_leaderboard_id.contains(&score.leaderboard.id))
+                .take(count as usize)
+                .collect(),
+        );
 
         Ok(Playlist {
             id: id.clone(),

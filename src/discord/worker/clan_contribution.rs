@@ -199,31 +199,29 @@ impl BlClanContributionWorker {
                                         });
 
                                         if let Some(bonus_stats) = &conquer_clan_stats {
-                                            bonus_stats.1.iter().enumerate().for_each(
-                                                |(_, (player_id, stats))| {
-                                                    if !captured_clan_stats
-                                                        .soldiers
-                                                        .iter()
-                                                        .any(|s| &s.player.id == player_id)
-                                                    {
-                                                        captured_clan_stats.soldiers.extend(vec![
-                                                            ClanSoldierStats {
-                                                                player: stats.player.clone(),
-                                                                maps_count: 0,
-                                                                total_pp: 0.0,
-                                                                total_weighted_pp: 0.0,
-                                                                efficiency: 0.0,
-                                                                map_percentages: 0.0,
-                                                                points: 0.0,
-                                                                bonus_maps_count: stats.maps_count,
-                                                                bonus_points: stats.points,
-                                                                total_points: stats.points
-                                                                    * CLAN_WEIGHT_COEFFICIENT,
-                                                            },
-                                                        ]);
-                                                    }
-                                                },
-                                            );
+                                            bonus_stats.1.iter().for_each(|(player_id, stats)| {
+                                                if !captured_clan_stats
+                                                    .soldiers
+                                                    .iter()
+                                                    .any(|s| &s.player.id == player_id)
+                                                {
+                                                    captured_clan_stats.soldiers.extend(vec![
+                                                        ClanSoldierStats {
+                                                            player: stats.player.clone(),
+                                                            maps_count: 0,
+                                                            total_pp: 0.0,
+                                                            total_weighted_pp: 0.0,
+                                                            efficiency: 0.0,
+                                                            map_percentages: 0.0,
+                                                            points: 0.0,
+                                                            bonus_maps_count: stats.maps_count,
+                                                            bonus_points: stats.points,
+                                                            total_points: stats.points
+                                                                * CLAN_WEIGHT_COEFFICIENT,
+                                                        },
+                                                    ]);
+                                                }
+                                            });
                                         }
 
                                         captured_clan_stats.soldiers.sort_unstable_by(|a, b| {
