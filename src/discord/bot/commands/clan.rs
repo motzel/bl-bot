@@ -137,13 +137,17 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let player_clan = player_clan.unwrap();
 
-    let clan_settings = ClanSettings::new(
-        current_user.id,
-        player_clan.leader_id.clone(),
-        player_clan.id,
-        player_clan.tag.clone(),
-        self_invite,
-    );
+    let mut clan_settings = guild_settings
+        .clan_settings
+        .clone()
+        .unwrap_or(ClanSettings::new(
+            current_user.id,
+            player_clan.leader_id.clone(),
+            player_clan.id,
+            player_clan.tag.clone(),
+            self_invite,
+        ));
+    clan_settings.set_oauth_token(false);
 
     if ctx
         .data()
