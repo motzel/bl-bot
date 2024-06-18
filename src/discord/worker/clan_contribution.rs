@@ -292,8 +292,9 @@ impl BlClanContributionWorker {
                                                     .create_thread(
                                                         &self.context,
                                                         CreateThread::new(format!(
-                                                            "{} clan wars contribution",
+                                                            "{} clan wars contribution ({} maps)",
                                                             captured_clan_stats.clan_tag,
+                                                            captured_clan_stats.maps_count
                                                         ))
                                                         .auto_archive_duration(
                                                             AutoArchiveDuration::OneHour,
