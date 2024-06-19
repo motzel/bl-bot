@@ -1,3 +1,5 @@
+use std::{fs::OpenOptions, io::Write};
+
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -144,6 +146,36 @@ impl BlClanPeakWorker {
                                         }
                                     } else {
                                         tracing::info!("Clan {} peak is up to date.", &clan_tag);
+                                    }
+
+                                    let clan_peak = ClanPeak::new(
+                                        clan_settings.get_clan_id(),
+                                        clan_tag.clone(),
+                                        clan.capture_leaderboards_count,
+                                        Utc::now(),
+                                    );
+                                    if let Ok(mut json) =
+                                        serde_json::to_string::<ClanPeak>(&clan_peak)
+                                    {
+                                        match OpenOptions::new()
+                                            .create(true)
+                                            .append(true)
+                                            .open(".storage/clan-peak-history.ndjson")
+                                        {
+                                            Ok(mut file) => {
+                                                json.push('\n');
+
+                                                if let Err(e) = file.write_all(json.as_bytes()) {
+                                                    tracing::error!("Couldn't write clan peak history to file: {}", e);
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(
+                                                    "Couldn't create clan peak history file: {}",
+                                                    e
+                                                );
+                                            }
+                                        }
                                     }
                                 }
                                 Err(err) => {
