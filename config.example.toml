@@ -4,7 +4,6 @@ storage_path = "./.storage"
 clan_wars_interval = 360 # minutes
 clan_wars_maps_count = 30
 clan_wars_contribution_interval = 180 # minutes
-clan_peak_interval = 10 # minutes (needs to be >= refresh_interval)
 commander_orders_retention = 30 # days
 
 # uncomment to enable oauth features (clan invites for now)

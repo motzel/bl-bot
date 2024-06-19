@@ -168,7 +168,6 @@ impl DiscordClient {
                             let bl_clan_peak_worker = BlClanPeakWorker::new(
                                 ctx.clone(),
                                 data.clone().into(),
-                                chrono::Duration::minutes(settings.clan_peak_interval as i64),
                                 token_clone.clone(),
                             );
 
