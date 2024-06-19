@@ -78,6 +78,7 @@ pub(crate) struct Settings {
     pub clan_wars_interval: u64,
     pub clan_wars_maps_count: u16,
     pub clan_wars_contribution_interval: u64,
+    pub clan_peak_interval: u64,
     pub commander_orders_retention: u64,
     pub oauth: Option<OAuthSettings>,
     pub server: ServerSettings,
@@ -94,6 +95,7 @@ impl Settings {
             .set_default("clan_wars_interval", 360)?
             .set_default("clan_wars_maps_count", 30)?
             .set_default("clan_wars_contribution_interval", 180)?
+            .set_default("clan_peak_interval", 10)?
             .set_default("commander_orders_retention", 30)?
             .set_default(
                 "server",
@@ -131,6 +133,12 @@ impl Settings {
                 if config.clan_wars_contribution_interval < 30 {
                     return Err(ConfigError::Message(
                         "CLAN_WARS_CONTRIBUTION_INTERVAL should be at least 30 minutes".to_owned(),
+                    ));
+                }
+
+                if config.clan_peak_interval < 5 {
+                    return Err(ConfigError::Message(
+                        "CLAN_PEAK_INTERVAL should be at least 5 minutes".to_owned(),
                     ));
                 }
 

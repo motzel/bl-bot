@@ -881,6 +881,6 @@ impl Default for Playlist {
     }
 }
 
-pub(crate) async fn fetch_clan(tag: &str) -> Result<Clan, BlError> {
+pub(crate) async fn fetch_clan(tag: &ClanTag) -> Result<Clan, BlError> {
     BL_CLIENT.clan().by_tag(tag).await
 }

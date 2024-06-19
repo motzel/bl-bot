@@ -560,6 +560,7 @@ pub struct Clan {
     pub average_accuracy: f64,
     pub players_count: u32,
     pub icon: String,
+    pub capture_leaderboards_count: i32,
     pub captured_leaderboards: Option<Vec<CapturedLeaderboard>>,
 }
 

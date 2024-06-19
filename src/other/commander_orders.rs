@@ -7,13 +7,13 @@ use tracing::{info, warn};
 use crate::persist::CommonData;
 use crate::storage::bsmaps::BsMapsRepository;
 
-pub struct CommanderOrdersWorker {
+pub struct CommanderOrdersCleanupWorker {
     maps_repository: Arc<BsMapsRepository>,
     retention: std::time::Duration,
     token: CancellationToken,
 }
 
-impl CommanderOrdersWorker {
+impl CommanderOrdersCleanupWorker {
     pub fn new(data: CommonData, token: CancellationToken) -> Self {
         Self {
             maps_repository: data.maps_repository,

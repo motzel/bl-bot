@@ -849,6 +849,12 @@ impl GuildSettings {
         }
     }
 
+    pub fn set_clan_peak_posted_at(&mut self, posted_at: DateTime<Utc>) {
+        if let Some(ref mut clan_settings) = self.clan_settings {
+            clan_settings.set_clan_peak_posted_at(posted_at);
+        }
+    }
+
     pub fn add_clan_wars_soldier(&mut self, user_id: UserId) {
         if let Some(ref mut clan_settings) = self.clan_settings {
             clan_settings.add_clan_wars_soldier(user_id);
@@ -1134,6 +1140,7 @@ pub struct ClanSettings {
     clan_wars_maps_posted_at: Option<DateTime<Utc>>,
     clan_wars_contribution_channel_id: Option<ChannelId>,
     clan_wars_contribution_posted_at: Option<DateTime<Utc>>,
+    clan_peak_posted_at: Option<DateTime<Utc>>,
     soldier_role: Option<RoleId>,
     soldiers: Vec<UserId>,
     #[serde(rename = "clanCommanderRole")]
@@ -1159,6 +1166,7 @@ impl ClanSettings {
             clan_wars_contribution_channel_id: None,
             clan_wars_maps_posted_at: None,
             clan_wars_contribution_posted_at: None,
+            clan_peak_posted_at: None,
             soldier_role: None,
             soldiers: Vec::new(),
             commander_role: None,
@@ -1221,6 +1229,14 @@ impl ClanSettings {
 
     pub fn set_clan_wars_contribution_posted_at(&mut self, posted_at: DateTime<Utc>) {
         self.clan_wars_contribution_posted_at = Some(posted_at);
+    }
+
+    pub fn get_clan_peak_posted_at(&self) -> Option<DateTime<Utc>> {
+        self.clan_peak_posted_at
+    }
+
+    pub fn set_clan_peak_posted_at(&mut self, posted_at: DateTime<Utc>) {
+        self.clan_peak_posted_at = Some(posted_at);
     }
 
     pub fn add_clan_wars_soldier(&mut self, user_id: UserId) {

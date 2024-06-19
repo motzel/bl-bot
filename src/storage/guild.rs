@@ -251,6 +251,37 @@ impl<'a> GuildSettingsRepository {
         }
     }
 
+    pub async fn set_clan_peak_posted_at(
+        &self,
+        guild_id: &GuildId,
+        posted_at: DateTime<Utc>,
+    ) -> Result<GuildSettings> {
+        trace!("Setting clan peak posted time for guild {}...", guild_id);
+
+        if let Some(guild_settings) = self
+            .storage
+            .get_and_modify_or_insert(
+                guild_id,
+                |guild_settings| guild_settings.set_clan_peak_posted_at(posted_at),
+                || {
+                    let mut guild_settings = GuildSettings::new(*guild_id);
+                    guild_settings.set_clan_peak_posted_at(posted_at);
+
+                    Some(guild_settings)
+                },
+            )
+            .await?
+        {
+            debug!("Clan peak posted time for guild {} set.", guild_id);
+
+            Ok(guild_settings)
+        } else {
+            Err(StorageError::NotFound(
+                "guild is not registered".to_string(),
+            ))
+        }
+    }
+
     pub(crate) async fn add_clan_wars_soldier(
         &self,
         guild_id: &GuildId,

@@ -11,7 +11,7 @@ use other::ram_reporter::RamReporter;
 use crate::beatleader::Client;
 use crate::config::Settings;
 use crate::discord::DiscordClient;
-use crate::other::commander_orders::CommanderOrdersWorker;
+use crate::other::commander_orders::CommanderOrdersCleanupWorker;
 use crate::webserver::WebServer;
 
 mod beatleader;
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Error> {
     let ram_reporter = RamReporter::new(token.clone());
     let webserver = WebServer::new(common_data.clone(), tracker.clone(), token.clone());
     let discord = DiscordClient::new(common_data.clone(), tracker.clone(), token.clone()).await;
-    let commander_orders = CommanderOrdersWorker::new(common_data.clone(), token.clone());
+    let commander_orders = CommanderOrdersCleanupWorker::new(common_data.clone(), token.clone());
 
     tracker.spawn(discord.start());
     tracker.spawn(ram_reporter.start());

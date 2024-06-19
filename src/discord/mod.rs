@@ -13,11 +13,13 @@ use worker::oauth::BlOauthTokenRefreshWorker;
 use crate::beatleader::oauth::OAuthAppCredentials;
 use crate::config::Settings;
 use crate::discord::worker::clan_contribution::BlClanContributionWorker;
+use crate::discord::worker::clan_peak::BlClanPeakWorker;
 use crate::discord::worker::clan_wars::BlClanWarsMapsWorker;
 use crate::discord::worker::player_stats::BlPlayersStatsWorker;
 use crate::discord::worker::user_roles::UserRolesWorker;
 use crate::persist::CommonData;
 use crate::storage::bsmaps::BsMapsRepository;
+use crate::storage::clan_peak::ClanPeakRepository;
 use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
@@ -34,6 +36,7 @@ pub(crate) struct BotData {
     pub player_oauth_token_repository: Arc<PlayerOAuthTokenRepository>,
     pub playlists_repository: Arc<PlaylistRepository>,
     pub maps_repository: Arc<BsMapsRepository>,
+    pub clan_peak_repository: Arc<ClanPeakRepository>,
     pub settings: Settings,
 }
 
@@ -59,6 +62,7 @@ impl From<CommonData> for BotData {
             player_oauth_token_repository: value.player_oauth_token_repository,
             playlists_repository: value.playlists_repository,
             maps_repository: value.maps_repository,
+            clan_peak_repository: value.clan_peak_repository,
             settings: value.settings,
         }
     }
@@ -161,6 +165,13 @@ impl DiscordClient {
                                 token_clone.clone(),
                             );
 
+                            let bl_clan_peak_worker = BlClanPeakWorker::new(
+                                ctx.clone(),
+                                data.clone().into(),
+                                chrono::Duration::minutes(settings.clan_peak_interval as i64),
+                                token_clone.clone(),
+                            );
+
                             let data: BotData = data.into();
 
                             tracker_clone.spawn(async move {
@@ -170,6 +181,8 @@ impl DiscordClient {
 
                                 'outer: loop {
                                     bl_oauth_token_refresh_worker.run().await;
+
+                                    bl_clan_peak_worker.run().await;
 
                                     if let Ok(bot_players) = bl_players_stats_worker.run().await {
                                         discord_user_roles_worker.run(bot_players).await;

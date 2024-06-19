@@ -96,7 +96,7 @@ pub(crate) async fn cmd_set_clan_invitation(
         msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
             .await?;
 
-        let clan_result = fetch_clan(tag.as_str()).await;
+        let clan_result = fetch_clan(&tag).await;
         if clan_result.is_err() {
             msg_contents.push_str("FAILED\n");
 

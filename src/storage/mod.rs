@@ -12,6 +12,7 @@ use tracing::{debug, error, trace, warn};
 use crate::storage::persist::{PersistError, PersistInstance};
 
 pub(crate) mod bsmaps;
+pub(crate) mod clan_peak;
 pub(crate) mod guild;
 pub(crate) mod persist;
 pub(crate) mod player;
