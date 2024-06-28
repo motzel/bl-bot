@@ -585,7 +585,7 @@ fn add_replay_components(
                         .iter()
                         .map(|s| {
                             let label = format!(
-                                "{} {} ({})",
+                                "{} {} / {}",
                                 s.song_name.clone(),
                                 s.song_sub_name.clone(),
                                 s.difficulty_name.clone(),
@@ -598,7 +598,25 @@ fn add_replay_components(
                                 },
                                 s.id.to_string(),
                             )
-                            .description(format!("{:.2}% {:.2}pp", s.accuracy, s.pp))
+                            .description(format!(
+                                "{:.2}%{} / {:.2}pp / {}",
+                                s.accuracy,
+                                if s.modifiers.is_empty() {
+                                    "".to_owned()
+                                } else {
+                                    format!(" {}", s.modifiers)
+                                },
+                                s.pp,
+                                if s.mistakes == 0 {
+                                    "FC".to_owned()
+                                } else {
+                                    format!(
+                                        "{} mistake{}",
+                                        s.mistakes,
+                                        if s.mistakes > 1 { "s" } else { "" }
+                                    )
+                                }
+                            ))
                             .default_selection(selected_ids.contains(&s.id.to_string()))
                         })
                         .collect::<Vec<_>>(),
