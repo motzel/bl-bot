@@ -392,6 +392,7 @@ pub(crate) async fn cmd_replay(
     ctx: Context<'_>,
     #[description = "Sort by (latest if not specified)"] sort: Option<Sort>,
     #[description = "BL context (General if not specified)"] context: Option<BlCommandContext>,
+    #[description = "Map name"] map_name: Option<String>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
@@ -432,13 +433,14 @@ pub(crate) async fn cmd_replay(
                     PlayerScoreParam::Sort(player_score_sort),
                     PlayerScoreParam::Order(SortOrder::Descending),
                     PlayerScoreParam::Context(player_score_context.clone()),
+                    PlayerScoreParam::Search(map_name.unwrap_or_default()),
                 ],
             )
             .await
             {
                 Ok(player_scores) => {
                     if player_scores.total == 0 {
-                        say_without_ping(ctx, "No scores.", true).await?;
+                        say_without_ping(ctx, "No replays found.", true).await?;
                         return Ok(());
                     }
 
@@ -571,6 +573,8 @@ fn add_replay_components(
     player_scores: &BlList<Score>,
     selected_ids: &[String],
 ) -> Vec<CreateActionRow> {
+    let select_max_len = 3.min(player_scores.data.len() as u8);
+
     vec![
         CreateActionRow::SelectMenu(
             CreateSelectMenu::new(
@@ -601,8 +605,8 @@ fn add_replay_components(
                 },
             )
             .min_values(1)
-            .max_values(3)
-            .placeholder("Select replays to post (max 3)"),
+            .max_values(select_max_len)
+            .placeholder(format!("Select replays to post (max {})", select_max_len)),
         ),
         CreateActionRow::Buttons(vec![poise::serenity_prelude::CreateButton::new("post_btn")
             .label("Post replay")

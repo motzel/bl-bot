@@ -89,6 +89,7 @@ pub enum PlayerScoreParam {
     Type(MapType),
     TimeFrom(DateTime<Utc>),
     Context(BlContext),
+    Search(String),
 }
 
 impl QueryParam for PlayerScoreParam {
@@ -125,6 +126,7 @@ impl QueryParam for PlayerScoreParam {
             PlayerScoreParam::Context(context) => {
                 ("leaderboardContext".to_owned(), context.to_string())
             }
+            PlayerScoreParam::Search(map_name) => ("search".to_owned(), map_name.to_owned()),
         }
     }
 }
