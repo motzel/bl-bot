@@ -352,7 +352,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
     ctx: Context<'_>,
     #[description = "Playlist type (default: To Conquer)"] playlist_type: Option<ClanWarsSort>,
     #[description = "Last played (default: Never)"] played: Option<ClanWarsPlayDate>,
-    #[description = "Maps count (max: 100, default: 100)"] count: Option<u8>,
+    #[description = "Maps count (max: 300, default: 100)"] count: Option<u32>,
     #[description = "Maps map stars (default: player's top stars)"] max_stars: Option<f64>,
     #[description = "Maps clan pp difference (default: player's top pp)"] max_clan_pp_diff: Option<
         f64,
@@ -371,7 +371,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
     let played_filter = played.unwrap_or(ClanWarsPlayDate::Never);
     let count = match count {
         None => 100,
-        Some(v) if v > 0 && v <= 100 => v,
+        Some(v) if v > 0 && v <= 300 => v,
         Some(_others) => 100,
     };
     let fc_status: Option<bool> = fc.unwrap_or(ClanWarsFc::NoMatter).into();
@@ -457,7 +457,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 player,
                 playlist_type_filter,
                 played_filter,
-                count as u32,
+                count,
                 max_stars,
                 max_clan_pp_diff,
                 fc_status,
