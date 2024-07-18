@@ -53,7 +53,7 @@ pub struct Player {
     pub ranked_play_count: u32,
     pub unranked_play_count: u32,
     pub peak_rank: u32,
-    pub top1_count: u32,
+    pub top1_count: i32,
     pub anonymous_replay_watched: u32,
     pub authorized_replay_watched: u32,
     pub total_replay_watched: u32,

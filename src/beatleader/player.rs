@@ -215,7 +215,7 @@ pub struct PlayerScoreStats {
     pub authorized_replay_watched: u32,
     pub watched_replays: u32,
     pub peak_rank: u32,
-    pub top1_count: u32,
+    pub top1_count: i32,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
