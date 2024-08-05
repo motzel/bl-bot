@@ -71,6 +71,8 @@ impl BlClanPeakWorker {
                                             clan_tag.clone(),
                                             clan.capture_leaderboards_count,
                                             Utc::now(),
+                                            clan.players_count,
+                                            clan.ranked_pool_percent_captured,
                                         );
 
                                         match self.clan_peak_repository.set(clan_peak).await {
@@ -88,8 +90,8 @@ impl BlClanPeakWorker {
 
                                                 let message = CreateMessage::new()
                                                     .content(format!(
-                                                        "# {} new peak: {} maps 🥳",
-                                                        &clan_tag, clan_peak.peak
+                                                        "# {} new peak: {} maps 🥳\n**{:.2}%** of global dominance achieved by **{} players**",
+                                                        &clan_tag, clan_peak.peak, clan_peak.ranked_pool_percent_captured * 100.0, clan_peak.players_count
                                                     ))
                                                     .allowed_mentions(CreateAllowedMentions::new());
 
@@ -153,6 +155,8 @@ impl BlClanPeakWorker {
                                         clan_tag.clone(),
                                         clan.capture_leaderboards_count,
                                         Utc::now(),
+                                        clan.players_count,
+                                        clan.ranked_pool_percent_captured,
                                     );
                                     if let Ok(mut json) =
                                         serde_json::to_string::<ClanPeak>(&clan_peak)

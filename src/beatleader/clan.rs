@@ -562,6 +562,7 @@ pub struct Clan {
     pub icon: String,
     pub capture_leaderboards_count: i32,
     pub captured_leaderboards: Option<Vec<CapturedLeaderboard>>,
+    pub ranked_pool_percent_captured: f64,
 }
 
 impl<T> From<BlApiClanContainer<T>> for Clan {
