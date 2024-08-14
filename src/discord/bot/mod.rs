@@ -63,6 +63,8 @@ pub(crate) enum Metric {
     ReplaysIWatched,
     #[name = "Clans"]
     Clan,
+    #[name = "Main Clan"]
+    MainClan,
     #[name = "Top Stars"]
     TopStars,
     #[name = "Last pause (days)"]
@@ -82,6 +84,7 @@ impl From<&RequirementMetricValue> for Metric {
             RequirementMetricValue::MyReplaysWatched(_) => Metric::MyReplaysWatched,
             RequirementMetricValue::ReplaysIWatched(_) => Metric::ReplaysIWatched,
             RequirementMetricValue::Clan(_) => Metric::Clan,
+            RequirementMetricValue::MainClan(_) => Metric::MainClan,
             RequirementMetricValue::TopStars(_) => Metric::TopStars,
             RequirementMetricValue::LastPause(_) => Metric::LastPause,
         }
@@ -136,6 +139,7 @@ pub(crate) enum RequirementMetricValue {
     MyReplaysWatched(u32),
     ReplaysIWatched(u32),
     Clan(Vec<String>),
+    MainClan(String),
     TopStars(f64),
     LastPause(u32),
 }
@@ -163,6 +167,13 @@ impl RequirementMetricValue {
 
                 Ok(RequirementMetricValue::Clan(vec![value.to_string()]))
             }
+            Metric::MainClan => {
+                if value.len() < 2 || value.len() > 4 {
+                    return Err(From::from("name of the clan should have 2 to 4 characters"));
+                }
+
+                Ok(RequirementMetricValue::MainClan(value.to_string()))
+            }
             Metric::TopStars => Ok(RequirementMetricValue::TopStars(value.parse::<f64>()?)),
             Metric::LastPause => Ok(RequirementMetricValue::LastPause(value.parse::<u32>()?)),
         }
@@ -179,6 +190,13 @@ impl RequirementMetricValue {
             RequirementMetricValue::Top1Count(_) => false,
             RequirementMetricValue::MyReplaysWatched(_) => false,
             RequirementMetricValue::ReplaysIWatched(_) => false,
+            RequirementMetricValue::MainClan(requirement_clan) => {
+                if let PlayerMetricValue::MainClan(player_clan) = other {
+                    requirement_clan == player_clan.first().unwrap_or(&"".to_owned())
+                } else {
+                    false
+                }
+            }
             RequirementMetricValue::Clan(requirement_clans) => {
                 if let PlayerMetricValue::Clan(player_clans) = other {
                     requirement_clans
@@ -281,6 +299,13 @@ impl PartialEq<PlayerMetricValue> for RequirementMetricValue {
                     false
                 }
             }
+            RequirementMetricValue::MainClan(v) => {
+                if let PlayerMetricValue::MainClan(player_metric_value) = other {
+                    v == player_metric_value.first().unwrap_or(&"".to_owned())
+                } else {
+                    false
+                }
+            }
             RequirementMetricValue::TopStars(v) => {
                 if let PlayerMetricValue::TopStars(player_metric_value) = other {
                     v == player_metric_value
@@ -374,6 +399,18 @@ impl PartialOrd<PlayerMetricValue> for RequirementMetricValue {
                 }
             }
             RequirementMetricValue::Clan(_v) => None,
+            RequirementMetricValue::MainClan(v) => {
+                if let PlayerMetricValue::MainClan(player_metric_value) = other {
+                    v.partial_cmp(
+                        &player_metric_value
+                            .first()
+                            .unwrap_or(&"".to_owned())
+                            .clone(),
+                    )
+                } else {
+                    None
+                }
+            }
             RequirementMetricValue::TopStars(v) => {
                 if let PlayerMetricValue::TopStars(player_metric_value) = other {
                     v.partial_cmp(player_metric_value)
@@ -408,6 +445,7 @@ pub enum PlayerMetricValue {
     MyReplaysWatched(u32),
     ReplaysIWatched(u32),
     Clan(Vec<String>),
+    MainClan(Vec<String>),
     TopStars(f64),
     LastPause(Option<DateTime<Utc>>),
 }
@@ -425,6 +463,7 @@ impl From<&PlayerMetricValue> for Metric {
             PlayerMetricValue::MyReplaysWatched(_) => Metric::MyReplaysWatched,
             PlayerMetricValue::ReplaysIWatched(_) => Metric::ReplaysIWatched,
             PlayerMetricValue::Clan(_) => Metric::Clan,
+            PlayerMetricValue::MainClan(_) => Metric::MainClan,
             PlayerMetricValue::TopStars(_) => Metric::TopStars,
             PlayerMetricValue::LastPause(_) => Metric::LastPause,
         }
@@ -516,6 +555,11 @@ impl std::fmt::Display for Requirement {
                     "**Clan** *{}* **{}**",
                     self.condition.to_string().to_lowercase(),
                     v.join(", "),
+                ),
+                RequirementMetricValue::MainClan(v) => format!(
+                    "**Main Clan** *{}* **{}**",
+                    self.condition.to_string().to_lowercase(),
+                    v,
                 ),
                 RequirementMetricValue::TopStars(v) => format!(
                     "**Top Stars** *{}* **{}**",
@@ -1544,6 +1588,17 @@ mod tests {
         rs
     }
 
+    fn create_main_clan_member_role_settings() -> RoleSettings {
+        let mut rs = RoleSettings::new(RoleId::new(8), 100);
+
+        rs.add_requirement(
+            Condition::EqualTo,
+            RequirementMetricValue::MainClan("Clan1".to_string()),
+        );
+
+        rs
+    }
+
     fn create_empty_guild_settings() -> GuildSettings {
         GuildSettings::new(GuildId::new(1))
     }
@@ -1559,6 +1614,10 @@ mod tests {
             .add("rank".to_string(), create_500_rank_role_settings())
             .add("rank".to_string(), create_100_rank_role_settings())
             .add("clan".to_string(), create_clan_member_role_settings())
+            .add(
+                "main-clan".to_string(),
+                create_main_clan_member_role_settings(),
+            )
             .add("no-pause".to_string(), create_no_pause_role_settings());
 
         gs
@@ -1595,6 +1654,21 @@ mod tests {
 
         assert!(requirement_metric.is_contained_by(&ok));
         assert!(!requirement_metric.is_contained_by(&fail));
+
+        let requirement_metric = RequirementMetricValue::MainClan("Clan1".to_string());
+        let ok = PlayerMetricValue::MainClan(vec![
+            "Clan1".to_string(),
+            "Clan2".to_string(),
+            "Other1".to_string(),
+        ]);
+        let fail = PlayerMetricValue::MainClan(vec!["Other1".to_string(), "Clan1".to_string()]);
+
+        assert!(requirement_metric.is_contained_by(&ok));
+        assert!(!requirement_metric.is_contained_by(&fail));
+        assert_eq!(requirement_metric, ok);
+        assert!(requirement_metric >= ok);
+        assert!(requirement_metric <= ok);
+        assert_ne!(requirement_metric, fail);
 
         let requirement_metric = RequirementMetricValue::LastPause(30);
         let no_pause = PlayerMetricValue::LastPause(None);
@@ -1740,6 +1814,7 @@ mod tests {
         let rs_5k = create_5kpp_ss_50_country_role_settings();
         let rs_10k = create_10kpp_role_settings();
         let rs_clan = create_clan_member_role_settings();
+        let rs_main_clan = create_main_clan_member_role_settings();
         let rs_no_pause = create_no_pause_role_settings();
 
         let mut player = Player {
@@ -1775,6 +1850,12 @@ mod tests {
         player.clans = vec!["Other clan".to_string()];
         assert!(!rs_clan.is_fulfilled_for(&player));
 
+        player.clans = vec!["Other clan".to_string(), "Clan1".to_string()];
+        assert!(!rs_main_clan.is_fulfilled_for(&player));
+
+        player.clans = vec!["Clan1".to_string(), "Other clan".to_string()];
+        assert!(rs_main_clan.is_fulfilled_for(&player));
+
         player.last_ranked_paused_at = Some(Utc::now() - Duration::days(3));
         assert!(!rs_no_pause.is_fulfilled_for(&player));
     }
@@ -1783,10 +1864,11 @@ mod tests {
     fn it_can_add_role_settings_to_guild() {
         let gs = create_guild_settings();
 
-        assert_eq!(gs.role_groups.keys().len(), 4);
+        assert_eq!(gs.role_groups.keys().len(), 5);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 3);
         assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
+        assert_eq!(gs.role_groups.get("main-clan").unwrap().keys().len(), 1);
         assert_eq!(gs.role_groups.get("no-pause").unwrap().keys().len(), 1);
     }
 
@@ -1826,10 +1908,11 @@ mod tests {
         gs.remove("rank".to_string(), RoleId::new(3));
         gs.remove("rank".to_string(), RoleId::new(5));
 
-        assert_eq!(gs.role_groups.keys().len(), 4);
+        assert_eq!(gs.role_groups.keys().len(), 5);
         assert_eq!(gs.role_groups.get("pp").unwrap().keys().len(), 2);
         assert_eq!(gs.role_groups.get("rank").unwrap().keys().len(), 1);
         assert_eq!(gs.role_groups.get("clan").unwrap().keys().len(), 1);
+        assert_eq!(gs.role_groups.get("main-clan").unwrap().keys().len(), 1);
         assert_eq!(gs.role_groups.get("no-pause").unwrap().keys().len(), 1);
 
         gs.remove("rank".to_string(), RoleId::new(4));
@@ -1862,7 +1945,8 @@ mod tests {
                 &RoleId::new(4),
                 &RoleId::new(5),
                 &RoleId::new(6),
-                &RoleId::new(7)
+                &RoleId::new(7),
+                &RoleId::new(8)
             ]
         );
     }
@@ -1943,7 +2027,7 @@ mod tests {
         assert_eq!(roles_updates.to_add, vec![RoleId::new(4)]);
         assert_eq!(roles_updates.to_remove, vec![RoleId::new(3)]);
 
-        player.clans = vec!["Clan1".to_string()];
+        player.clans = vec!["Other clan".to_string(), "Clan1".to_string()];
 
         let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
 
@@ -1951,6 +2035,19 @@ mod tests {
         roles_updates.to_remove.sort_unstable();
 
         assert_eq!(roles_updates.to_add, vec![RoleId::new(4), RoleId::new(6)]);
+        assert_eq!(roles_updates.to_remove, vec![RoleId::new(3)]);
+
+        player.clans = vec!["Clan1".to_string(), "Other clan".to_string()];
+
+        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
+
+        roles_updates.to_add.sort_unstable();
+        roles_updates.to_remove.sort_unstable();
+
+        assert_eq!(
+            roles_updates.to_add,
+            vec![RoleId::new(4), RoleId::new(6), RoleId::new(8)]
+        );
         assert_eq!(roles_updates.to_remove, vec![RoleId::new(3)]);
 
         player.clans = vec!["Other".to_string()];

@@ -202,6 +202,7 @@ impl Player {
             }
             Metric::ReplaysIWatched => PlayerMetricValue::ReplaysIWatched(self.watched_replays),
             Metric::Clan => PlayerMetricValue::Clan(self.clans.clone()),
+            Metric::MainClan => PlayerMetricValue::MainClan(self.clans.clone()),
             Metric::TopStars => PlayerMetricValue::TopStars(self.top_stars),
             Metric::LastPause => PlayerMetricValue::LastPause(self.last_ranked_paused_at),
         }
