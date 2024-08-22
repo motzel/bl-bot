@@ -618,7 +618,7 @@ pub(crate) async fn cmd_capture(
 
             let leaderboard_id = leaderboard_ids.first().unwrap();
 
-            let map = match BL_CLIENT
+            let (map, clan_id) = match BL_CLIENT
                 .clan()
                 .clan_ranking(leaderboard_id, &[ClanRankingParam::Count(1)])
                 .await
@@ -632,7 +632,9 @@ pub(crate) async fn cmd_capture(
                         return Ok(());
                     }
 
-                    clan_maps.list.data.swap_remove(0)
+                    let clan_id = clan_maps.clan.id;
+
+                    (clan_maps.list.data.swap_remove(0), clan_id)
                 }
                 Err(err) => {
                     msg.edit(
@@ -675,8 +677,8 @@ pub(crate) async fn cmd_capture(
                     };
 
                     let mut is_captured = false;
-                    if let Some((clan, .., leaderboard)) = data.other_data {
-                        if clan.id == leaderboard.clan_id {
+                    if let Some((clan, ..)) = data.other_data {
+                        if clan.id == clan_id {
                             is_captured = true;
                         }
                     }

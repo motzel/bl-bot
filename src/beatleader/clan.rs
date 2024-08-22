@@ -182,8 +182,6 @@ pub struct ClanMapScore {
 #[serde(rename_all = "camelCase")]
 pub struct ClanLeaderboard {
     pub id: LeaderboardId,
-    pub clan_id: ClanId,
-    pub play_count: u32,
     pub plays: u32,
 }
 
