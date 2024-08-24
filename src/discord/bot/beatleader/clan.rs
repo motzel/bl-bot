@@ -249,6 +249,7 @@ impl ClanMapWithScores {
     pub fn to_player_string(
         &self,
         clan_tag: ClanTag,
+        leading_clan_tag: ClanTag,
         player_id: PlayerId,
         is_captured: bool,
     ) -> String {
@@ -259,7 +260,7 @@ impl ClanMapWithScores {
 
         let captured_info = if is_captured {
             format!(
-                "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is captured by the {} clan 💪 ",
+                "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is captured by the **{}** clan 💪 ",
                 self.map.leaderboard.song.name,
                 self.map
                     .leaderboard
@@ -293,7 +294,7 @@ impl ClanMapWithScores {
 
         let loss_info = if !is_captured {
             format!(
-                "\nOn [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>), the {} clan has a loss of **{:.2}pp** to the leading clan. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
+                "\nOn [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
                 self.map.leaderboard.song.name,
                 self
                     .map
@@ -303,6 +304,7 @@ impl ClanMapWithScores {
                 self.map.leaderboard.id,
                 clan_tag,
                 -self.map.pp,
+                leading_clan_tag,
                 self.pp_boundary,
                 match self.acc_boundary.ss {
                     None => "Not possible".to_owned(),

@@ -618,7 +618,7 @@ pub(crate) async fn cmd_capture(
 
             let leaderboard_id = leaderboard_ids.first().unwrap();
 
-            let (map, clan_id) = match BL_CLIENT
+            let (map, clan_id, leading_clan_tag) = match BL_CLIENT
                 .clan()
                 .clan_ranking(leaderboard_id, &[ClanRankingParam::Count(1)])
                 .await
@@ -632,9 +632,11 @@ pub(crate) async fn cmd_capture(
                         return Ok(());
                     }
 
-                    let clan_id = clan_maps.clan.id;
-
-                    (clan_maps.list.data.swap_remove(0), clan_id)
+                    (
+                        clan_maps.list.data.swap_remove(0),
+                        clan_maps.clan.id,
+                        clan_maps.clan.tag,
+                    )
                 }
                 Err(err) => {
                     msg.edit(
@@ -719,6 +721,7 @@ pub(crate) async fn cmd_capture(
                         ctx,
                         CreateReply::default().content(clan_map_with_scores.to_player_string(
                             clan_tag,
+                            leading_clan_tag,
                             player.id,
                             is_captured,
                         )),
