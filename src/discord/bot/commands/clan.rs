@@ -279,8 +279,8 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 return Ok(());
             }
 
-            if bl_player.clans.len() >= 3 {
-                say_without_ping(ctx, "You are already a member of 3 clans. You must leave some clan if you want to join another.", true).await?;
+            if bl_player.clans.len() >= 5 {
+                say_without_ping(ctx, "You are already a member of 5 clans. You must leave some clan if you want to join another.", true).await?;
 
                 return Ok(());
             }
