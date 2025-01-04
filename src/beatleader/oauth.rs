@@ -62,7 +62,12 @@ impl<'a, T: OAuthTokenRepository> OauthResource<'a, T> {
     }
 
     async fn send_oauth_request(&self, oauth_grant: &OAuthGrant) -> beatleader::Result<OAuthToken> {
-        let request = oauth_grant.get_request_builder(self.client).build();
+        let request = oauth_grant
+            .get_request_builder(self.client)
+            .timeout(std::time::Duration::from_secs(
+                self.client.client.get_timeout() * 2,
+            ))
+            .build();
 
         if let Err(err) = request {
             error!("OAuth grant builder error: {}", err);

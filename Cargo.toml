@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.19.10"
+version = "0.19.11"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
