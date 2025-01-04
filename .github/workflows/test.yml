@@ -15,7 +15,7 @@ env:
 jobs:
   test:
     name: "cargo test"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-22.04"
     steps:
       - uses: actions/checkout@v3
 
@@ -30,7 +30,7 @@ jobs:
 
   fmt:
     name: "cargo fmt"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-22.04"
     steps:
       - uses: actions/checkout@v3
 
@@ -47,7 +47,7 @@ jobs:
 
   clippy:
     name: "cargo clippy"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-22.04"
     steps:
       - uses: actions/checkout@v3
 

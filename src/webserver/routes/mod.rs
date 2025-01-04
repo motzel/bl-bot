@@ -54,7 +54,7 @@ pub(crate) fn app_router(
     token: CancellationToken,
     state: AppState,
 ) -> Router {
-    let playlist_governor_conf = Box::new(
+    let playlist_governor_conf = Arc::new(
         GovernorConfigBuilder::default()
             .key_extractor(PlaylistUserExtractor)
             .period(Duration::from_secs(180))
@@ -79,7 +79,7 @@ pub(crate) fn app_router(
                 ).into_response(),
             })
             .finish()
-            .unwrap(),
+            .unwrap()
     );
 
     let playlist_governor_limiter = playlist_governor_conf.limiter().clone();
@@ -110,7 +110,7 @@ pub(crate) fn app_router(
     Router::new()
         .route("/playlist/:user/:id", get(playlist))
         .layer(GovernorLayer {
-            config: Box::leak(playlist_governor_conf),
+            config: playlist_governor_conf,
         })
         .route("/health_check", get(health_check))
         .route("/bl-oauth/", get(bl_oauth))
