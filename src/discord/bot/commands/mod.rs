@@ -120,10 +120,12 @@ pub(crate) fn get_leaderboard_ids_from_message(message: Message) -> Vec<String> 
             .join("\n")
     );
 
-    regex::Regex::new(r"beatleader.(?:xyz|net)/leaderboard/.*?/(?<leaderboard_id>[^\/\?$)\s>]+)")
-        .unwrap()
-        .captures_iter(&contents)
-        .filter_map(|c| c.name("leaderboard_id"))
-        .map(|m| m.as_str().to_string())
-        .collect::<Vec<_>>()
+    regex::Regex::new(
+        r"beatleader.(?:xyz|net|com)/leaderboard/.*?/(?<leaderboard_id>[^\/\?$)\s>]+)",
+    )
+    .unwrap()
+    .captures_iter(&contents)
+    .filter_map(|c| c.name("leaderboard_id"))
+    .map(|m| m.as_str().to_string())
+    .collect::<Vec<_>>()
 }

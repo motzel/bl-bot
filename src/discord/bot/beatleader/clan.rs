@@ -260,7 +260,7 @@ impl ClanMapWithScores {
 
         let captured_info = if is_captured {
             format!(
-                "Looks like [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>) is captured by the **{}** clan 💪 ",
+                "Looks like [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>) is captured by the **{}** clan 💪 ",
                 self.map.leaderboard.song.name,
                 self.map
                     .leaderboard
@@ -294,7 +294,7 @@ impl ClanMapWithScores {
 
         let loss_info = if !is_captured {
             format!(
-                "\nOn [{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
+                "\nOn [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
                 self.map.leaderboard.song.name,
                 self
                     .map
@@ -334,7 +334,7 @@ impl ClanMapWithScores {
 impl Display for ClanMapWithScores {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f,
-               "### **#{} [{} / {}](https://www.beatleader.xyz/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n",
+               "### **#{} [{} / {}](https://www.beatleader.com/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n",
                self.map.rank,
                self.map.leaderboard.song.name,
                self

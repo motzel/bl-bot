@@ -195,18 +195,18 @@ impl Score {
 
         desc.push_str("**");
 
-        desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.xyz/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
+        desc.push_str(&format!("\n### **[BL Replay](https://replay.beatleader.com/?scoreId={}) | [ArcViewer](https://allpoland.github.io/ArcViewer/?scoreID={})**\n", self.id, self.id));
 
         let mut embed = embed
             .author(
                 CreateEmbedAuthor::new(player.name.clone())
                     .icon_url(player.avatar.clone())
-                    .url(format!("https://www.beatleader.xyz/u/{}", player.id)),
+                    .url(format!("https://www.beatleader.com/u/{}", player.id)),
             )
             .title(format!("{} {}", self.song_name, self.song_sub_name,))
             .description(desc)
             .url(format!(
-                "https://www.beatleader.xyz/leaderboard/global/{}/1",
+                "https://www.beatleader.com/leaderboard/global/{}/1",
                 self.leaderboard_id
             ))
             .timestamp(self.timeset);

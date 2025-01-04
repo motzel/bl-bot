@@ -76,7 +76,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let player = player.unwrap();
     if !player.is_verified {
-        say_without_ping(ctx, "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.", true).await?;
+        say_without_ping(ctx, "The profile must be verified. Go to <https://www.beatleader.com/settings#account> and link your discord account with your BL profile.", true).await?;
         return Ok(());
     }
 
@@ -290,7 +290,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
             }) {
                 say_without_ping(
                     ctx,
-                    "The profile must be verified. Go to <https://www.beatleader.xyz/settings#account> and link your discord account with your BL profile.",
+                    "The profile must be verified. Go to <https://www.beatleader.com/settings#account> and link your discord account with your BL profile.",
                     true,
                 )
                     .await?;
@@ -325,7 +325,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
 
             say_without_ping(
                 ctx,
-                "Invitation has been sent! Go to <https://www.beatleader.xyz/clans> and accept it.",
+                "Invitation has been sent! Go to <https://www.beatleader.com/clans> and accept it.",
                 false,
             )
             .await?;
@@ -1056,7 +1056,7 @@ pub(crate) async fn cmd_commanders_order(
             {
                 Ok(commander_order) => {
                     let map_link = format!(
-                        "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+                        "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
                         &leaderboard.song.name,
                         &leaderboard.difficulty.difficulty_name,
                         &leaderboard.id,
@@ -1255,7 +1255,7 @@ pub(crate) async fn cmd_remove_from_map_list(
             {
                 Ok(map) => {
                     let map_link = format!(
-                        "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+                        "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
                         &leaderboard.song.name,
                         &leaderboard.difficulty.difficulty_name,
                         &leaderboard.id,

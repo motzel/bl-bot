@@ -32,7 +32,7 @@ pub mod rating;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-const DEFAULT_API_URL: &str = "https://api.beatleader.xyz";
+const DEFAULT_API_URL: &str = "https://api.beatleader.com";
 
 pub static APP_USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),

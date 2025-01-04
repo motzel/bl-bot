@@ -88,7 +88,7 @@ impl Display for BsMap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{} / {}](<https://www.beatleader.xyz/leaderboard/clanranking/{}/1>)",
+            "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
             &self.song_name, &self.diff_name, &self.leaderboard_id,
         )
     }

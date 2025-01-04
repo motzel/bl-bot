@@ -130,7 +130,7 @@ pub(crate) async fn cmd_link(
     };
 
     let mut player_id = bl_player_id;
-    let re = regex::Regex::new(r"beatleader.xyz/u/(?<player_id>[^\/\?$]+)").unwrap();
+    let re = regex::Regex::new(r"beatleader.(?:xyz|net|com)/u/(?<player_id>[^\/\?$]+)").unwrap();
     if let Some(caps) = re.captures(&player_id) {
         player_id.clone_from(&caps["player_id"].to_owned())
     }
@@ -825,7 +825,7 @@ fn add_profile_card(reply: CreateReply, player: BotPlayer) -> CreateReply {
     reply.embed(
         CreateEmbed::new()
             .title(player.name)
-            .url(format!("https://www.beatleader.xyz/u/{}", player.id))
+            .url(format!("https://www.beatleader.com/u/{}", player.id))
             .thumbnail(player.avatar)
             .field("Rank", player.rank.to_string(), true)
             .field("PP", format!("{:.2}", player.pp), true)
