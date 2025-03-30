@@ -84,7 +84,7 @@ where
     storage: Storage<K, V>,
 }
 
-impl<'a, K, V> CachedStorage<K, V>
+impl<K, V> CachedStorage<K, V>
 where
     K: StorageKey,
     V: StorageValue<K>,
@@ -399,7 +399,7 @@ where
     _phantom_value: PhantomData<V>,
 }
 
-impl<'a, K, V> Storage<K, V>
+impl<K, V> Storage<K, V>
 where
     K: StorageKey,
     V: StorageValue<K>,

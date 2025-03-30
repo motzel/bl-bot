@@ -17,7 +17,7 @@ pub(crate) struct PlaylistRepository {
     storage: CachedStorage<PlaylistId, Playlist>,
 }
 
-impl<'a> PlaylistRepository {
+impl PlaylistRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<Self> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("playlists", persist)).await?,

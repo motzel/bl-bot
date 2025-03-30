@@ -320,7 +320,7 @@ where
     oauth_token_repository: T,
 }
 
-impl<'a, T> ClientWithOAuth<'a, T>
+impl<T> ClientWithOAuth<'_, T>
 where
     T: OAuthTokenRepository,
 {

@@ -59,7 +59,7 @@ pub(crate) struct ClanPeakRepository {
     storage: CachedStorage<ClanId, ClanPeak>,
 }
 
-impl<'a> ClanPeakRepository {
+impl ClanPeakRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<ClanPeakRepository> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("clan-peak", persist)).await?,

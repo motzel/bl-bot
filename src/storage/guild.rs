@@ -18,7 +18,7 @@ pub(crate) struct GuildSettingsRepository {
     storage: CachedStorage<GuildId, GuildSettings>,
 }
 
-impl<'a> GuildSettingsRepository {
+impl GuildSettingsRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<GuildSettingsRepository> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("guild-settings", persist)).await?,

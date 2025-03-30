@@ -35,7 +35,7 @@ pub(crate) struct PlayerScoresRepository {
     pub bl_context: BlContext,
 }
 
-impl<'a> PlayerScoresRepository {
+impl PlayerScoresRepository {
     pub(crate) async fn new(
         persist: Arc<PersistInstance>,
         bl_context: BlContext,

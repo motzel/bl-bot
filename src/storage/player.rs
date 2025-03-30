@@ -24,7 +24,7 @@ pub(crate) struct PlayerRepository {
     user_player_idx_repository: PlayerUserIdxRepository,
 }
 
-impl<'a> PlayerRepository {
+impl PlayerRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerRepository> {
         let storage = CachedStorage::new(Storage::new("players", persist.clone())).await?;
         let user_player_idx_repository = PlayerUserIdxRepository::new(persist).await?;
@@ -455,7 +455,7 @@ pub(crate) struct PlayerUserIdxRepository {
     storage: CachedStorage<PlayerId, PlayerUserIdx>,
 }
 
-impl<'a> PlayerUserIdxRepository {
+impl PlayerUserIdxRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerUserIdxRepository> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("player-user-idx", persist)).await?,

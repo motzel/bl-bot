@@ -49,7 +49,7 @@ pub(crate) struct PlayerOAuthTokenRepository {
     storage: CachedStorage<PlayerId, PlayerOAuthToken>,
 }
 
-impl<'a> PlayerOAuthTokenRepository {
+impl PlayerOAuthTokenRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<PlayerOAuthTokenRepository> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("player-oauth-token", persist)).await?,

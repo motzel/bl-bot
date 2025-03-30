@@ -105,7 +105,7 @@ pub(crate) struct BsMapsRepository {
     storage: CachedStorage<BsMapId, BsMap>,
 }
 
-impl<'a> BsMapsRepository {
+impl BsMapsRepository {
     pub(crate) async fn new(persist: Arc<PersistInstance>) -> Result<Self> {
         Ok(Self {
             storage: CachedStorage::new(Storage::new("maps", persist)).await?,
