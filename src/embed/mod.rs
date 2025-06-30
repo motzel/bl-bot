@@ -733,7 +733,7 @@ pub async fn embed_profile(
                     if relative_time == "1 months ago" {
                         "1 month ago".clone_into(&mut relative_time);
                     }
-                    format!("Last paused {}", relative_time)
+                    format!("Last paused {relative_time}")
                 } else {
                     "Never paused".to_owned()
                 },

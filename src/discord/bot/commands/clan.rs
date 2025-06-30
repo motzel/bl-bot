@@ -90,7 +90,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let mut player_clan: Option<Clan> = None;
     for tag in player.clans {
-        msg_contents.push_str(format!("Fetching {} clan data...", tag).as_str());
+        msg_contents.push_str(format!("Fetching {tag} clan data...").as_str());
 
         let msg_contents_clone = msg_contents.clone();
         msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
@@ -489,14 +489,14 @@ pub(crate) async fn cmd_clan_wars_playlist(
                                 .await?;
                             }
                             Err(err) => {
-                                ctx.say(format!("An error occurred: {}", err)).await?;
+                                ctx.say(format!("An error occurred: {err}")).await?;
                             }
                         };
 
                         Ok(())
                     }
                     Err(err) => {
-                        ctx.say(format!("An error occurred: {}", err)).await?;
+                        ctx.say(format!("An error occurred: {err}")).await?;
 
                         Ok(())
                     }
@@ -642,7 +642,7 @@ pub(crate) async fn cmd_capture(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
 
@@ -732,7 +732,7 @@ pub(crate) async fn cmd_capture(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
                 }
@@ -780,12 +780,12 @@ pub(crate) async fn cmd_set_clan_wars_maps_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -819,12 +819,12 @@ pub(crate) async fn cmd_set_clan_wars_contribution_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -864,13 +864,13 @@ pub(crate) async fn cmd_clan_wars_enlist(
         .await
     {
         Ok(_) => {
-            let message = format!("<@{}> has been enlisted.", selected_user_id);
+            let message = format!("<@{selected_user_id}> has been enlisted.");
             say_without_ping(ctx, message.as_str(), ephemeral).await?;
 
             Ok(())
         }
         Err(e) => {
-            let message = format!("An error occurred: {}", e);
+            let message = format!("An error occurred: {e}");
             say_without_ping(ctx, message.as_str(), true).await?;
 
             Ok(())
@@ -911,13 +911,13 @@ pub(crate) async fn cmd_clan_wars_release(
         .await
     {
         Ok(_) => {
-            let message = format!("<@{}> has been released from service.", selected_user_id);
+            let message = format!("<@{selected_user_id}> has been released from service.");
             say_without_ping(ctx, message.as_str(), ephemeral).await?;
 
             Ok(())
         }
         Err(e) => {
-            let message = format!("An error occurred: {}", e);
+            let message = format!("An error occurred: {e}");
             say_without_ping(ctx, message.as_str(), true).await?;
 
             Ok(())
@@ -955,12 +955,12 @@ pub(crate) async fn cmd_set_clan_wars_soldier_role(
         .await
     {
         Ok(guild_settings) => {
-            say_without_ping(ctx, format!("{}", guild_settings).as_str(), true).await?;
+            say_without_ping(ctx, format!("{guild_settings}").as_str(), true).await?;
 
             Ok(())
         }
         Err(e) => {
-            let message = format!("An error occurred: {}", e);
+            let message = format!("An error occurred: {e}");
             say_without_ping(ctx, message.as_str(), true).await?;
 
             Ok(())
@@ -998,12 +998,12 @@ pub(crate) async fn cmd_set_clan_commander_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -1023,7 +1023,7 @@ pub(crate) async fn cmd_commanders_order(
     let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
         Ok(leaderboard_ids) => leaderboard_ids,
         Err(e) => {
-            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+            say_without_ping(ctx, format!("{e}").as_str(), false).await?;
 
             return Ok(());
         }
@@ -1098,7 +1098,7 @@ pub(crate) async fn cmd_commanders_order(
                             msg.edit(
                                 ctx,
                                 CreateReply::default()
-                                    .content(format!("Oh snap! An error occurred: {}", err)),
+                                    .content(format!("Oh snap! An error occurred: {err}")),
                             )
                             .await?;
                         }
@@ -1110,7 +1110,7 @@ pub(crate) async fn cmd_commanders_order(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
                     return Ok(());
@@ -1120,7 +1120,7 @@ pub(crate) async fn cmd_commanders_order(
         Err(err) => {
             msg.edit(
                 ctx,
-                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+                CreateReply::default().content(format!("Oh snap! An error occurred: {err}")),
             )
             .await?;
 
@@ -1142,7 +1142,7 @@ pub(crate) async fn cmd_revoke_commanders_order(
     let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
         Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
-            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+            say_without_ping(ctx, format!("{e}").as_str(), false).await?;
 
             return Ok(());
         }
@@ -1190,7 +1190,7 @@ pub(crate) async fn cmd_revoke_commanders_order(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
                 }
@@ -1201,7 +1201,7 @@ pub(crate) async fn cmd_revoke_commanders_order(
         Err(err) => {
             msg.edit(
                 ctx,
-                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+                CreateReply::default().content(format!("Oh snap! An error occurred: {err}")),
             )
             .await?;
             return Ok(());
@@ -1222,7 +1222,7 @@ pub(crate) async fn cmd_remove_from_map_list(
     let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
         Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
-            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+            say_without_ping(ctx, format!("{e}").as_str(), false).await?;
 
             return Ok(());
         }
@@ -1297,7 +1297,7 @@ pub(crate) async fn cmd_remove_from_map_list(
                             msg.edit(
                                 ctx,
                                 CreateReply::default()
-                                    .content(format!("Oh snap! An error occurred: {}", err)),
+                                    .content(format!("Oh snap! An error occurred: {err}")),
                             )
                             .await?;
                         }
@@ -1309,7 +1309,7 @@ pub(crate) async fn cmd_remove_from_map_list(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
                     return Ok(());
@@ -1319,7 +1319,7 @@ pub(crate) async fn cmd_remove_from_map_list(
         Err(err) => {
             msg.edit(
                 ctx,
-                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+                CreateReply::default().content(format!("Oh snap! An error occurred: {err}")),
             )
             .await?;
 
@@ -1341,7 +1341,7 @@ pub(crate) async fn cmd_restore_to_map_list(
     let (leaderboard_ids, clan_tag) = match get_leaderboard_id_for_commander(ctx, message).await {
         Ok((leaderboard_ids, clan_tag)) => (leaderboard_ids, clan_tag),
         Err(e) => {
-            say_without_ping(ctx, format!("{}", e).as_str(), false).await?;
+            say_without_ping(ctx, format!("{e}").as_str(), false).await?;
 
             return Ok(());
         }
@@ -1382,7 +1382,7 @@ pub(crate) async fn cmd_restore_to_map_list(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("Oh snap! An error occurred: {}", err)),
+                            .content(format!("Oh snap! An error occurred: {err}")),
                     )
                     .await?;
                 }
@@ -1393,7 +1393,7 @@ pub(crate) async fn cmd_restore_to_map_list(
         Err(err) => {
             msg.edit(
                 ctx,
-                CreateReply::default().content(format!("Oh snap! An error occurred: {}", err)),
+                CreateReply::default().content(format!("Oh snap! An error occurred: {err}")),
             )
             .await?;
             return Ok(());

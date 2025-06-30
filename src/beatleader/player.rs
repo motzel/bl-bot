@@ -26,7 +26,7 @@ impl<'a> PlayerResource<'a> {
         self.client
             .get_json::<Player, Player, PlayerScoreParam>(
                 Method::GET,
-                &format!("/player/{}", id),
+                &format!("/player/{id}"),
                 &[],
             )
             .await
@@ -36,7 +36,7 @@ impl<'a> PlayerResource<'a> {
         self.client
             .get_json::<Player, Player, PlayerScoreParam>(
                 Method::GET,
-                &format!("/player/discord/{}", id),
+                &format!("/player/discord/{id}"),
                 &[],
             )
             .await
@@ -50,7 +50,7 @@ impl<'a> PlayerResource<'a> {
         self.client
             .get_json::<BlApiListResponse<Score>, List<Score>, PlayerScoreParam>(
                 Method::GET,
-                &format!("/player/{}/scores", id),
+                &format!("/player/{id}/scores"),
                 params,
             )
             .await

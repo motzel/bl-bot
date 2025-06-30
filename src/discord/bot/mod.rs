@@ -633,8 +633,8 @@ impl std::fmt::Display for RoleSettings {
             self.weight,
             cond_vec
                 .iter()
-                .map(|(_role_cond_id, role_cond)| format!(" * {}", role_cond))
-                .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
+                .map(|(_role_cond_id, role_cond)| format!(" * {role_cond}"))
+                .fold(String::new(), |out, rs| out + &*format!("{rs}\n"))
                 .trim_end()
         )
     }
@@ -741,7 +741,7 @@ impl std::fmt::Display for UserRoleChanges {
             Some(
                 self.to_add
                     .iter()
-                    .map(|role| format!("<@&{}>", role))
+                    .map(|role| format!("<@&{role}>"))
                     .collect::<Vec<String>>()
                     .join(", "),
             )
@@ -753,7 +753,7 @@ impl std::fmt::Display for UserRoleChanges {
             Some(
                 self.to_remove
                     .iter()
-                    .map(|role| format!("<@&{}>", role))
+                    .map(|role| format!("<@&{role}>"))
                     .collect::<Vec<String>>()
                     .join(", "),
             )
@@ -1149,12 +1149,12 @@ impl std::fmt::Display for GuildSettings {
                             rg,
                             rs_vec
                                 .iter()
-                                .map(|rs| format!("{}", rs))
-                                .fold(String::new(), |out, rs| out + &*format!("{}\n", rs))
+                                .map(|rs| format!("{rs}"))
+                                .fold(String::new(), |out, rs| out + &*format!("{rs}\n"))
                                 .trim_end()
                         )
                     })
-                    .fold(String::new(), |out, rg| out + &*format!("{}\n", rg))
+                    .fold(String::new(), |out, rg| out + &*format!("{rg}\n"))
                     .trim()
                     .to_owned();
 
@@ -1318,19 +1318,19 @@ impl std::fmt::Display for ClanSettings {
                 },
                 self.clan_wars_maps_channel_id.map_or_else(
                     || "**None**".to_owned(),
-                    |channel_id| format!("<#{}>", channel_id)
+                    |channel_id| format!("<#{channel_id}>")
                 ),
                 self.clan_wars_contribution_channel_id.map_or_else(
                     || "**None**".to_owned(),
-                    |channel_id| format!("<#{}>", channel_id)
+                    |channel_id| format!("<#{channel_id}>")
                 ),
                 self.commander_role.map_or_else(
                     || "**None**".to_owned(),
-                    |role_id| format!("<@&{}>", role_id)
+                    |role_id| format!("<@&{role_id}>")
                 ),
                 self.soldier_role.map_or_else(
                     || "**None**".to_owned(),
-                    |role_id| format!("<@&{}>", role_id)
+                    |role_id| format!("<@&{role_id}>")
                 ),
             )
         } else {
@@ -1975,7 +1975,7 @@ mod tests {
 
         let mut roles_updates = gs.get_role_updates(
             &player,
-            &vec![RoleId::new(1), RoleId::new(3), RoleId::new(7)],
+            &[RoleId::new(1), RoleId::new(3), RoleId::new(7)],
         );
 
         roles_updates.to_add.sort_unstable();
@@ -1989,7 +1989,7 @@ mod tests {
 
         player.top_accuracy = 89.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(1)]);
+        let mut roles_updates = gs.get_role_updates(&player, &[RoleId::new(1)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -1999,7 +1999,7 @@ mod tests {
 
         player.pp = 10000.0;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![]);
+        let mut roles_updates = gs.get_role_updates(&player, &[]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2009,7 +2009,7 @@ mod tests {
 
         player.rank = 1000;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2)]);
+        let mut roles_updates = gs.get_role_updates(&player, &[RoleId::new(2)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2019,7 +2019,7 @@ mod tests {
 
         player.rank = 500;
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
+        let mut roles_updates = gs.get_role_updates(&player, &[RoleId::new(2), RoleId::new(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2029,7 +2029,7 @@ mod tests {
 
         player.clans = vec!["Other clan".to_string(), "Clan1".to_string()];
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
+        let mut roles_updates = gs.get_role_updates(&player, &[RoleId::new(2), RoleId::new(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2039,7 +2039,7 @@ mod tests {
 
         player.clans = vec!["Clan1".to_string(), "Other clan".to_string()];
 
-        let mut roles_updates = gs.get_role_updates(&player, &vec![RoleId::new(2), RoleId::new(3)]);
+        let mut roles_updates = gs.get_role_updates(&player, &[RoleId::new(2), RoleId::new(3)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2054,7 +2054,7 @@ mod tests {
 
         let mut roles_updates = gs.get_role_updates(
             &player,
-            &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
+            &[RoleId::new(2), RoleId::new(3), RoleId::new(6)],
         );
 
         roles_updates.to_add.sort_unstable();
@@ -2070,7 +2070,7 @@ mod tests {
 
         let mut roles_updates = gs.get_role_updates(
             &player,
-            &vec![RoleId::new(2), RoleId::new(3), RoleId::new(6)],
+            &[RoleId::new(2), RoleId::new(3), RoleId::new(6)],
         );
 
         roles_updates.to_add.sort_unstable();

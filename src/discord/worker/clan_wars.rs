@@ -197,7 +197,7 @@ impl BlClanWarsMapsWorker {
                                                     {
                                                         None
                                                     } else {
-                                                        Some(format!("<@{}>", user_id))
+                                                        Some(format!("<@{user_id}>"))
                                                     }
                                                 })
                                                 .collect::<Vec<_>>();

@@ -217,7 +217,7 @@ fn draw_stars_at_point<I: DerefMut<Target = Image<Rgba>>>(
     horizontal_anchor: HorizontalAnchor,
     vertical_anchor: VerticalAnchor,
 ) {
-    let text = format!("{:.2}*", stars);
+    let text = format!("{stars:.2}*");
 
     let mut tech_text_segment = TextSegment::new(font, text, Rgba::white()).with_size(font_size);
     let tech_text_layout = TextLayout::new()

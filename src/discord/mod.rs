@@ -101,7 +101,7 @@ impl DiscordClient {
                 Box::pin(async move {
                     match error {
                         poise::FrameworkError::Setup { error, .. } => {
-                            panic!("Failed to start bot: {:?}", error)
+                            panic!("Failed to start bot: {error:?}")
                         }
                         poise::FrameworkError::Command { error, ctx, .. } => {
                             info!("Error in command `{}`: {:?}", ctx.command().name, error,);

@@ -425,28 +425,28 @@ impl MapRatings {
             if bold_modifier.is_some()
                 && bold_modifier.as_ref().unwrap() == &MapRatingModifier::SlowerSong
             {
-                format!("**{}**", ss)
+                format!("**{ss}**")
             } else {
                 ss
             },
             if bold_modifier.is_some()
                 && bold_modifier.as_ref().unwrap() == &MapRatingModifier::None
             {
-                format!("**{}**", none)
+                format!("**{none}**")
             } else {
                 none
             },
             if bold_modifier.is_some()
                 && bold_modifier.as_ref().unwrap() == &MapRatingModifier::FasterSong
             {
-                format!("**{}**", fs)
+                format!("**{fs}**")
             } else {
                 fs
             },
             if bold_modifier.is_some()
                 && bold_modifier.as_ref().unwrap() == &MapRatingModifier::SuperFastSong
             {
-                format!("**{}**", sf)
+                format!("**{sf}**")
             } else {
                 sf
             },

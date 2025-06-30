@@ -21,8 +21,7 @@ impl<'a> AiRatingsResource<'a> {
         value: u32,
     ) -> beatleader::Result<AiRatings> {
         let url = format!(
-            "https://stage.api.beatleader.net/ppai2/{}/{}/{}",
-            hash, mode_name, value
+            "https://stage.api.beatleader.net/ppai2/{hash}/{mode_name}/{value}"
         );
         let request = self
             .client

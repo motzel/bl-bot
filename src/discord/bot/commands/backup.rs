@@ -63,7 +63,7 @@ pub(crate) async fn cmd_export(ctx: Context<'_>) -> Result<(), Error> {
             .await?;
         }
         Err(err) => {
-            ctx.say(format!("An error occurred: {}", err)).await?;
+            ctx.say(format!("An error occurred: {err}")).await?;
         }
     };
 
@@ -105,8 +105,7 @@ pub(crate) async fn cmd_import(
                         .await
                     {
                         ctx.say(format!(
-                            "An error occurred during restoring guild settings: {}",
-                            err
+                            "An error occurred during restoring guild settings: {err}"
                         ))
                         .await?;
 
@@ -115,8 +114,7 @@ pub(crate) async fn cmd_import(
 
                     if let Err(err) = ctx.data().players_repository.restore(data.players).await {
                         ctx.say(format!(
-                            "An error occurred during restoring linked players: {}",
-                            err
+                            "An error occurred during restoring linked players: {err}"
                         ))
                         .await?;
 
@@ -130,8 +128,7 @@ pub(crate) async fn cmd_import(
                         .await
                     {
                         ctx.say(format!(
-                            "An error occurred during restoring oauth tokens: {}",
-                            err
+                            "An error occurred during restoring oauth tokens: {err}"
                         ))
                         .await?;
 
@@ -139,7 +136,7 @@ pub(crate) async fn cmd_import(
                     }
 
                     if let Err(err) = ctx.data().maps_repository.restore(data.maps).await {
-                        ctx.say(format!("An error occurred during restoring maps: {}", err))
+                        ctx.say(format!("An error occurred during restoring maps: {err}"))
                             .await?;
 
                         return Ok(());
@@ -147,8 +144,7 @@ pub(crate) async fn cmd_import(
                 }
                 Err(err) => {
                     ctx.say(format!(
-                        "An error occurred during deserializing attachment: {}",
-                        err
+                        "An error occurred during deserializing attachment: {err}"
                     ))
                     .await?;
 
@@ -157,8 +153,7 @@ pub(crate) async fn cmd_import(
             },
             Err(err) => {
                 ctx.say(format!(
-                    "An error occurred during converting attachment to utf8: {}",
-                    err
+                    "An error occurred during converting attachment to utf8: {err}"
                 ))
                 .await?;
 
@@ -167,8 +162,7 @@ pub(crate) async fn cmd_import(
         },
         Err(err) => {
             ctx.say(format!(
-                "An error occurred during downloading attachment: {}",
-                err
+                "An error occurred during downloading attachment: {err}"
             ))
             .await?;
 

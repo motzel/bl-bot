@@ -153,8 +153,7 @@ pub(crate) async fn cmd_link(
 
             let mut reply = CreateReply::default()
                 .content(format!(
-                    "<@{}> has been linked to the BL profile",
-                    selected_user_id
+                    "<@{selected_user_id}> has been linked to the BL profile"
                 ))
                 // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
                 .allowed_mentions(CreateAllowedMentions::new().all_users(true))
@@ -174,7 +173,7 @@ pub(crate) async fn cmd_link(
             Ok(())
         }
         Err(e) => {
-            say_without_ping(ctx, format!("An error occurred: {}", e).as_str(), true).await?;
+            say_without_ping(ctx, format!("An error occurred: {e}").as_str(), true).await?;
 
             Ok(())
         }
@@ -210,8 +209,7 @@ pub(crate) async fn cmd_unlink(
             ctx.send(
                 CreateReply::default()
                     .content(format!(
-                        "<@{}> has been unlinked from BL profile",
-                        selected_user_id
+                        "<@{selected_user_id}> has been unlinked from BL profile"
                     ))
                     // https://docs.rs/serenity/latest/serenity/builder/struct.CreateAllowedMentions.html
                     .allowed_mentions(CreateAllowedMentions::new().all_users(true).all_roles(true))
@@ -225,7 +223,7 @@ pub(crate) async fn cmd_unlink(
             StorageError::NotFound(_) => {
                 say_without_ping(
                     ctx,
-                    format!("<@{}> is not linked by a bot.", selected_user_id).as_str(),
+                    format!("<@{selected_user_id}> is not linked by a bot.").as_str(),
                     false,
                 )
                 .await?;
@@ -235,7 +233,7 @@ pub(crate) async fn cmd_unlink(
             _ => {
                 ctx.send(
                     CreateReply::default()
-                        .content(format!("An error has occurred: {}", e))
+                        .content(format!("An error has occurred: {e}"))
                         .ephemeral(true),
                 )
                 .await?;
@@ -362,7 +360,7 @@ pub(crate) async fn link_user_if_needed(
                     &bl_player.name
                 );
 
-                return match ctx
+                return (ctx
                     .data()
                     .players_repository
                     .link_player(
@@ -371,11 +369,8 @@ pub(crate) async fn link_user_if_needed(
                         bl_player,
                         requires_verified_profile,
                     )
-                    .await
-                {
-                    Ok(player) => Some(player),
-                    Err(_) => None,
-                };
+                    .await)
+                    .ok();
             };
 
             None
@@ -447,7 +442,7 @@ pub(crate) async fn cmd_replay(
                     player_scores
                 }
                 Err(e) => {
-                    ctx.say(format!("Error fetching scores: {}", e)).await?;
+                    ctx.say(format!("Error fetching scores: {e}")).await?;
                     return Ok(());
                 }
             };
@@ -624,7 +619,7 @@ fn add_replay_components(
             )
             .min_values(1)
             .max_values(select_max_len)
-            .placeholder(format!("Select replays to post (max {})", select_max_len)),
+            .placeholder(format!("Select replays to post (max {select_max_len})")),
         ),
         CreateActionRow::Buttons(vec![poise::serenity_prelude::CreateButton::new("post_btn")
             .label("Post replay")
@@ -890,13 +885,11 @@ pub(crate) async fn say_profile_not_linked(
         ctx,
         if requires_verified_profile {
             format!(
-                "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. This server requires a verified profile, so link your Discord account on the BL website first, then use this command again.",
-                user_id
+                "<@{user_id}> is not linked by a bot nor is the Discord account linked on the BL site. This server requires a verified profile, so link your Discord account on the BL website first, then use this command again."
             )
         } else {
             format!(
-                "<@{}> is not linked by a bot nor is the Discord account linked on the BL site. Use the ``/bl-link`` command first or link your Discord account on the BL site first, then use this command again.",
-                user_id
+                "<@{user_id}> is not linked by a bot nor is the Discord account linked on the BL site. Use the ``/bl-link`` command first or link your Discord account on the BL site first, then use this command again."
             )
         }
         .as_str(),

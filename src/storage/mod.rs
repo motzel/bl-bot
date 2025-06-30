@@ -54,9 +54,9 @@ impl From<crate::beatleader::error::Error> for StorageError {
 impl Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StorageError::Storage(e) => write!(f, "storage error: {}", e),
-            StorageError::BlApi(e) => write!(f, "Beat Leader API error: {}", e),
-            StorageError::NotFound(e) => write!(f, "{}", e),
+            StorageError::Storage(e) => write!(f, "storage error: {e}"),
+            StorageError::BlApi(e) => write!(f, "Beat Leader API error: {e}"),
+            StorageError::NotFound(e) => write!(f, "{e}"),
             StorageError::Unknown => write!(f, "unknown error"),
             StorageError::Cancelled => write!(f, "cancelled"),
             StorageError::ProfileNotVerified => write!(f, "profile is not verified. Log in to the Beat Leader website and link your Discord account under Settings/Account."),

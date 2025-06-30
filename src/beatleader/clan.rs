@@ -305,7 +305,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<Player>, Clan, ClanPlayersParam>(
                 Method::GET,
-                format!("/clan/{}", tag).as_str(),
+                format!("/clan/{tag}").as_str(),
                 &[ClanPlayersParam::Count(0)],
             )
             .await
@@ -315,7 +315,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<Player>, Clan, ClanPlayersParam>(
                 Method::GET,
-                format!("/clan/id/{}", clan_id).as_str(),
+                format!("/clan/id/{clan_id}").as_str(),
                 &[ClanPlayersParam::Count(0)],
             )
             .await
@@ -329,7 +329,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<Player>, ClanWithList<Player>, ClanPlayersParam>(
                 Method::GET,
-                format!("/clan/{}", tag).as_str(),
+                format!("/clan/{tag}").as_str(),
                 params,
             )
             .await
@@ -343,7 +343,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<Player>, ClanWithList<Player>, ClanPlayersParam>(
                 Method::GET,
-                format!("/clan/id/{}", clan_id).as_str(),
+                format!("/clan/id/{clan_id}").as_str(),
                 params,
             )
             .await
@@ -357,7 +357,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<ClanMap>, ClanWithList<ClanMap>, ClanMapsParam>(
                 Method::GET,
-                &format!("/clan/{}/maps", tag),
+                &format!("/clan/{tag}/maps"),
                 params,
             )
             .await
@@ -371,7 +371,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanContainer<ClanMap>, ClanWithList<ClanMap>, ClanMapsParam>(
                 Method::GET,
-                &format!("/clan/id/{}/maps", clan_id),
+                &format!("/clan/id/{clan_id}/maps"),
                 params,
             )
             .await
@@ -385,7 +385,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanRankingResponse, ClanWithList<ClanMap>, ClanRankingParam>(
                 Method::GET,
-                &format!("/leaderboard/clanRankings/{}", leaderboard_id),
+                &format!("/leaderboard/clanRankings/{leaderboard_id}"),
                 params,
             )
             .await
@@ -401,8 +401,7 @@ impl<'a> ClanResource<'a> {
             .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
-                    "/leaderboard/clanRankings/{}/{}",
-                    leaderboard_id, clan_map_id
+                    "/leaderboard/clanRankings/{leaderboard_id}/{clan_map_id}"
                 ),
                 params,
             )
@@ -419,8 +418,7 @@ impl<'a> ClanResource<'a> {
             .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
                 &format!(
-                    "/leaderboard/clanRankings/{}/clan/{}",
-                    leaderboard_id, clan_id
+                    "/leaderboard/clanRankings/{leaderboard_id}/clan/{clan_id}"
                 ),
                 params,
             )
@@ -437,8 +435,7 @@ impl<'a> ClanResource<'a> {
             .get_json::<BlApiClanRankingScoresResponse, BlApiClanRankingScoresResponse, ClanMapParam>(
                 Method::GET,
                 &format!(
-                    "/leaderboard/clanRankings/{}/clan/{}",
-                    leaderboard_id, clan_id
+                    "/leaderboard/clanRankings/{leaderboard_id}/clan/{clan_id}"
                 ),
                 params,
             )
@@ -453,7 +450,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<Leaderboard, Leaderboard, LeaderboardParam>(
                 Method::GET,
-                &format!("/leaderboard/{}", leaderboard_id),
+                &format!("/leaderboard/{leaderboard_id}"),
                 params,
             )
             .await

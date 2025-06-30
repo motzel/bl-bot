@@ -281,7 +281,7 @@ async fn bl_oauth(
 
             match mc.decrypt_base64_to_string(state.as_str()) {
                 Err(err) => {
-                    let err_string = format!("Can not decode oauth state: {}", err);
+                    let err_string = format!("Can not decode oauth state: {err}");
                     tracing::error!("{}", err_string.as_str());
 
                     return (StatusCode::BAD_REQUEST, err_string);
@@ -290,7 +290,7 @@ async fn bl_oauth(
                     Err(err) => {
                         return (
                             StatusCode::BAD_REQUEST,
-                            format!("Invalid oauth state: {}", err),
+                            format!("Invalid oauth state: {err}"),
                         )
                     }
                     Ok(guild_id) => {
@@ -322,7 +322,7 @@ async fn bl_oauth(
                                     .await {
                                     Err(err) => {
                                         return (StatusCode::BAD_GATEWAY, format!(
-                                            "An error has occurred: {}\n\nUse the /bl-set-clan-invitation command again.", err
+                                            "An error has occurred: {err}\n\nUse the /bl-set-clan-invitation command again."
                                         ))
                                     },
                                     Ok(_) => {

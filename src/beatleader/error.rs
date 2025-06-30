@@ -24,15 +24,15 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Request(e) => write!(f, "BL request building error: {}", e),
-            Error::Network(e) => write!(f, "network error ({})", e),
+            Error::Request(e) => write!(f, "BL request building error: {e}"),
+            Error::Network(e) => write!(f, "network error ({e})"),
             Error::NoContent => write!(f, "no content"),
             Error::NotFound => write!(f, "not found"),
             Error::Unauthorized => write!(f, "BL unauthorized error"),
             Error::Client(_) => write!(f, "BL client error"),
             Error::Server => write!(f, "BL server error"),
-            Error::JsonDecode(e) => write!(f, "invalid BL response: {}", e),
-            Error::Db(e) => write!(f, "db error: {}", e),
+            Error::JsonDecode(e) => write!(f, "invalid BL response: {e}"),
+            Error::Db(e) => write!(f, "db error: {e}"),
             Error::Unknown => write!(f, "unknown error"),
             Error::OAuth(e) => write!(
                 f,
@@ -44,7 +44,7 @@ impl fmt::Display for Error {
                 }
             ),
             Error::OAuthStorage => write!(f, "OAuth storage error"),
-            Error::OAuthExpired(date) => write!(f, "OAuth token has expired on {}", date),
+            Error::OAuthExpired(date) => write!(f, "OAuth token has expired on {date}"),
         }
     }
 }

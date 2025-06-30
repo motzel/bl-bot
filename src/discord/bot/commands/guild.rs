@@ -22,7 +22,7 @@ use crate::Error;
 pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     let guild_settings = get_guild_settings(ctx, true).await?;
 
-    ctx.say(format!("{}", guild_settings)).await?;
+    ctx.say(format!("{guild_settings}")).await?;
 
     Ok(())
 }
@@ -54,12 +54,12 @@ pub(crate) async fn cmd_set_log_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -92,12 +92,12 @@ pub(crate) async fn cmd_set_profile_verification(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -136,7 +136,7 @@ pub(crate) async fn cmd_add_auto_role(
     let metric_and_value = match RequirementMetricValue::new(metric, value.as_str()) {
         Ok(v) => v,
         Err(e) => {
-            ctx.say(format!("Invalid metric value: {}", e)).await?;
+            ctx.say(format!("Invalid metric value: {e}")).await?;
             return Ok(());
         }
     };
@@ -155,12 +155,12 @@ pub(crate) async fn cmd_add_auto_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }
@@ -196,12 +196,12 @@ pub(crate) async fn cmd_remove_auto_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{}", guild_settings)).await?;
+            ctx.say(format!("{guild_settings}")).await?;
 
             Ok(())
         }
         Err(e) => {
-            ctx.say(format!("An error occurred: {}", e)).await?;
+            ctx.say(format!("An error occurred: {e}")).await?;
 
             Ok(())
         }

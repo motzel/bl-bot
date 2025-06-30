@@ -327,7 +327,7 @@ impl ClanMapWithScores {
             "".to_string()
         };
 
-        format!("{}{}{}", captured_info, played_info, loss_info)
+        format!("{captured_info}{played_info}{loss_info}")
     }
 }
 
@@ -610,7 +610,7 @@ impl Playlist {
             .await;
 
         if let Err(err) = maps_list {
-            return Err(format!("Map list download error: {}", err));
+            return Err(format!("Map list download error: {err}"));
         }
 
         let maps_list = maps_list.unwrap();
@@ -785,7 +785,7 @@ impl Playlist {
                 .collect(),
             custom_data: Some(PlaylistCustomData {
                 sync_url: format!("{}/playlist/{}/{}", server_url, player_id, id.clone()),
-                owner: format!("{}/{}", clan_tag, player_id),
+                owner: format!("{clan_tag}/{player_id}"),
                 hash: format!("{}-{}", id, Utc::now().timestamp()),
                 shared: false,
                 clan_tag,

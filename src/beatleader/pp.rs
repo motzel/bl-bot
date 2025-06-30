@@ -174,7 +174,7 @@ pub(crate) fn calculate_acc_from_pp(
 
     let mut iteration = 0;
     while max_idx - min_idx > 1 && iteration < CURVE.len() {
-        let middle_idx = (max_idx - min_idx + 1) / 2 + min_idx;
+        let middle_idx = (max_idx - min_idx).div_ceil(2) + min_idx;
         if middle_idx > CURVE.len() - 1 {
             return None;
         }
@@ -200,7 +200,7 @@ pub(crate) fn calculate_acc_from_pp(
         let middle_acc = (max_acc - min_acc) / 2.0 + min_acc;
         let middle_pp = curve_pp(middle_acc, star_rating.clone(), false);
 
-        if format!("{:.2}", pp) == format!("{:.2}", middle_pp) {
+        if format!("{pp:.2}") == format!("{middle_pp:.2}") {
             return Some(middle_acc);
         }
 

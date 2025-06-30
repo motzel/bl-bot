@@ -162,7 +162,7 @@ impl UserRolesWorker {
                                     let embed_image = get_player_embed(&player).await;
 
                                     let mut message = CreateMessage::new()
-                                        .content(format!("{}", rc))
+                                        .content(format!("{rc}"))
                                         .allowed_mentions(CreateAllowedMentions::new());
 
                                     if let Some(embed_buffer) = embed_image {
@@ -191,7 +191,7 @@ impl UserRolesWorker {
                                         .send_message(
                                             self.context.clone(),
                                             CreateMessage::new()
-                                                .content(format!("{}", rc))
+                                                .content(format!("{rc}"))
                                                 .allowed_mentions(CreateAllowedMentions::new()),
                                         )
                                         .await

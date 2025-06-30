@@ -43,7 +43,7 @@ pub(crate) fn init(tracing_settings: TracingSettings) -> Option<WorkerGuard> {
 
             let file_appender = tracing_appender::rolling::daily(
                 tracing_settings.log_dir,
-                format!("{}-{}", app_name, app_version),
+                format!("{app_name}-{app_version}"),
             );
             let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
 
