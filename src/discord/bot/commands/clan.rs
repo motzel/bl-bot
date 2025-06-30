@@ -618,9 +618,9 @@ pub(crate) async fn cmd_capture(
 
             let leaderboard_id = leaderboard_ids.first().unwrap();
 
-            let (map, clan_id, leading_clan_tag) = match BL_CLIENT
+            let (map, clan_id, leading_clan_tag, second_clan_pp) = match BL_CLIENT
                 .clan()
-                .clan_ranking(leaderboard_id, &[ClanRankingParam::Count(1)])
+                .clan_ranking(leaderboard_id, &[ClanRankingParam::Count(2)])
                 .await
             {
                 Ok(mut clan_maps) => {
@@ -632,10 +632,17 @@ pub(crate) async fn cmd_capture(
                         return Ok(());
                     }
 
+                    let second_clan_pp = if let Some(map) = clan_maps.list.data.get(1) {
+                        map.pp
+                    } else {
+                        0.0
+                    };
+
                     (
                         clan_maps.list.data.swap_remove(0),
                         clan_maps.clan.id,
                         clan_maps.clan.tag,
+                        second_clan_pp,
                     )
                 }
                 Err(err) => {
@@ -686,7 +693,11 @@ pub(crate) async fn cmd_capture(
                     }
 
                     let leading_clan_pp = map.pp;
-                    let real_pp_loss = clan_pp - leading_clan_pp;
+                    let real_pp_loss = if is_captured {
+                        clan_pp - second_clan_pp
+                    } else {
+                        clan_pp - leading_clan_pp
+                    };
 
                     let player_id = player.id.clone();
                     let mut pps_without_player = data

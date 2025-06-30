@@ -260,14 +260,15 @@ impl ClanMapWithScores {
 
         let captured_info = if is_captured {
             format!(
-                "Looks like [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>) is captured by the **{}** clan 💪 ",
+                "Looks like [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>) is captured for the **{}** clan by **{:.2}pp** 💪 ",
                 self.map.leaderboard.song.name,
                 self.map
                     .leaderboard
                     .difficulty
                     .difficulty_name,
                 self.map.leaderboard.id,
-                clan_tag
+                clan_tag,
+                self.map.pp
             )
         } else {
             "".to_owned()
@@ -288,7 +289,7 @@ impl ClanMapWithScores {
                 if is_captured { " Thanks for your contribution 💗" } else { "" },
             )
         } else {
-            "You haven't played this map yet. Every score is important! Play it please 💔"
+            "You haven't played this map yet. Every score is important! Play it, please 💔"
                 .to_string()
         };
 
