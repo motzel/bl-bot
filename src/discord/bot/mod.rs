@@ -1973,10 +1973,8 @@ mod tests {
             ..Default::default()
         };
 
-        let mut roles_updates = gs.get_role_updates(
-            &player,
-            &[RoleId::new(1), RoleId::new(3), RoleId::new(7)],
-        );
+        let mut roles_updates =
+            gs.get_role_updates(&player, &[RoleId::new(1), RoleId::new(3), RoleId::new(7)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2052,10 +2050,8 @@ mod tests {
 
         player.clans = vec!["Other".to_string()];
 
-        let mut roles_updates = gs.get_role_updates(
-            &player,
-            &[RoleId::new(2), RoleId::new(3), RoleId::new(6)],
-        );
+        let mut roles_updates =
+            gs.get_role_updates(&player, &[RoleId::new(2), RoleId::new(3), RoleId::new(6)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();
@@ -2068,10 +2064,8 @@ mod tests {
 
         player.last_ranked_paused_at = Some(Utc::now() - Duration::days(50));
 
-        let mut roles_updates = gs.get_role_updates(
-            &player,
-            &[RoleId::new(2), RoleId::new(3), RoleId::new(6)],
-        );
+        let mut roles_updates =
+            gs.get_role_updates(&player, &[RoleId::new(2), RoleId::new(3), RoleId::new(6)]);
 
         roles_updates.to_add.sort_unstable();
         roles_updates.to_remove.sort_unstable();

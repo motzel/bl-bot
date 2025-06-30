@@ -400,9 +400,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
-                &format!(
-                    "/leaderboard/clanRankings/{leaderboard_id}/{clan_map_id}"
-                ),
+                &format!("/leaderboard/clanRankings/{leaderboard_id}/{clan_map_id}"),
                 params,
             )
             .await
@@ -417,9 +415,7 @@ impl<'a> ClanResource<'a> {
         self.client
             .get_json::<BlApiClanRankingScoresResponse, ClanWithList<ClanMapScore>, ClanMapParam>(
                 Method::GET,
-                &format!(
-                    "/leaderboard/clanRankings/{leaderboard_id}/clan/{clan_id}"
-                ),
+                &format!("/leaderboard/clanRankings/{leaderboard_id}/clan/{clan_id}"),
                 params,
             )
             .await
