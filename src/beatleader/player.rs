@@ -22,12 +22,12 @@ impl<'a> PlayerResource<'a> {
         Self { client }
     }
 
-    pub async fn get(&self, id: &PlayerId) -> beatleader::Result<Player> {
+    pub async fn get(&self, id: &PlayerId, context: BlContext) -> beatleader::Result<Player> {
         self.client
-            .get_json::<Player, Player, PlayerScoreParam>(
+            .get_json::<Player, Player, PlayerParam>(
                 Method::GET,
                 &format!("/player/{id}"),
-                &[],
+                &[PlayerParam::Context(context)],
             )
             .await
     }
@@ -79,6 +79,19 @@ pub enum MapType {
     Unranked,
 }
 
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum PlayerParam {
+    Context(BlContext),
+}
+
+impl QueryParam for crate::beatleader::player::PlayerParam {
+    fn as_query_param(&self) -> (String, String) {
+        match self {
+            PlayerParam::Context(context) => ("leaderboardContext".to_owned(), context.to_string()),
+        }
+    }
+}
 #[allow(dead_code)]
 #[derive(Clone)]
 pub enum PlayerScoreParam {

@@ -2,18 +2,17 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::discord::bot::beatleader::player::Player;
+use crate::discord::bot::commands::player::{get_player_embed, BlCommandContext};
+use crate::discord::bot::{GuildSettings, UserRoleChanges};
+use crate::discord::{serenity, BotData};
+use crate::storage::guild::GuildSettingsRepository;
+use crate::storage::player::PlayerRepository;
 use poise::serenity_prelude::prelude::SerenityError;
 use poise::serenity_prelude::{
     http, CreateAllowedMentions, CreateAttachment, CreateMessage, ErrorResponse, GuildId,
 };
 use tokio_util::sync::CancellationToken;
-
-use crate::discord::bot::beatleader::player::Player;
-use crate::discord::bot::commands::player::get_player_embed;
-use crate::discord::bot::{GuildSettings, UserRoleChanges};
-use crate::discord::{serenity, BotData};
-use crate::storage::guild::GuildSettingsRepository;
-use crate::storage::player::PlayerRepository;
 
 pub struct UserRolesWorker {
     context: serenity::Context,
@@ -159,7 +158,8 @@ impl UserRolesWorker {
 
                             match self.players_repository.get(&rc.user_id).await {
                                 Some(player) => {
-                                    let embed_image = get_player_embed(&player).await;
+                                    let embed_image =
+                                        get_player_embed(&player, &BlCommandContext::General).await;
 
                                     let mut message = CreateMessage::new()
                                         .content(format!("{rc}"))

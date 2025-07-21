@@ -244,7 +244,7 @@ impl Display for SortOrder {
 }
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub enum BlContext {
     #[default]
     #[serde(rename = "general")]
@@ -255,6 +255,8 @@ pub enum BlContext {
     NoPauses,
     #[serde(rename = "golf")]
     Golf,
+    #[serde(rename = "scpm")]
+    Scpm,
 }
 
 impl Display for BlContext {
@@ -267,6 +269,7 @@ impl Display for BlContext {
                 BlContext::NoModifiers => "nomods".to_owned(),
                 BlContext::NoPauses => "nopause".to_owned(),
                 BlContext::Golf => "golf".to_owned(),
+                BlContext::Scpm => "scpm".to_owned(),
             }
         )
     }

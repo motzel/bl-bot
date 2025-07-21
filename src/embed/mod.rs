@@ -1,12 +1,11 @@
 use relativetime::RelativeTime;
 use ril::prelude::*;
 
-use map_triangle::Vertex;
-
 use crate::beatleader::player::DifficultyStatus;
 use crate::discord::bot::beatleader::player::Player;
 use crate::discord::bot::beatleader::score::MapRatingModifier;
 use crate::discord::bot::beatleader::score::Score;
+use crate::discord::bot::commands::player::BlCommandContext;
 use crate::discord::bot::get_binary_file;
 use crate::embed::blur::gaussian_blur;
 use crate::embed::font::{
@@ -15,6 +14,7 @@ use crate::embed::font::{
 };
 use crate::embed::map_triangle::MapTriangle;
 use crate::embed::utils::{draw_rounded_rectangle, Corner};
+use map_triangle::Vertex;
 
 mod blur;
 mod font;
@@ -448,6 +448,7 @@ pub async fn embed_profile(
     player: &Player,
     player_avatar_bytes: &[u8],
     player_cover_bytes: &[u8],
+    context: &BlCommandContext,
 ) -> Option<Vec<u8>> {
     const FONT_SIZE: f32 = 32.0;
     const WIDTH: u32 = 512;
@@ -676,6 +677,23 @@ pub async fn embed_profile(
         stats_width,
     );
 
+    let mut y_offset = 0;
+
+    if context != &BlCommandContext::General {
+        draw_text_segment(
+            &mut image,
+            &mut TextSegment::new(roboto_font, format!("[{context}]"), Rgba::white())
+                .with_size(small_font_size),
+            stats_pos_x,
+            stats_pos_y + (big_font_size * 1.2) as u32 + y_offset,
+            stats_width,
+            stats_pos_x,
+            stats_width,
+        );
+
+        y_offset += small_font_size as u32 + PADDING / 2;
+    }
+
     draw_text_segment(
         &mut image,
         &mut TextSegment::new(
@@ -693,7 +711,7 @@ pub async fn embed_profile(
         )
         .with_size(small_font_size),
         stats_pos_x,
-        stats_pos_y + (big_font_size * 1.2) as u32 + PADDING,
+        stats_pos_y + (big_font_size * 1.2) as u32 + PADDING + y_offset,
         stats_width,
         stats_pos_x,
         stats_width,
@@ -716,13 +734,17 @@ pub async fn embed_profile(
         )
         .with_size(small_font_size),
         stats_pos_x,
-        stats_pos_y + (big_font_size * 1.2) as u32 + PADDING + small_font_size as u32 + PADDING / 2,
+        stats_pos_y
+            + (big_font_size * 1.2) as u32
+            + PADDING
+            + small_font_size as u32
+            + PADDING / 2
+            + y_offset,
         stats_width,
         stats_pos_x,
         stats_width,
     );
 
-    let mut y_offset = 0;
     if player.last_scores_fetch.is_some() {
         draw_text_segment(
             &mut image,

@@ -3,18 +3,18 @@
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
-use poise::serenity_prelude::{GuildId, UserId};
-use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, trace};
-
 use crate::beatleader::player::{Player as BlPlayer, PlayerId};
+use crate::beatleader::BlContext;
 use crate::discord::bot::beatleader::player::Player as BotPlayer;
 use crate::discord::bot::beatleader::player::{fetch_player_from_bl, Player};
 use crate::discord::bot::beatleader::score::fetch_ranked_scores_stats;
 use crate::storage::persist::PersistInstance;
 use crate::storage::player_scores::PlayerScoresRepository;
 use crate::storage::{CachedStorage, Storage, StorageError, StorageKey, StorageValue};
+use poise::serenity_prelude::{GuildId, UserId};
+use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, trace};
 
 use super::Result;
 
@@ -97,7 +97,7 @@ impl PlayerRepository {
     ) -> Result<BotPlayer> {
         trace!("Linking user {} with BL player {}...", user_id, player_id);
 
-        let bl_player = fetch_player_from_bl(&player_id).await?;
+        let bl_player = fetch_player_from_bl(&player_id, BlContext::General).await?;
 
         self.link_player(guild_id, user_id, bl_player, requires_verification)
             .await
@@ -305,7 +305,7 @@ impl PlayerRepository {
             return Ok(player.clone());
         }
 
-        let bl_player = fetch_player_from_bl(&player.id).await?;
+        let bl_player = fetch_player_from_bl(&player.id, BlContext::General).await?;
 
         trace!(
             "BL player {} fetched. Player name: {}",

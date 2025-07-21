@@ -1,10 +1,7 @@
-use std::borrow::Cow;
-use std::convert::From;
-
 use crate::beatleader::player::{PlayerScoreParam, PlayerScoreSort};
 use crate::beatleader::{BlContext, List as BlList, SortOrder};
 use crate::discord::bot::beatleader::player::{
-    fetch_player_from_bl_by_user_id, Player as BotPlayer, Player,
+    fetch_player_from_bl, fetch_player_from_bl_by_user_id, Player as BotPlayer, Player,
 };
 use crate::discord::bot::beatleader::score::{
     fetch_ai_ratings, fetch_scores, MapRating, MapRatingModifier, Score,
@@ -25,6 +22,9 @@ use poise::serenity_prelude::{
 };
 use poise::{serenity_prelude as serenity, CreateReply, ReplyHandle};
 use serenity::builder::CreateAllowedMentions;
+use std::borrow::Cow;
+use std::convert::From;
+use std::fmt::Display;
 use tracing::{error, info, trace, warn};
 
 #[derive(Debug, poise::ChoiceParameter, Default)]
@@ -58,7 +58,7 @@ impl Sort {
     }
 }
 
-#[derive(Debug, poise::ChoiceParameter, Default)]
+#[derive(Debug, poise::ChoiceParameter, Default, PartialEq)]
 pub(crate) enum BlCommandContext {
     #[name = "General"]
     #[default]
@@ -69,6 +69,8 @@ pub(crate) enum BlCommandContext {
     NoPauses,
     #[name = "Golf"]
     Golf,
+    #[name = "SCPM"]
+    Scpm,
 }
 
 impl BlCommandContext {
@@ -78,7 +80,24 @@ impl BlCommandContext {
             BlCommandContext::NoModifiers => BlContext::NoModifiers,
             BlCommandContext::NoPauses => BlContext::NoPauses,
             BlCommandContext::Golf => BlContext::Golf,
+            BlCommandContext::Scpm => BlContext::Scpm,
         }
+    }
+}
+
+impl Display for BlCommandContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BlCommandContext::General => "general".to_owned(),
+                BlCommandContext::NoModifiers => "No modifiers".to_owned(),
+                BlCommandContext::NoPauses => "No pauses".to_owned(),
+                BlCommandContext::Golf => "Golf".to_owned(),
+                BlCommandContext::Scpm => "SCPM".to_owned(),
+            }
+        )
     }
 }
 
@@ -149,7 +168,7 @@ pub(crate) async fn cmd_link(
         .await
     {
         Ok(player) => {
-            let embed_image = get_player_embed(&player).await;
+            let embed_image = get_player_embed(&player, &BlCommandContext::General).await;
 
             let mut reply = CreateReply::default()
                 .content(format!(
@@ -250,12 +269,15 @@ pub(crate) async fn cmd_unlink(
 pub(crate) async fn cmd_profile(
     ctx: Context<'_>,
     #[description = "Discord user (YOU if not specified)"] user: Option<serenity::User>,
+    #[description = "BL context (General if not specified)"] context: Option<BlCommandContext>,
 ) -> Result<(), Error> {
     ctx.defer().await?;
 
     let guild_settings = get_guild_settings(ctx, true).await?;
 
     let selected_user = user.as_ref().unwrap_or_else(|| ctx.author());
+
+    let bl_command_context = context.unwrap_or_default();
 
     match link_user_if_needed(
         ctx,
@@ -277,14 +299,33 @@ pub(crate) async fn cmd_profile(
                 return Ok(());
             }
 
-            let embed_image = get_player_embed(&player).await;
+            let bot_player = if bl_command_context == BlCommandContext::General {
+                player
+            } else {
+                let bl_player =
+                    fetch_player_from_bl(&player.id, bl_command_context.to_bl_context()).await;
+                if bl_player.is_err() {
+                    say_without_ping(ctx, "Error: can not fetch player from BL", true).await?;
+
+                    return Ok(());
+                }
+
+                BotPlayer::from_user_id_and_bl_player(
+                    player.user_id,
+                    player.linked_guilds.clone(),
+                    bl_player.unwrap(),
+                    None,
+                )
+            };
+
+            let embed_image = get_player_embed(&bot_player, &bl_command_context).await;
 
             let mut reply = CreateReply::default()
                 .allowed_mentions(CreateAllowedMentions::new())
                 .ephemeral(false);
 
             if embed_image.is_none() {
-                reply = add_profile_card(reply, player);
+                reply = add_profile_card(reply, bot_player);
             } else if let Some(embed_buffer) = embed_image {
                 reply = reply.attachment(CreateAttachment::bytes(
                     Cow::<[u8]>::from(embed_buffer),
@@ -916,7 +957,10 @@ pub(crate) async fn say_without_ping(
     Ok(())
 }
 
-pub(crate) async fn get_player_embed(player: &BotPlayer) -> Option<Vec<u8>> {
+pub(crate) async fn get_player_embed(
+    player: &BotPlayer,
+    context: &BlCommandContext,
+) -> Option<Vec<u8>> {
     let player_avatar = get_binary_file(&player.avatar)
         .await
         .unwrap_or(Bytes::new());
@@ -938,6 +982,7 @@ pub(crate) async fn get_player_embed(player: &BotPlayer) -> Option<Vec<u8>> {
             } else {
                 player_cover.as_ref()
             },
+            context,
         )
         .catch_unwind()
         .await

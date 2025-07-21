@@ -16,7 +16,7 @@ use crate::beatleader::oauth::{OAuthScope, OAuthTokenRepository};
 use crate::beatleader::player::DifficultyStatus;
 use crate::beatleader::pp::calculate_total_pp_from_sorted;
 use crate::beatleader::pp::CLAN_WEIGHT_COEFFICIENT;
-use crate::beatleader::DataWithMeta;
+use crate::beatleader::{BlContext, DataWithMeta};
 use crate::discord::bot::beatleader::clan::{
     fetch_clan, AccBoundary, ClanMapWithScores, ClanWarsFc, ClanWarsPlayDate, ClanWarsSort,
     Playlist,
@@ -253,7 +253,7 @@ pub(crate) async fn cmd_clan_invitation(ctx: Context<'_>) -> Result<(), Error> {
                 return Ok(());
             }
 
-            let bl_player = fetch_player_from_bl(&player.id).await;
+            let bl_player = fetch_player_from_bl(&player.id, BlContext::General).await;
             if bl_player.is_err() {
                 say_without_ping(
                     ctx,
@@ -407,7 +407,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
                 return Ok(());
             }
 
-            let bl_player = fetch_player_from_bl(&player.id).await;
+            let bl_player = fetch_player_from_bl(&player.id, BlContext::General).await;
             if bl_player.is_err() {
                 say_without_ping(
                     ctx,

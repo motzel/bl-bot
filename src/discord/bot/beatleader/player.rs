@@ -209,8 +209,11 @@ impl Player {
     }
 }
 
-pub(crate) async fn fetch_player_from_bl(player_id: &PlayerId) -> Result<BlPlayer, BlError> {
-    BL_CLIENT.player().get(player_id).await
+pub(crate) async fn fetch_player_from_bl(
+    player_id: &PlayerId,
+    context: BlContext,
+) -> Result<BlPlayer, BlError> {
+    BL_CLIENT.player().get(player_id, context).await
 }
 
 pub(crate) async fn fetch_player_from_bl_by_user_id(user_id: &UserId) -> Result<BlPlayer, BlError> {
