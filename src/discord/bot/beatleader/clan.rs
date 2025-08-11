@@ -535,7 +535,7 @@ impl From<BsMap> for PlaylistItem {
         PlaylistItem {
             song_name: value.song_name,
             level_author_name: value.level_author_name,
-            hash: value.hash,
+            hash: value.hash.to_lowercase(),
             difficulties: vec![PlaylistDifficulty {
                 characteristic: value.diff_characteristic,
                 name: value.diff_name,
@@ -849,7 +849,7 @@ impl Playlist {
             .map(|score| PlaylistItem {
                 song_name: score.leaderboard.song.name,
                 level_author_name: score.leaderboard.song.author,
-                hash: score.leaderboard.song.hash,
+                hash: score.leaderboard.song.hash.to_lowercase(),
                 difficulties: vec![PlaylistDifficulty {
                     characteristic: score.leaderboard.difficulty.mode_name,
                     name: Playlist::lower_fist_char(
