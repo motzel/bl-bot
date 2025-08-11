@@ -69,15 +69,15 @@ impl Client {
         }
     }
 
-    pub fn player(&self) -> PlayerResource {
+    pub fn player(&self) -> PlayerResource<'_> {
         PlayerResource::new(self)
     }
 
-    pub fn clan(&self) -> ClanResource {
+    pub fn clan(&self) -> ClanResource<'_> {
         ClanResource::new(self)
     }
 
-    pub fn ai_ratings(&self) -> AiRatingsResource {
+    pub fn ai_ratings(&self) -> AiRatingsResource<'_> {
         AiRatingsResource::new(self)
     }
 
@@ -89,7 +89,7 @@ impl Client {
         &self,
         oauth_credentials: OAuthAppCredentials,
         oauth_token_repository: T,
-    ) -> ClientWithOAuth<T> {
+    ) -> ClientWithOAuth<'_, T> {
         ClientWithOAuth::new(self, oauth_credentials, oauth_token_repository)
     }
 

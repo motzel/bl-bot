@@ -335,19 +335,19 @@ where
             oauth_token_repository,
         }
     }
-    pub fn oauth(&self) -> OauthResource<T> {
+    pub fn oauth(&self) -> OauthResource<'_, T> {
         OauthResource::new(self)
     }
 
-    pub fn player(&self) -> PlayerResource {
+    pub fn player(&self) -> PlayerResource<'_> {
         PlayerResource::new(self.client)
     }
 
-    pub fn clan(&self) -> ClanResource {
+    pub fn clan(&self) -> ClanResource<'_> {
         ClanResource::new(self.client)
     }
 
-    pub fn clan_auth(&self) -> ClanAuthResource<T> {
+    pub fn clan_auth(&self) -> ClanAuthResource<'_, T> {
         ClanAuthResource::new(self)
     }
 

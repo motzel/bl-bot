@@ -188,7 +188,7 @@ where
         read_lock.contains_key(key)
     }
 
-    pub(super) async fn write_lock(&self) -> RwLockWriteGuard<HashMap<K, Mutex<V>>> {
+    pub(super) async fn write_lock(&self) -> RwLockWriteGuard<'_, HashMap<K, Mutex<V>>> {
         self.state.write().await
     }
 
