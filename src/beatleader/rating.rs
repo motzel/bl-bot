@@ -62,9 +62,7 @@ pub struct AiModifierRating {
 }
 #[derive(Deserialize, Debug, Clone)]
 pub struct AiRatingMapCalculation {
-    pub multi_rating: f64,
     pub balanced_pass_diff: f64,
-    pub linear_rating: f64,
     pub balanced_tech: f64,
     pub low_note_nerf: f64,
 }
