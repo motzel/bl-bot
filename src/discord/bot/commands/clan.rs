@@ -22,7 +22,7 @@ use crate::discord::bot::beatleader::clan::{
     Playlist,
 };
 use crate::discord::bot::beatleader::player::fetch_player_from_bl;
-use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings};
+use crate::discord::bot::commands::guild::{get_guild_id, get_guild_settings, say_guild_settings};
 use crate::discord::bot::commands::player::{
     link_user_if_needed, say_profile_not_linked, say_without_ping,
 };
@@ -791,7 +791,7 @@ pub(crate) async fn cmd_set_clan_wars_maps_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -830,7 +830,7 @@ pub(crate) async fn cmd_set_clan_wars_contribution_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -966,7 +966,7 @@ pub(crate) async fn cmd_set_clan_wars_soldier_role(
         .await
     {
         Ok(guild_settings) => {
-            say_without_ping(ctx, format!("{guild_settings}").as_str(), true).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -1009,7 +1009,7 @@ pub(crate) async fn cmd_set_clan_commander_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }

@@ -34,6 +34,8 @@ use crate::storage::player_oauth_token::PlayerOAuthTokenRepository;
 use crate::storage::{StorageKey, StorageValue};
 use crate::Error;
 
+use crate::discord::bot::commands::player::say_without_ping;
+use crate::discord::Context;
 pub(crate) use commands::commands;
 
 pub(crate) mod beatleader;
@@ -1118,46 +1120,81 @@ impl GuildSettings {
             },
         }
     }
-}
 
-impl std::fmt::Display for GuildSettings {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    pub(crate) fn to_strings(&self) -> Vec<String> {
+        let auto_roles = self.auto_roles_to_strings();
+
+        vec!["# __Current settings__\n".to_owned()]
+            .into_iter()
+            .chain(vec![self.main_to_string()])
+            .chain(vec!["## Auto roles:\n".to_owned()])
+            .chain(if !auto_roles.is_empty() {
+                auto_roles
+            } else {
+                vec!["None".to_owned()]
+            })
+            .collect()
+    }
+
+    pub(crate) fn main_to_string(&self) -> String {
+        format!(
+            "Bot log channel: {}\nVerified profiles only: {}\nClan setting: {}\n",
+            self.bot_channel_id.map_or_else(
+                || "**None**".to_owned(),
+                |channel_id| format!("<#{}>", channel_id.to_owned())
+            ),
+            if self.requires_verified_profile {
+                "Yes"
+            } else {
+                "No"
+            },
+            if self.clan_settings.is_some() {
+                self.clan_settings.clone().unwrap().to_string()
+            } else {
+                "Not set up".to_owned()
+            },
+        )
+    }
+
+    pub(crate) fn auto_roles_to_strings(&self) -> Vec<String> {
         let mut rg_vec = self
             .role_groups
             .iter()
             .collect::<Vec<(&RoleGroup, &HashMap<RoleId, RoleSettings>)>>();
         rg_vec.sort_unstable_by(|a, b| Ord::cmp(a.0, b.0));
 
+        rg_vec
+            .iter()
+            .map(|(rg, rs_hm)| {
+                let mut rs_vec = rs_hm.values().cloned().collect::<Vec<RoleSettings>>();
+                rs_vec.sort_unstable_by(|a, b| Ord::cmp(&b.weight, &a.weight));
+
+                format!(
+                    "### Group: __{}__\n{}\n",
+                    rg,
+                    rs_vec
+                        .iter()
+                        .map(|rs| format!("{rs}"))
+                        .fold(String::new(), |out, rs| out + &*format!("{rs}\n"))
+                        .trim_end()
+                )
+            })
+            .collect()
+    }
+}
+
+impl std::fmt::Display for GuildSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "# __Current settings__\nBot log channel: {}\nVerified profiles only: {}\nClan setting: {}\n## Auto roles:\n{}",
-            self.bot_channel_id.map_or_else(
-                || "**None**".to_owned(),
-                |channel_id| format!("<#{}>", channel_id.to_owned())
-            ),
-            if self.requires_verified_profile {"Yes"} else {"No"},
-            if self.clan_settings.is_some() {self.clan_settings.clone().unwrap().to_string()} else {"Not set up".to_owned()},
+            "# __Current settings__\n{}\n## Auto roles:\n{}",
+            self.main_to_string(),
             {
-                let roles = rg_vec
-                    .iter()
-                    .map(|(rg, rs_hm)| {
-                        let mut rs_vec = rs_hm.values().cloned().collect::<Vec<RoleSettings>>();
-                        rs_vec.sort_unstable_by(|a, b| Ord::cmp(&b.weight, &a.weight));
-
-                        format!(
-                            "### Group: __{}__\n{}",
-                            rg,
-                            rs_vec
-                                .iter()
-                                .map(|rs| format!("{rs}"))
-                                .fold(String::new(), |out, rs| out + &*format!("{rs}\n"))
-                                .trim_end()
-                        )
-                    })
+                let roles = self
+                    .auto_roles_to_strings()
+                    .into_iter()
                     .fold(String::new(), |out, rg| out + &*format!("{rg}\n"))
-                    .trim()
                     .to_owned();
-
                 if !roles.is_empty() {
                     roles
                 } else {
@@ -1485,6 +1522,30 @@ pub(crate) async fn post_long_msg_in_parts(
                         .allowed_mentions(CreateAllowedMentions::new()),
                 )
                 .await?;
+
+            current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
+        } else {
+            current_str = current_str + str;
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn say_long_msg_in_parts(
+    ctx: Context<'_>,
+    embed: Vec<String>,
+    ephemeral: bool,
+) -> Result<(), crate::Error> {
+    let len = embed.len();
+
+    let mut current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
+
+    for (idx, str) in embed.iter().enumerate() {
+        if current_str.len() + str.len() >= MAX_DISCORD_MESSAGE_LENGTH || idx == len - 1 {
+            current_str = current_str + str;
+
+            say_without_ping(ctx, current_str.as_str(), ephemeral).await?;
 
             current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
         } else {

@@ -3,7 +3,9 @@ use poise::serenity_prelude;
 use poise::serenity_prelude::{ChannelId, GuildId};
 
 use crate::discord::bot::commands::player::say_without_ping;
-use crate::discord::bot::{Condition, GuildSettings, Metric, RequirementMetricValue};
+use crate::discord::bot::{
+    say_long_msg_in_parts, Condition, GuildSettings, Metric, RequirementMetricValue,
+};
 use crate::discord::Context;
 use crate::Error;
 
@@ -22,7 +24,7 @@ use crate::Error;
 pub(crate) async fn cmd_show_settings(ctx: Context<'_>) -> Result<(), Error> {
     let guild_settings = get_guild_settings(ctx, true).await?;
 
-    ctx.say(format!("{guild_settings}")).await?;
+    say_guild_settings(ctx, guild_settings, true).await?;
 
     Ok(())
 }
@@ -54,7 +56,7 @@ pub(crate) async fn cmd_set_log_channel(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -92,7 +94,7 @@ pub(crate) async fn cmd_set_profile_verification(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -155,7 +157,7 @@ pub(crate) async fn cmd_add_auto_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -196,7 +198,7 @@ pub(crate) async fn cmd_remove_auto_role(
         .await
     {
         Ok(guild_settings) => {
-            ctx.say(format!("{guild_settings}")).await?;
+            say_guild_settings(ctx, guild_settings, true).await?;
 
             Ok(())
         }
@@ -254,4 +256,14 @@ pub(crate) async fn get_guild_settings(
     };
 
     Ok(guild)
+}
+
+pub(crate) async fn say_guild_settings(
+    ctx: Context<'_>,
+    guild_settings: GuildSettings,
+    ephemeral: bool,
+) -> Result<(), Error> {
+    say_long_msg_in_parts(ctx, guild_settings.to_strings(), ephemeral).await?;
+
+    Ok(())
 }
