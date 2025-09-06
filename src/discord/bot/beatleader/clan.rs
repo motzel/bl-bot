@@ -168,6 +168,9 @@ pub(crate) struct ClanMapWithScores {
     pub scores: Vec<ClanMapScore>,
     pub pp_boundary: f64,
     pub acc_boundary: AccBoundary,
+    pub halfway_pp: Option<f64>,
+    pub halfway_pp_boundary: f64,
+    pub halfway_acc_boundary: AccBoundary,
 }
 
 impl ClanMapWithScores {
@@ -183,21 +186,25 @@ impl ClanMapWithScores {
             .collect::<Vec<_>>();
 
         self.pp_boundary = calculate_pp_boundary(CLAN_WEIGHT_COEFFICIENT, &mut pps, -self.map.pp);
+        self.acc_boundary = self.calc_acc_boundary(self.pp_boundary);
 
-        self.calc_acc_boundary()
-    }
-
-    pub fn calc_acc_boundary(&mut self) -> &mut Self {
-        let pp = self.pp_boundary;
-        if pp <= 0.0 {
-            self.acc_boundary = AccBoundary::default();
-
-            return self;
+        if let Some(halfway_pp) = self.halfway_pp {
+            self.halfway_pp_boundary =
+                calculate_pp_boundary(CLAN_WEIGHT_COEFFICIENT, &mut pps, -halfway_pp);
+            self.halfway_acc_boundary = self.calc_acc_boundary(self.halfway_pp_boundary)
         }
 
-        self.acc_boundary = AccBoundary {
+        self
+    }
+
+    pub fn calc_acc_boundary(&mut self, pp_boundary: f64) -> AccBoundary {
+        if pp_boundary <= 0.0 {
+            return AccBoundary::default();
+        }
+
+        AccBoundary {
             none: calculate_acc_from_pp(
-                pp,
+                pp_boundary,
                 StarRating {
                     pass: self.map.leaderboard.difficulty.pass_rating,
                     tech: self.map.leaderboard.difficulty.tech_rating,
@@ -208,7 +215,7 @@ impl ClanMapWithScores {
             ss: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
                 None => None,
                 Some(ratings) => calculate_acc_from_pp(
-                    pp,
+                    pp_boundary,
                     StarRating {
                         pass: ratings.ss_pass_rating,
                         tech: ratings.ss_tech_rating,
@@ -220,7 +227,7 @@ impl ClanMapWithScores {
             fs: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
                 None => None,
                 Some(ratings) => calculate_acc_from_pp(
-                    pp,
+                    pp_boundary,
                     StarRating {
                         pass: ratings.fs_pass_rating,
                         tech: ratings.fs_tech_rating,
@@ -232,7 +239,7 @@ impl ClanMapWithScores {
             sf: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
                 None => None,
                 Some(ratings) => calculate_acc_from_pp(
-                    pp,
+                    pp_boundary,
                     StarRating {
                         pass: ratings.sf_pass_rating,
                         tech: ratings.sf_tech_rating,
@@ -241,9 +248,7 @@ impl ClanMapWithScores {
                     self.map.leaderboard.difficulty.mode_name.as_str(),
                 ),
             },
-        };
-
-        self
+        }
     }
 
     pub fn to_player_string(
@@ -295,7 +300,7 @@ impl ClanMapWithScores {
 
         let loss_info = if !is_captured {
             format!(
-                "\nOn [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n",
+                "\nOn [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n{}",
                 self.map.leaderboard.song.name,
                 self
                     .map
@@ -323,6 +328,30 @@ impl ClanMapWithScores {
                     None => "Not possible".to_owned(),
                     Some(acc) => format!("{:.2}%", acc * 100.0),
                 },
+                if self.halfway_pp.is_some() {
+                    format!("Halfway point: {:.2}pp / **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
+                        self.halfway_pp.unwrap(),
+                        self.halfway_pp_boundary,
+                            match self.halfway_acc_boundary.ss {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.none {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.fs {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.sf {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                    )
+                } else {
+                    "".to_owned()
+                }
             )
         } else {
             "".to_string()
@@ -335,7 +364,7 @@ impl ClanMapWithScores {
 impl Display for ClanMapWithScores {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f,
-               "### **#{} [{} / {}](https://www.beatleader.com/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n",
+               "### **#{} [{} / {}](https://www.beatleader.com/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n{}\n",
                self.map.rank,
                self.map.leaderboard.song.name,
                self
@@ -366,6 +395,30 @@ impl Display for ClanMapWithScores {
                    None => "Not possible".to_owned(),
                    Some(acc) => format!("{:.2}%", acc * 100.0),
                },
+                if self.halfway_pp.is_some() {
+                    format!("\nHalfway point: {:.2} pp / **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
+                        self.halfway_pp.unwrap(),
+                        self.halfway_pp_boundary,
+                            match self.halfway_acc_boundary.ss {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.none {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.fs {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.sf {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                    )
+                } else {
+                    "".to_owned()
+                }
         )
     }
 }
@@ -439,11 +492,17 @@ impl ClanWars {
         let mut maps = data
             .data
             .into_iter()
-            .map(|map| ClanMapWithScores {
-                map,
-                scores: vec![],
-                pp_boundary: 0.0,
-                acc_boundary: AccBoundary::default(),
+            .map(|map| {
+                let halfway_map_pp = map.pp / 1.8;
+                ClanMapWithScores {
+                    map,
+                    scores: vec![],
+                    pp_boundary: 0.0,
+                    acc_boundary: AccBoundary::default(),
+                    halfway_pp: Some(halfway_map_pp),
+                    halfway_pp_boundary: 0.0,
+                    halfway_acc_boundary: AccBoundary::default(),
+                }
             })
             .collect::<Vec<_>>();
 

@@ -714,6 +714,9 @@ pub(crate) async fn cmd_capture(
                         scores: data.data,
                         pp_boundary: 0.0,
                         acc_boundary: AccBoundary::default(),
+                        halfway_pp: Some(real_pp_loss / 1.8),
+                        halfway_pp_boundary: 0.0,
+                        halfway_acc_boundary: AccBoundary::default(),
                     };
 
                     // calculate clan pp without player and pp_boundary
