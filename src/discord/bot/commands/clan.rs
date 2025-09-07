@@ -714,7 +714,7 @@ pub(crate) async fn cmd_capture(
                         scores: data.data,
                         pp_boundary: 0.0,
                         acc_boundary: AccBoundary::default(),
-                        halfway_pp: Some(real_pp_loss / 1.8),
+                        halfway_pp: None,
                         halfway_pp_boundary: 0.0,
                         halfway_acc_boundary: AccBoundary::default(),
                     };
@@ -726,6 +726,8 @@ pub(crate) async fn cmd_capture(
                         0,
                     );
                     clan_map_with_scores.map.pp = clan_pp_without_player - leading_clan_pp;
+                    clan_map_with_scores.halfway_pp =
+                        Some(clan_map_with_scores.map.pp - real_pp_loss / 1.8);
                     clan_map_with_scores.calc_pp_boundary(Some(player.id.clone()));
 
                     // set real pp loss

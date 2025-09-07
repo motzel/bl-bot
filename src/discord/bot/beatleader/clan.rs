@@ -329,8 +329,7 @@ impl ClanMapWithScores {
                     Some(acc) => format!("{:.2}%", acc * 100.0),
                 },
                 if self.halfway_pp.is_some() {
-                    format!("Halfway point: {:.2}pp / **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
-                        self.halfway_pp.unwrap(),
+                    format!("Halfway point: **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
                         self.halfway_pp_boundary,
                             match self.halfway_acc_boundary.ss {
                                 None => "Not possible".to_owned(),
@@ -396,8 +395,7 @@ impl Display for ClanMapWithScores {
                    Some(acc) => format!("{:.2}%", acc * 100.0),
                },
                 if self.halfway_pp.is_some() {
-                    format!("\nHalfway point: {:.2} pp / **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
-                        self.halfway_pp.unwrap(),
+                    format!("\nHalfway point: **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
                         self.halfway_pp_boundary,
                             match self.halfway_acc_boundary.ss {
                                 None => "Not possible".to_owned(),
