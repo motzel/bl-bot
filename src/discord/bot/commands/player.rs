@@ -628,9 +628,9 @@ fn add_replay_components(
                             );
                             CreateSelectMenuOption::new(
                                 if label.len() > 100 {
-                                    &label[..100]
+                                    label.chars().take(100).collect()
                                 } else {
-                                    label.as_str()
+                                    label
                                 },
                                 s.id.to_string(),
                             )
