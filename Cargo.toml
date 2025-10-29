@@ -34,7 +34,7 @@ config = { version = "^0.15.4", features = ["toml"], default-features = false }
 tokio-util = { version = "^0.7.10", features = ["full"] }
 http-cache-reqwest = { version = "^0.15.0", features = ["manager-cacache"] }
 reqwest-middleware = "^0.4.0"
-colorgrad = "^0.6.2"
+colorgrad = "0.7.2"
 tracing = "0.1.40"
 tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
@@ -44,4 +44,4 @@ hostname = "^0.4.0"
 uuid = { version = "1.5.0", features = ["v4", "serde"] }
 tower_governor = { version = "^0.8", features = ["axum", "tracing"] }
 magic-crypt = "^4.0.1"
-cli-table = { version = "0.4.7", default-features = false, features = ["derive", "cli-table-derive", "title"] }
+cli-table = { version = "0.5.0", default-features = false, features = ["derive", "cli-table-derive", "title"] }

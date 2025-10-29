@@ -1,5 +1,6 @@
 use crate::embed::map_triangle::Vertex;
-use colorgrad::{BlendMode, Color, Gradient, Interpolation};
+use colorgrad::{BlendMode, Color, Gradient};
+use ril::gradient::Interpolation;
 use ril::prelude::*;
 use ril::Rgba;
 use std::default::Default;
@@ -83,8 +84,8 @@ impl<P: Pixel> TriangleGradient<P> {
         self
     }
 
-    fn color_from_gradient(t: f64, gradient: &Gradient) -> P {
-        let (r, g, b, a) = gradient.at(t).to_linear_rgba_u8();
+    fn color_from_gradient(t: f64, gradient: &impl Gradient) -> P {
+        let [r, g, b, a] = gradient.at(t as f32).to_linear_rgba_u8();
         P::from_raw_parts(ColorType::Rgba, 8, &[r, g, b, a]).unwrap_or_default()
     }
 }
@@ -106,8 +107,8 @@ impl<P: Pixel> Draw<P> for TriangleGradient<P> {
         let mut edge_12 = interpolate_u32(y1, x1, y2, x2, true);
         let mut edge_012 = interpolate_u32(y0, x0, y1, x1, false);
 
-        let gradient_012 = colorgrad::CustomGradient::new()
-            .domain(&[y0 as f64, y1 as f64, y2 as f64])
+        let gradient_012: colorgrad::LinearGradient = colorgrad::GradientBuilder::new()
+            .domain(&[y0 as f32, y1 as f32, y2 as f32])
             .colors(&[
                 Color::from_rgba8(
                     rgba_colors[0].r,
@@ -129,12 +130,11 @@ impl<P: Pixel> Draw<P> for TriangleGradient<P> {
                 ),
             ])
             .mode(blend_mode)
-            .interpolation(interpolation)
             .build()
             .unwrap();
 
-        let gradient_02 = colorgrad::CustomGradient::new()
-            .domain(&[y0 as f64, y2 as f64])
+        let gradient_02: colorgrad::LinearGradient = colorgrad::GradientBuilder::new()
+            .domain(&[y0 as f32, y2 as f32])
             .colors(&[
                 Color::from_rgba8(
                     rgba_colors[0].r,
@@ -150,7 +150,6 @@ impl<P: Pixel> Draw<P> for TriangleGradient<P> {
                 ),
             ])
             .mode(blend_mode)
-            .interpolation(interpolation)
             .build()
             .unwrap();
 
@@ -164,6 +163,15 @@ impl<P: Pixel> Draw<P> for TriangleGradient<P> {
                 (&edge_012, &edge_02, &gradient_012, &gradient_02)
             };
 
+        fn convert_colorgrad_blend_mode_to_ril_blend_mode(
+            mode: colorgrad::BlendMode,
+        ) -> ril::gradient::BlendMode {
+            match mode {
+                colorgrad::BlendMode::LinearRgb => ril::gradient::BlendMode::LinearRgb,
+                _ => ril::gradient::BlendMode::LinearRgb,
+            }
+        }
+
         for (idx, left) in x_left.iter().enumerate() {
             let l_color = Self::color_from_gradient(y0 as f64 + idx as f64, gradient_left);
             let r_color = Self::color_from_gradient(y0 as f64 + idx as f64, gradient_right);
@@ -171,7 +179,7 @@ impl<P: Pixel> Draw<P> for TriangleGradient<P> {
             let gradient = LinearGradient::new()
                 .with_color(l_color)
                 .with_color(r_color)
-                .with_blend_mode(blend_mode)
+                .with_blend_mode(convert_colorgrad_blend_mode_to_ril_blend_mode(blend_mode))
                 .with_interpolation(interpolation);
 
             image.draw(

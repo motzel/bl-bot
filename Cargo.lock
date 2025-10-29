@@ -231,7 +231,7 @@ dependencies = [
  "bytes",
  "chrono",
  "cli-table",
- "colorgrad",
+ "colorgrad 0.7.2",
  "config",
  "futures",
  "governor",
@@ -441,24 +441,24 @@ dependencies = [
 
 [[package]]
 name = "cli-table"
-version = "0.4.9"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b53f9241f288a7b12c56565f04aaeaeeab6b8923d42d99255d4ca428b4d97f89"
+checksum = "14da8d951cef7cc4f13ccc9b744d736963d57863c7e6fc33c070ea274546082c"
 dependencies = [
  "cli-table-derive",
  "termcolor",
- "unicode-width",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
 name = "cli-table-derive"
-version = "0.4.6"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e83a93253aaae7c74eb7428ce4faa6e219ba94886908048888701819f82fb94"
+checksum = "9f7c1b60bae2c3d45228dfb096046aa51ef6c300de70b658d7a13fcb0c4f832e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.108",
 ]
 
 [[package]]
@@ -473,7 +473,16 @@ version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a5f405d474b9d05e0a093d3120e77e9bf26461b57a84b40aa2a221ac5617fb6"
 dependencies = [
- "csscolorparser",
+ "csscolorparser 0.6.2",
+]
+
+[[package]]
+name = "colorgrad"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "faedab4fd8670120c2be7f49225fbdb8b6db6d46f04ce4f864b1f1cdd55e6400"
+dependencies = [
+ "csscolorparser 0.7.2",
 ]
 
 [[package]]
@@ -598,6 +607,12 @@ name = "csscolorparser"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb2a7d3066da2de787b7f032c736763eb7ae5d355f81a68bab2675a96008b0bf"
+
+[[package]]
+name = "csscolorparser"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fda6aace1fbef3aa217b27f4c8d7d071ef2a70a5ca51050b1f17d40299d3f16"
 dependencies = [
  "phf",
 ]
@@ -1799,7 +1814,7 @@ dependencies = [
  "miette-derive",
  "once_cell",
  "thiserror 1.0.69",
- "unicode-width",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -2564,7 +2579,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9be4e1fa2abf98b455940fe5a1c1574f8ff0e2fd1586efc92d078d2b87bc14bd"
 dependencies = [
  "color_quant",
- "colorgrad",
+ "colorgrad 0.6.2",
  "fast_image_resize",
  "fontdue",
  "gif",
@@ -3837,6 +3852,12 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
+name = "unicode-width"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "untrusted"
