@@ -62,15 +62,23 @@ pub(crate) fn app_router(
 
             parts.status = StatusCode::TOO_MANY_REQUESTS;
             if let Some(headers) = headers {
-                headers.into_iter().for_each(|(name_option, value)| if let Some(name) = name_option {parts.headers.insert(name, value);});
+                headers.into_iter().for_each(|(name_option, value)| {
+                    if let Some(name) = name_option {
+                        parts.headers.insert(name, value);
+                    }
+                });
             }
 
             Response::from_parts(parts, body)
         }
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "internal_rate_limit_error", "message": "Unknown error"}})).into_response(),
-        ).into_response(),
+            Json(
+                json!({"error": {"code": "internal_rate_limit_error", "message": "Unknown error"}}),
+            )
+            .into_response(),
+        )
+            .into_response(),
     };
 
     let playlist_governor_conf = Arc::new(
@@ -80,7 +88,7 @@ pub(crate) fn app_router(
             .burst_size(3)
             .use_headers()
             .finish()
-            .unwrap()
+            .unwrap(),
     );
 
     let playlist_governor_limiter = playlist_governor_conf.limiter().clone();
