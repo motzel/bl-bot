@@ -224,7 +224,7 @@ checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
 name = "bl-bot"
-version = "0.20.7"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "axum",
