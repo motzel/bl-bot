@@ -1447,9 +1447,7 @@ pub async fn get_binary_file(url: &str) -> crate::beatleader::Result<Bytes> {
         Ok(client) => reqwest_middleware::ClientBuilder::new(client)
             .with(Cache(HttpCache {
                 mode: CacheMode::Default,
-                manager: CACacheManager {
-                    path: "./.http-cache".into(),
-                },
+                manager: CACacheManager::new("./.http-cache".into(), true),
                 options: HttpCacheOptions::default(),
             }))
             .build(),
