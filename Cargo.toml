@@ -40,12 +40,12 @@ colorgrad = "^0.6.2"
 tracing = "0.1.40"
 tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
-axum = { version = "^0.7", features = ["http2", "macros", "multipart", "tracing", "ws"] }
+axum = { version = "^0.8", features = ["http2", "macros", "multipart", "tracing", "ws"] }
 tower-http = { version = "^0.6.2", features = ["fs", "trace", "timeout"] }
 hostname = "^0.4.0"
 uuid = { version = "1.5.0", features = ["v4", "serde"] }
 cookie = "0.18.0"
-tower_governor = { version = "^0.5.0", features = ["axum", "tracing"] }
+tower_governor = { version = "^0.8", features = ["axum", "tracing"] }
 magic-crypt = "^4.0.1"
 mime = "0.3.17"
 cli-table = { version = "0.4.7", default-features = false, features = ["derive", "cli-table-derive", "title"] }

@@ -54,30 +54,31 @@ pub(crate) fn app_router(
     token: CancellationToken,
     state: AppState,
 ) -> Router {
+    let error_handler = |err| match err {
+        GovernorError::TooManyRequests { wait_time, headers } => {
+            let (mut parts, body) = Json(json!({"error": {"code": "rate_limit", "message": format!("Too Many Requests! Wait for {}s", wait_time), "retry_after": wait_time}}))
+                .into_response()
+                .into_parts();
+
+            parts.status = StatusCode::TOO_MANY_REQUESTS;
+            if let Some(headers) = headers {
+                headers.into_iter().for_each(|(name_option, value)| if let Some(name) = name_option {parts.headers.insert(name, value);});
+            }
+
+            Response::from_parts(parts, body)
+        }
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "internal_rate_limit_error", "message": "Unknown error"}})).into_response(),
+        ).into_response(),
+    };
+
     let playlist_governor_conf = Arc::new(
         GovernorConfigBuilder::default()
             .key_extractor(PlaylistUserExtractor)
             .period(Duration::from_secs(180))
             .burst_size(3)
             .use_headers()
-            .error_handler(|err| match err {
-                GovernorError::TooManyRequests { wait_time, headers } => {
-                    let (mut parts, body) = Json(json!({"error": {"code": "rate_limit", "message": format!("Too Many Requests! Wait for {}s", wait_time), "retry_after": wait_time}}))
-                        .into_response()
-                        .into_parts();
-
-                    parts.status = StatusCode::TOO_MANY_REQUESTS;
-                    if let Some(headers) = headers {
-                        headers.into_iter().for_each(|(name_option, value)| if let Some(name) = name_option {parts.headers.insert(name, value);});
-                    }
-
-                    Response::from_parts(parts, body)
-                }
-                _ => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": {"code": "internal_rate_limit_error", "message": "Unknown error"}})).into_response(),
-                ).into_response(),
-            })
             .finish()
             .unwrap()
     );
@@ -108,15 +109,13 @@ pub(crate) fn app_router(
     });
 
     Router::new()
-        .route("/playlist/:user/:id", get(playlist))
-        .layer(GovernorLayer {
-            config: playlist_governor_conf,
-        })
+        .route("/playlist/{user}/{id}", get(playlist))
+        .layer(GovernorLayer::new(playlist_governor_conf).error_handler(error_handler))
         .route("/health_check", get(health_check))
         .route("/bl-oauth/", get(bl_oauth))
         .route("/bl-oauth", get(bl_oauth))
         .nest("/api", api::router())
-        .nest("/", web::router())
+        .merge(web::router())
         .with_state(state)
 }
 
