@@ -767,13 +767,13 @@ impl std::fmt::Display for UserRoleChanges {
             f,
             "The roles of user <@{}> have been updated{}{}",
             self.user_id,
-            if to_add_list.is_some() {
-                format!("\n**Added roles:** {}", to_add_list.unwrap())
+            if let Some(list) = to_add_list {
+                format!("\n**Added roles:** {}", list)
             } else {
                 "".to_owned()
             },
-            if to_remove_list.is_some() {
-                format!("\n**Removed roles:** {}", to_remove_list.unwrap())
+            if let Some(list) = to_remove_list {
+                format!("\n**Removed roles:** {}", list)
             } else {
                 "".to_owned()
             },
@@ -921,8 +921,10 @@ impl GuildSettings {
 
     pub fn manages_roles(&self) -> bool {
         !self.role_groups.is_empty()
-            || (self.clan_settings.is_some()
-                && !self.clan_settings.as_ref().unwrap().soldiers.is_empty())
+            || self
+                .clan_settings
+                .as_ref()
+                .is_some_and(|cs| !cs.soldiers.is_empty())
     }
 
     pub fn get_clan_settings(&self) -> Option<ClanSettings> {
@@ -981,10 +983,10 @@ impl GuildSettings {
             rs.remove(&role_id);
         });
 
-        if self.role_groups.contains_key(&role_group_clone)
-            && self.role_groups.get(&role_group_clone).unwrap().is_empty()
-        {
-            self.role_groups.remove(&role_group_clone);
+        if let Some(group) = self.role_groups.get(&role_group_clone) {
+            if group.is_empty() {
+                self.role_groups.remove(&role_group_clone);
+            }
         }
     }
 
@@ -996,12 +998,11 @@ impl GuildSettings {
     }
 
     pub fn contains_in_group(&self, role_group: RoleGroup, role_id: RoleId) -> bool {
-        self.role_groups.contains_key(&role_group)
-            && self
-                .role_groups
-                .get(&role_group)
-                .unwrap()
-                .contains_key(&role_id)
+        if let Some(group) = self.role_groups.get(&role_group) {
+            group.contains_key(&role_id)
+        } else {
+            false
+        }
     }
 
     pub fn contains(&self, role_id: RoleId) -> bool {
@@ -1080,8 +1081,10 @@ impl GuildSettings {
         player: &Player,
         current_roles: &[RoleId],
     ) -> UserRoleChanges {
-        if self.clan_settings.is_none()
-            || self.clan_settings.as_ref().unwrap().soldier_role.is_none()
+        if self
+            .clan_settings
+            .as_ref()
+            .is_none_or(|cs| cs.soldier_role.is_none())
         {
             return UserRoleChanges {
                 guild_id: self.guild_id,
