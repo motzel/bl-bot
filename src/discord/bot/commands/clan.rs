@@ -727,7 +727,7 @@ pub(crate) async fn cmd_capture(
                     );
                     clan_map_with_scores.map.pp = clan_pp_without_player - leading_clan_pp;
                     clan_map_with_scores.halfway_pp =
-                        Some(clan_map_with_scores.map.pp - real_pp_loss / 1.8);
+                        Some(clan_map_with_scores.map.pp - real_pp_loss * 4.0 / 9.0);
                     clan_map_with_scores.calc_pp_boundary(Some(player.id.clone()));
 
                     // set real pp loss
