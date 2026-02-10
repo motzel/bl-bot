@@ -22,6 +22,11 @@ use crate::storage::guild::GuildSettingsRepository;
 use crate::storage::player::PlayerRepository;
 use crate::storage::player_scores::PlayerScoresRepository;
 
+pub(crate) fn round_down_with_precision(val: f64, precision: u32) -> f64 {
+    let scale = 10f64.powi(precision as i32);
+    (val * scale).floor() / scale
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct ClanStats {
     pub clan_tag: ClanTag,
@@ -267,10 +272,13 @@ impl BlClanContributionWorker {
                                                     format!(
                                                         "{:.1}%",
                                                         if total_maps_count > 0f64 {
-                                                            (s.maps_count + s.bonus_maps_count)
-                                                                as f64
-                                                                / total_maps_count
-                                                                * 100.0
+                                                            round_down_with_precision(
+                                                                (s.maps_count + s.bonus_maps_count)
+                                                                    as f64
+                                                                    / total_maps_count
+                                                                    * 100.0,
+                                                                1,
+                                                            )
                                                         } else {
                                                             0f64
                                                         }
@@ -358,8 +366,8 @@ impl BlClanContributionWorker {
                                                             .enumerate()
                                                             .map(|(idx, s)| {
                                                                 let percentage = if total_maps_count > 0f64 {
-                                                                    (s.maps_count + s.bonus_maps_count) as f64
-                                                                        / total_maps_count * 100.0
+                                                                    round_down_with_precision((s.maps_count + s.bonus_maps_count) as f64
+                                                                        / total_maps_count * 100.0, 1)
                                                                 } else {
                                                                     0f64
                                                                 };
