@@ -230,6 +230,9 @@ impl BlClanContributionWorker {
                                                 .unwrap_or(Ordering::Equal)
                                         });
 
+                                        let total_maps_count = (captured_clan_stats.maps_count
+                                            + bonus_maps_count)
+                                            as f64;
                                         let table = captured_clan_stats
                                             .soldiers
                                             .iter()
@@ -261,6 +264,19 @@ impl BlClanContributionWorker {
                                                     format!("{:.2}", s.total_points)
                                                         .cell()
                                                         .justify(Justify::Right),
+                                                    format!(
+                                                        "{:.1}%",
+                                                        if total_maps_count > 0f64 {
+                                                            (s.maps_count + s.bonus_maps_count)
+                                                                as f64
+                                                                / total_maps_count
+                                                                * 100.0
+                                                        } else {
+                                                            0f64
+                                                        }
+                                                    )
+                                                    .cell()
+                                                    .justify(Justify::Center),
                                                 ]
                                             })
                                             .collect::<Vec<_>>()
@@ -272,6 +288,7 @@ impl BlClanContributionWorker {
                                                 "Bonus maps".cell(),
                                                 "Bonus points".cell(),
                                                 "Total points".cell(),
+                                                "Maps %".cell(),
                                             ])
                                             .color_choice(ColorChoice::Never);
 
@@ -340,11 +357,19 @@ impl BlClanContributionWorker {
                                                             .iter()
                                                             .enumerate()
                                                             .map(|(idx, s)| {
+                                                                let percentage = if total_maps_count > 0f64 {
+                                                                    (s.maps_count + s.bonus_maps_count) as f64
+                                                                        / total_maps_count * 100.0
+                                                                } else {
+                                                                    0f64
+                                                                };
+
                                                                 format!(
-                                                                    "{:0pad$}. {} **{:.2} points**\n",
+                                                                    "{:0pad$}. {} **{:.2} points** ({:.1}%)\n",
                                                                     idx + 1,
                                                                     s.player.name.clone(),
                                                                     s.total_points,
+                                                                    percentage,
                                                                     pad = soldiers_pad
                                                                 )
                                                             })

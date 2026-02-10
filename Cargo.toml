@@ -1,6 +1,6 @@
 [package]
 name = "bl-bot"
-version = "0.21.1"
+version = "0.22.0"
 description = "Beat Leader Discord Bot"
 readme = "README.md"
 repository = "https://github.com/motzel/bl-bot"
@@ -45,3 +45,6 @@ uuid = { version = "1.5.0", features = ["v4", "serde"] }
 tower_governor = { version = "^0.8", features = ["axum", "tracing"] }
 magic-crypt = "^4.0.1"
 cli-table = { version = "0.5.0", default-features = false, features = ["derive", "cli-table-derive", "title"] }
+
+[lints.clippy]
+unnecessary-unwrap = "allow"
