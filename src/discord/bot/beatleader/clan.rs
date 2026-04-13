@@ -658,7 +658,7 @@ impl Playlist {
             .maps_by_clan_tag(
                 clan_tag.as_str(),
                 &[
-                    ClanMapsParam::Count(800),
+                    ClanMapsParam::Count(1300),
                     ClanMapsParam::Page(1),
                     ClanMapsParam::Order(SortOrder::Descending),
                     ClanMapsParam::Context(BlContext::General),
