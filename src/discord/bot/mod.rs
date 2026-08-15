@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
@@ -1037,7 +1037,7 @@ impl GuildSettings {
                     })
                     .collect::<Vec<RoleFulfillmentStatus>>();
 
-                roles_fulfillment.sort_unstable_by_key(|rf| rf.weight);
+                roles_fulfillment.sort_unstable_by_key(|rf| Reverse(rf.weight));
 
                 let role_updates = &mut UserRoleStatus::default();
 

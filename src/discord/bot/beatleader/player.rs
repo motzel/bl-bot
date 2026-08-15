@@ -287,12 +287,7 @@ pub(crate) async fn fetch_all_player_scores(
                 page_count = scores_page.total.div_ceil(ITEMS_PER_PAGE);
 
                 for score in scores_page.data {
-                    if score.modifiers.contains("NF")
-                        || score.modifiers.contains("NB")
-                        || score.modifiers.contains("NO")
-                        || score.modifiers.contains("NA")
-                        || score.modifiers.contains("OP")
-                    {
+                    if score.modifiers.contains("NF") || score.modifiers.contains("OP") {
                         continue;
                     }
 
