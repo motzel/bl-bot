@@ -991,10 +991,7 @@ impl GuildSettings {
     }
 
     pub fn all_roles(&self) -> Vec<&RoleId> {
-        self.role_groups
-            .iter()
-            .flat_map(|(_rg, rs)| rs.keys())
-            .collect()
+        self.role_groups.values().flat_map(|rs| rs.keys()).collect()
     }
 
     pub fn contains_in_group(&self, role_group: RoleGroup, role_id: RoleId) -> bool {
@@ -1040,7 +1037,7 @@ impl GuildSettings {
                     })
                     .collect::<Vec<RoleFulfillmentStatus>>();
 
-                roles_fulfillment.sort_unstable_by(|a, b| b.weight.cmp(&a.weight));
+                roles_fulfillment.sort_unstable_by_key(|rf| rf.weight);
 
                 let role_updates = &mut UserRoleStatus::default();
 

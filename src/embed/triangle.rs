@@ -63,8 +63,7 @@ impl<P: Pixel> TriangleGradient<P> {
         v3: VertexWithColor<P>,
     ) -> Self {
         self.vertices = [v1, v2, v3];
-        self.vertices
-            .sort_unstable_by(|v1, v2| v1.vertex.y.cmp(&v2.vertex.y));
+        self.vertices.sort_unstable_by_key(|v| v.vertex.y);
 
         self
     }

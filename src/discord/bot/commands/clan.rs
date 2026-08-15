@@ -174,7 +174,7 @@ pub(crate) async fn cmd_set_clan_invitation(
 
     let oauth_client = BL_CLIENT.with_oauth(oauth_credentials, guild_oauth_token_repository);
 
-    msg_contents.push_str(format!("\nGreat, you are the owner of the {} clan. Now click this link and authorize the bot to send invitations to the clan on your behalf. {}", &player_clan.tag, oauth_client.oauth().authorize_url(vec![OAuthScope::Profile, OAuthScope::OfflineAccess, OAuthScope::Clan], mc.encrypt_str_to_base64(guild_settings.guild_id.to_string())).unwrap_or("Error when generating authorization link".to_owned())).as_str());
+    msg_contents.push_str(format!("\nGreat, you are the owner of the {} clan. Now click this link and authorize the bot to send invitations to the clan on your behalf. {}", player_clan.tag, oauth_client.oauth().authorize_url(vec![OAuthScope::Profile, OAuthScope::OfflineAccess, OAuthScope::Clan], mc.encrypt_str_to_base64(guild_settings.guild_id.to_string())).unwrap_or("Error when generating authorization link".to_owned())).as_str());
 
     let msg_contents_clone = msg_contents.clone();
     msg.edit(ctx, CreateReply::default().content(&msg_contents_clone))
@@ -430,7 +430,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
             if !bl_player.clans.iter().any(|clan| clan.tag == clan_tag) {
                 say_without_ping(
                     ctx,
-                    format!("You are not a member of the {} clan.", &clan_tag).as_str(),
+                    format!("You are not a member of the {} clan.", clan_tag).as_str(),
                     false,
                 )
                 .await?;
@@ -441,7 +441,7 @@ pub(crate) async fn cmd_clan_wars_playlist(
             if bl_player.clans.first().unwrap().tag != clan_tag {
                 say_without_ping(
                     ctx,
-                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", &clan_tag).as_str(),
+                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", clan_tag).as_str(),
                     true,
                 )
                     .await?;
@@ -593,7 +593,7 @@ pub(crate) async fn cmd_capture(
             if !player.clans.iter().any(|clan| clan == &clan_tag) {
                 say_without_ping(
                     ctx,
-                    format!("You are not a member of the {} clan.", &clan_tag).as_str(),
+                    format!("You are not a member of the {} clan.", clan_tag).as_str(),
                     false,
                 )
                 .await?;
@@ -604,7 +604,7 @@ pub(crate) async fn cmd_capture(
             if player.clans.first().unwrap() != &clan_tag {
                 say_without_ping(
                     ctx,
-                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", &clan_tag).as_str(),
+                    format!("You did not set clan {} as primary. Go to your profile and move the clan to the first position on the list.", clan_tag).as_str(),
                     false,
                 )
                     .await?;
@@ -1073,9 +1073,9 @@ pub(crate) async fn cmd_commanders_order(
                 Ok(commander_order) => {
                     let map_link = format!(
                         "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
-                        &leaderboard.song.name,
-                        &leaderboard.difficulty.difficulty_name,
-                        &leaderboard.id,
+                        leaderboard.song.name,
+                        leaderboard.difficulty.difficulty_name,
+                        leaderboard.id,
                     );
 
                     if commander_order.is_some() {
@@ -1083,7 +1083,7 @@ pub(crate) async fn cmd_commanders_order(
                             ctx,
                             CreateReply::default().content(format!(
                                 "{} is already added to commander's order.",
-                                &map_link
+                                map_link
                             )),
                         )
                         .await?;
@@ -1106,7 +1106,7 @@ pub(crate) async fn cmd_commanders_order(
                             msg.edit(
                                 ctx,
                                 CreateReply::default()
-                                    .content(format!("{} added to commander's order.", &map_link)),
+                                    .content(format!("{} added to commander's order.", map_link)),
                             )
                             .await?;
                         }
@@ -1197,7 +1197,7 @@ pub(crate) async fn cmd_revoke_commanders_order(
                         ctx,
                         CreateReply::default().content(format!(
                             "{} removed from commander's order.",
-                            &commander_order.to_string()
+                            commander_order
                         )),
                     )
                     .await?;
@@ -1272,9 +1272,9 @@ pub(crate) async fn cmd_remove_from_map_list(
                 Ok(map) => {
                     let map_link = format!(
                         "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
-                        &leaderboard.song.name,
-                        &leaderboard.difficulty.difficulty_name,
-                        &leaderboard.id,
+                        leaderboard.song.name,
+                        leaderboard.difficulty.difficulty_name,
+                        leaderboard.id,
                     );
 
                     if map.is_some() {
@@ -1282,7 +1282,7 @@ pub(crate) async fn cmd_remove_from_map_list(
                             ctx,
                             CreateReply::default().content(format!(
                                 "{} is already removed from the map list.",
-                                &map_link
+                                map_link
                             )),
                         )
                         .await?;
@@ -1305,7 +1305,7 @@ pub(crate) async fn cmd_remove_from_map_list(
                             msg.edit(
                                 ctx,
                                 CreateReply::default()
-                                    .content(format!("{} removed from the map list.", &map_link)),
+                                    .content(format!("{} removed from the map list.", map_link)),
                             )
                             .await?;
                         }
@@ -1390,7 +1390,7 @@ pub(crate) async fn cmd_restore_to_map_list(
                     msg.edit(
                         ctx,
                         CreateReply::default()
-                            .content(format!("{} restored to the map list.", &map.to_string())),
+                            .content(format!("{} restored to the map list.", map)),
                     )
                     .await?;
                 }

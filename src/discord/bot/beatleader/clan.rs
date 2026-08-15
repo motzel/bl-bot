@@ -838,7 +838,7 @@ impl Playlist {
             playlist_title: playlist_title.clone(),
             songs: commander_orders
                 .into_iter()
-                .chain(songs.into_iter())
+                .chain(songs)
                 .take(count as usize)
                 .collect(),
             custom_data: Some(PlaylistCustomData {

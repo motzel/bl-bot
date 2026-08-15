@@ -89,7 +89,7 @@ impl Display for BsMap {
         write!(
             f,
             "[{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>)",
-            &self.song_name, &self.diff_name, &self.leaderboard_id,
+            self.song_name, self.diff_name, self.leaderboard_id,
         )
     }
 }

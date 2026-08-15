@@ -91,7 +91,7 @@ impl BlClanPeakWorker {
                                                 let message = CreateMessage::new()
                                                     .content(format!(
                                                         "# {} new peak: {} maps 🥳\n**{:.2}%** of global dominance achieved by **{} players**",
-                                                        &clan_tag, clan_peak.peak, clan_peak.ranked_pool_percent_captured * 100.0, clan_peak.players_count
+                                                        clan_tag, clan_peak.peak, clan_peak.ranked_pool_percent_captured * 100.0, clan_peak.players_count
                                                     ))
                                                     .allowed_mentions(CreateAllowedMentions::new());
 
