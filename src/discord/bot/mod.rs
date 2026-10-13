@@ -1503,7 +1503,7 @@ pub(crate) async fn post_long_msg_in_parts(
     global_ctx: &serenity::Context,
     channel_id: ChannelId,
     embed: Vec<String>,
-) -> Result<(), poise::serenity_prelude::Error> {
+) -> Result<(), Box<poise::serenity_prelude::Error>> {
     let mut current_str = String::with_capacity(MAX_DISCORD_MESSAGE_LENGTH);
 
     for str in embed.iter() {

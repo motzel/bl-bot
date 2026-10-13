@@ -139,7 +139,7 @@ impl BlClanWarsMapsWorker {
                                             global_ctx: &serenity::Context,
                                             channel_id: ChannelId,
                                             description: &str,
-                                        ) -> Result<ChannelId, poise::serenity_prelude::Error>
+                                        ) -> Result<ChannelId, Box<poise::serenity_prelude::Error>>
                                         {
                                             let message = CreateMessage::new()
                                                 .embed(CreateEmbed::new().description(description))
@@ -150,7 +150,7 @@ impl BlClanWarsMapsWorker {
                                                 .await
                                             {
                                                 Ok(msg) => Ok(msg.channel_id),
-                                                Err(err) => Err(err),
+                                                Err(err) => Err(Box::new(err)),
                                             }
                                         }
 
