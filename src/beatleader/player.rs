@@ -2,6 +2,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use serde_with::{serde_as, DefaultOnError, DefaultOnNull, TimestampSeconds};
+use std::collections::HashMap;
 
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
@@ -9,6 +10,7 @@ use poise::serenity_prelude::UserId;
 
 use crate::beatleader;
 use crate::beatleader::clan::{ClanId, ClanTag};
+use crate::beatleader::pp::{Modifier, StarRating};
 use crate::beatleader::{
     BlApiListResponse, BlApiResponse, BlContext, Client, List, QueryParam, SortOrder,
 };
@@ -385,6 +387,45 @@ pub struct Difficulty {
     #[serde_as(deserialize_as = "DefaultOnError")]
     #[serde(default)]
     pub status: DifficultyStatus,
+    #[serde(default)]
+    pub predicted_acc: Option<f64>,
+    #[serde(default)]
+    pub slider_percentage: Option<f64>,
+    #[serde(default)]
+    pub note_span: Option<f64>,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub modifier_values: HashMap<String, f64>,
+}
+
+impl Difficulty {
+    pub(crate) fn star_rating(&self) -> StarRating {
+        StarRating {
+            pass: self.pass_rating,
+            tech: self.tech_rating,
+            acc: self.acc_rating,
+            predicted_acc: self.predicted_acc,
+            slider_percentage: self.slider_percentage,
+            notes: Some(self.notes),
+            note_span: self.note_span,
+            stars: None,
+        }
+    }
+
+    pub(crate) fn modifiers<'a>(&self, modifiers: &'a str) -> Vec<Modifier<'a>> {
+        modifiers
+            .split(',')
+            .filter(|name| !name.is_empty())
+            .map(|name| Modifier {
+                name,
+                value: self
+                    .modifier_values
+                    .get(&name.to_lowercase())
+                    .copied()
+                    .unwrap_or(0.0),
+            })
+            .collect()
+    }
 }
 
 #[allow(dead_code)]
@@ -447,4 +488,44 @@ pub struct ModifiersRatings {
     pub sf_acc_rating: f64,
     #[serde_as(deserialize_as = "DefaultOnNull")]
     pub sf_pass_rating: f64,
+    #[serde(default)]
+    pub ss_predicted_acc: Option<f64>,
+    #[serde(default)]
+    pub ss_slider_percentage: Option<f64>,
+    #[serde(default)]
+    pub fs_predicted_acc: Option<f64>,
+    #[serde(default)]
+    pub fs_slider_percentage: Option<f64>,
+    #[serde(default)]
+    pub sf_predicted_acc: Option<f64>,
+    #[serde(default)]
+    pub sf_slider_percentage: Option<f64>,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bfs_stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bfs_tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bfs_acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bfs_pass_rating: f64,
+    #[serde(default)]
+    pub bfs_predicted_acc: Option<f64>,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bsf_stars: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bsf_tech_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bsf_acc_rating: f64,
+    #[serde_as(deserialize_as = "DefaultOnNull")]
+    #[serde(default)]
+    pub bsf_pass_rating: f64,
+    #[serde(default)]
+    pub bsf_predicted_acc: Option<f64>,
 }

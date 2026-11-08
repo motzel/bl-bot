@@ -16,7 +16,8 @@ use crate::beatleader::player::{
     Difficulty, MapType, PlayerId, PlayerScoreParam, PlayerScoreSort, Score,
 };
 use crate::beatleader::pp::{
-    calculate_acc_from_pp, calculate_pp_boundary, StarRating, CLAN_WEIGHT_COEFFICIENT,
+    calculate_acc_from_pp, calculate_pp_boundary, get_modified_ratings, ModifiersRating,
+    SpeedModifierRating, StarRating, CLAN_WEIGHT_COEFFICIENT,
 };
 use crate::beatleader::{BlContext, DataWithMeta, List, SortOrder};
 use crate::discord::bot::beatleader::player::Player;
@@ -202,52 +203,36 @@ impl ClanMapWithScores {
             return AccBoundary::default();
         }
 
-        AccBoundary {
-            none: calculate_acc_from_pp(
+        let difficulty = &self.map.leaderboard.difficulty;
+        let mode_name = difficulty.mode_name.as_str();
+        let star_rating = difficulty.star_rating();
+        let modifiers_rating = difficulty
+            .modifiers_rating
+            .as_ref()
+            .map(ModifiersRating::from);
+
+        let speed_acc = |modifier: &str,
+                         speed_rating: fn(&ModifiersRating) -> Option<&SpeedModifierRating>|
+         -> AccBoundaryValue {
+            let modifiers_rating = modifiers_rating.as_ref()?;
+            speed_rating(modifiers_rating)?;
+
+            calculate_acc_from_pp(
                 pp_boundary,
-                StarRating {
-                    pass: self.map.leaderboard.difficulty.pass_rating,
-                    tech: self.map.leaderboard.difficulty.tech_rating,
-                    acc: self.map.leaderboard.difficulty.acc_rating,
-                },
-                self.map.leaderboard.difficulty.mode_name.as_str(),
-            ),
-            ss: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
-                None => None,
-                Some(ratings) => calculate_acc_from_pp(
-                    pp_boundary,
-                    StarRating {
-                        pass: ratings.ss_pass_rating,
-                        tech: ratings.ss_tech_rating,
-                        acc: ratings.ss_acc_rating,
-                    },
-                    self.map.leaderboard.difficulty.mode_name.as_str(),
+                get_modified_ratings(
+                    &star_rating,
+                    Some(modifiers_rating),
+                    &difficulty.modifiers(modifier),
                 ),
-            },
-            fs: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
-                None => None,
-                Some(ratings) => calculate_acc_from_pp(
-                    pp_boundary,
-                    StarRating {
-                        pass: ratings.fs_pass_rating,
-                        tech: ratings.fs_tech_rating,
-                        acc: ratings.fs_acc_rating,
-                    },
-                    self.map.leaderboard.difficulty.mode_name.as_str(),
-                ),
-            },
-            sf: match self.map.leaderboard.difficulty.modifiers_rating.as_ref() {
-                None => None,
-                Some(ratings) => calculate_acc_from_pp(
-                    pp_boundary,
-                    StarRating {
-                        pass: ratings.sf_pass_rating,
-                        tech: ratings.sf_tech_rating,
-                        acc: ratings.sf_acc_rating,
-                    },
-                    self.map.leaderboard.difficulty.mode_name.as_str(),
-                ),
-            },
+                mode_name,
+            )
+        };
+
+        AccBoundary {
+            none: calculate_acc_from_pp(pp_boundary, star_rating.clone(), mode_name),
+            ss: speed_acc("SS", |r| r.ss.as_ref()),
+            fs: speed_acc("FS", |r| r.fs.as_ref()),
+            sf: speed_acc("SF", |r| r.sf.as_ref()),
         }
     }
 
