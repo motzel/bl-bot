@@ -300,7 +300,7 @@ impl ClanMapWithScores {
 
         let loss_info = if !is_captured {
             format!(
-                "\nOn [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**.",
+                "\nOn [{} / {}](<https://www.beatleader.com/leaderboard/clanranking/{}/1>), the **{}** clan has a loss of **{:.2}pp** to the leading clan **{}**. To capture this map you need to get **{:.2}pp**. You can achieve this with such accuracy: {} SS / **{}** / {} FS / {} SF\n{}",
                 self.map.leaderboard.song.name,
                 self
                     .map
@@ -312,6 +312,45 @@ impl ClanMapWithScores {
                 -self.map.pp,
                 leading_clan_tag,
                 self.pp_boundary,
+                match self.acc_boundary.ss {
+                    None => "Not possible".to_owned(),
+                    Some(acc) => format!("{:.2}%", acc * 100.0),
+                },
+                match self.acc_boundary.none {
+                    None => "Not possible".to_owned(),
+                    Some(acc) => format!("{:.2}%", acc * 100.0),
+                },
+                match self.acc_boundary.fs {
+                    None => "Not possible".to_owned(),
+                    Some(acc) => format!("{:.2}%", acc * 100.0),
+                },
+                match self.acc_boundary.sf {
+                    None => "Not possible".to_owned(),
+                    Some(acc) => format!("{:.2}%", acc * 100.0),
+                },
+                if self.halfway_pp.is_some() {
+                    format!("Halfway point: **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
+                        self.halfway_pp_boundary,
+                            match self.halfway_acc_boundary.ss {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.none {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.fs {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.sf {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                    )
+                } else {
+                    "".to_owned()
+                }
             )
         } else {
             "".to_string()
@@ -324,7 +363,7 @@ impl ClanMapWithScores {
 impl Display for ClanMapWithScores {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f,
-               "### **#{} [{} / {}](https://www.beatleader.com/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n",
+               "### **#{} [{} / {}](https://www.beatleader.com/leaderboard/clanranking/{}/{})**\n{} score{} / {:.2}pp / **{:.2} raw pp**\n{}\n {} SS / **{}** / {} FS / {} SF\n{}\n",
                self.map.rank,
                self.map.leaderboard.song.name,
                self
@@ -338,6 +377,46 @@ impl Display for ClanMapWithScores {
                if self.scores.len() > 1 { "s" } else { "" },
                self.map.pp,
                self.pp_boundary,
+               <&Difficulty as Into<MapRatings>>::into(&self.map.leaderboard.difficulty).to_stars_string(Some(MapRatingModifier::None)),
+               match self.acc_boundary.ss {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.none {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.fs {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+               match self.acc_boundary.sf {
+                   None => "Not possible".to_owned(),
+                   Some(acc) => format!("{:.2}%", acc * 100.0),
+               },
+                if self.halfway_pp.is_some() {
+                    format!("\nHalfway point: **{:.2} raw pp** / {} SS / **{}** / {} FS / {} SF\n",
+                        self.halfway_pp_boundary,
+                            match self.halfway_acc_boundary.ss {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.none {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.fs {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                            match self.halfway_acc_boundary.sf {
+                                None => "Not possible".to_owned(),
+                                Some(acc) => format!("{:.2}%", acc * 100.0),
+                            },
+                    )
+                } else {
+                    "".to_owned()
+                }
         )
     }
 }
